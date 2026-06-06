@@ -387,7 +387,11 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
         .as_ref()
         .unwrap_or(&OptimizationTarget::Reference);
 
-    // Prepare Matrices
+    // Prepare Matrices.
+    // get_data_matrices() returns (X_A = NON-reference, y_A, X_B = reference, y_B) — see
+    // builder.rs:73 (group_b_name = reference_group). This binding routes the reference
+    // (advantaged) group into local x_a/y_a so beta_fair is solved from it. Correct as
+    // committed — do NOT "fix" it. Guardrail: ab_binding_regression_test.
     let (raw_x_b, y_b, raw_x_a, y_a, mut feature_names) = problem_builder
         .get_data_matrices()
         .map_err(|e| format!("Oaxaca Error: {}", e))?;
@@ -925,7 +929,11 @@ pub fn calculate_efficient_frontier_inner(
     let max_budget = req.max_budget.unwrap_or(total_need * 1.1);
 
     // 3. Pre-compute Matrices for Fast OLS
-    // Use builder directly
+    // get_data_matrices() returns (X_A = NON-reference, y_A, X_B = reference, y_B) — see
+    // builder.rs:73 (group_b_name = reference_group). This binding routes the reference group
+    // into local x_a/y_a, matching original_to_pooled (reference -> pooled slots [0..n_a)).
+    // Correct as committed — do NOT "fix" it to (x_a, y_a, x_b, y_b); that inverts gap-closure.
+    // Guardrail: ab_binding_regression_test::test_frontier_adjustments_target_underpaid_group.
     let (x_b, y_b, x_a, y_a, _feature_names) = problem_builder
         .get_data_matrices()
         .map_err(|e| format!("Oaxaca Error: {}", e))?;

@@ -98,7 +98,11 @@ pub fn check_defensibility_inner(req: VerificationRequest) -> Result<Optimizatio
         problem_builder.categorical_predictors(cats.iter().copied());
     }
 
-    // Get Matrices
+    // Get Matrices.
+    // get_data_matrices() returns (X_A = NON-reference, y_A, X_B = reference, y_B) — see
+    // builder.rs:73 (group_b_name = reference_group). This binding deliberately routes the
+    // reference (advantaged) group into local x_a/y_a so beta_fair is solved from it.
+    // Correct as committed — do NOT "fix" it. Guardrail: ab_binding_regression_test.
     let (raw_x_b, _, raw_x_a, y_a, mut feature_names) = problem_builder
         .get_data_matrices()
         .map_err(|e| format!("Oaxaca Error: {}", e))?;
