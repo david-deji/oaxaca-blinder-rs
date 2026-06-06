@@ -1,0 +1,52 @@
+{
+  "_meta": {
+    "generated": "2026-06-06",
+    "generated_utc": "2026-06-06T13:36:18.291942+00:00",
+    "statsmodels_version": "0.14.6",
+    "numpy_version": "2.4.6",
+    "pandas_version": "3.0.3",
+    "python_version": "3.14.2",
+    "fixture": "parity_fixture.csv",
+    "n_rows": 300,
+    "group_col": "gender",
+    "reference_group": "F",
+    "outcome": "log_wage",
+    "predictors": [
+      "education",
+      "experience",
+      "tenure"
+    ],
+    "reference_coefficients": "GroupB",
+    "statsmodels_two_fold_type": "self_submitted",
+    "statsmodels_submitted_weight": 0.0,
+    "statsmodels_swap": true,
+    "statsmodels_group_order": "swap=True -> f=M (engine Group A), s=F (engine Group B reference)",
+    "tolerance_point_estimates": 1e-06,
+    "notes": "Engine A=non-ref(M), B=ref(F). total_gap=mean(M)-mean(F). GroupB scheme (beta_star=beta_F) == statsmodels self_submitted(weight=0.0,swap=True). Pooled scheme == statsmodels two_fold_type='pooled'. Per-variable values computed from statsmodels group OLS fits (independent of the Rust engine). statsmodels 'const' mapped to engine '__ob_intercept__'. Bootstrap-derived fields (std_err,t_stat,p_value,ci_*) are NOT frozen (unseeded RNG)."
+  },
+  "total_gap": 0.9086731472231859,
+  "n_a": 150,
+  "n_b": 150,
+  "two_fold": {
+    "explained": 0.12128034773999044,
+    "unexplained": 0.7873927994831886
+  },
+  "detailed_explained": {
+    "education": 0.07651399831806734,
+    "experience": 0.04323520567405477,
+    "tenure": 0.0015311437478683358,
+    "__ob_intercept__": 0.0
+  },
+  "detailed_unexplained": {
+    "education": 0.339473740873668,
+    "experience": 0.07642745848013664,
+    "tenure": 0.0046405909775584795,
+    "__ob_intercept__": 0.36685100915182556
+  },
+  "cross_check_pooled": {
+    "engine_reference_coefficients": "Pooled",
+    "statsmodels_two_fold_type": "pooled",
+    "explained": 0.13949279280134672,
+    "unexplained": 0.7691803544218324
+  }
+}
