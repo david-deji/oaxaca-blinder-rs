@@ -1,0 +1,7 @@
+[toolchain]
+# Pinned for reproducible builds (Track-0 item 4, SC-04). Exact version from the
+# build host (`rustc --version` -> 1.90.0). Do NOT use "stable" — that defeats the
+# reproducibility goal: a future stable release would silently change the WASM blob.
+channel = "1.90.0"
+components = ["rustfmt", "clippy"]
+targets = ["wasm32-unknown-unknown"]

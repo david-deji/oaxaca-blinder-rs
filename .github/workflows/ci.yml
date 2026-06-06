@@ -19,8 +19,8 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
+        # No toolchain override, no components list here: rust-toolchain.toml governs
+        # the channel, the rustfmt + clippy components, and the wasm32 target.
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
@@ -35,6 +35,51 @@ jobs:
 
       - name: Run Tests
         run: cargo test --workspace --all-features
+
+  wasm-verify:
+    name: WASM Build + Verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain (reads rust-toolchain.toml)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "rust-wasm"
+
+      - name: Install wasm-bindgen-cli (pinned)
+        run: cargo install wasm-bindgen-cli --version 0.2.106 --locked
+
+      - name: Build WASM
+        run: |
+          # The RAW cargo wasm is the reproducible unit we verify. Path remapping strips
+          # host-specific absolute paths so the blob matches across machines.
+          RUSTFLAGS="--remap-path-prefix $HOME/.cargo=/cargo --remap-path-prefix $PWD=/src --remap-path-prefix $HOME/.rustup=/rustup" \
+            cargo build -p pay-equity-engine --features wasm --target wasm32-unknown-unknown --release
+          # Smoke only (output NOT hashed — wasm-bindgen 0.2.106 is nondeterministic):
+          # confirm the binding step still produces a package without error.
+          wasm-bindgen \
+            target/wasm32-unknown-unknown/release/pay_equity_engine.wasm \
+            --out-dir engine/pkg \
+            --target bundler \
+            --remove-name-section --remove-producers-section
+
+      - name: Verify raw WASM sha256 (reproducibility baseline)
+        run: |
+          EXPECTED=$(cut -d' ' -f1 engine/pay_equity_engine.wasm.sha256)
+          ACTUAL=$(sha256sum target/wasm32-unknown-unknown/release/pay_equity_engine.wasm | cut -d' ' -f1)
+          if [ "$EXPECTED" != "$ACTUAL" ]; then
+            echo "Raw WASM sha256 mismatch!"
+            echo "Expected: $EXPECTED"
+            echo "Actual:   $ACTUAL"
+            echo "The compiled engine wasm changed. If intentional, run scripts/build-wasm.sh"
+            echo "and commit the updated engine/pay_equity_engine.wasm.sha256."
+            exit 1
+          fi
+          echo "Raw WASM sha256 verified: $ACTUAL"
 
   security:
     name: Security Audit
