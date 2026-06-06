@@ -323,24 +323,16 @@ impl QuantileDecompositionBuilder {
         let group_a_name_owned = group_a_name.to_string();
         let group_b_name_owned = group_b_name.to_string();
 
-        let df_a_global = df
-            .filter(
-                &df.column(&self.group)
-                    .unwrap()
-                    .as_materialized_series()
-                    .equal(group_a_name_owned.as_str())
-                    .unwrap(),
-            )
-            .unwrap();
-        let df_b_global = df
-            .filter(
-                &df.column(&self.group)
-                    .unwrap()
-                    .as_materialized_series()
-                    .equal(group_b_name_owned.as_str())
-                    .unwrap(),
-            )
-            .unwrap();
+        let df_a_global = df.filter(
+            &df.column(&self.group)?
+                .as_materialized_series()
+                .equal(group_a_name_owned.as_str())?,
+        )?;
+        let df_b_global = df.filter(
+            &df.column(&self.group)?
+                .as_materialized_series()
+                .equal(group_b_name_owned.as_str())?,
+        )?;
 
         let bootstrap_results: Vec<SinglePassResult> = (0..self.bootstrap_reps)
             .into_par_iter()
@@ -362,9 +354,7 @@ impl QuantileDecompositionBuilder {
             .collect();
 
         let mut final_results = HashMap::new();
-        for key in point_estimates.effects_by_quantile.keys() {
-            let point = point_estimates.effects_by_quantile.get(key).unwrap();
-
+        for (key, point) in &point_estimates.effects_by_quantile {
             let gap_dist: Vec<f64> = bootstrap_results
                 .iter()
                 .filter_map(|r| r.effects_by_quantile.get(key).map(|e| e.gap))
@@ -483,7 +473,10 @@ impl QuantileDecompositionResults {
         sorted_quantiles.sort();
 
         for quantile_key in sorted_quantiles {
-            let results = self.results_by_quantile.get(quantile_key).unwrap();
+            let results = self
+                .results_by_quantile
+                .get(quantile_key)
+                .expect("Quantile key should exist in results");
             println!("\n--- Decomposition for Quantile: {} ---", quantile_key);
 
             let mut table = Table::new();

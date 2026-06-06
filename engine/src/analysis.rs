@@ -22,6 +22,11 @@ pub fn decompose_inner(req: DecompositionRequest) -> Result<DecompositionResult,
                 let new_s = s.cast(&DataType::Float64).map_err(|_| {
                     format!("Column '{}' contains non-numeric data but was selected as a continuous variable. Please verify your column selection.", col)
                 })?;
+
+                if new_s.null_count() > s.null_count() {
+                    return Err(format!("Column '{}' contains non-numeric data but was selected as a continuous variable. Please verify your column selection.", col));
+                }
+
                 df.with_column(new_s).map_err(|e| e.to_string())?;
             }
         } else {
@@ -48,6 +53,11 @@ pub fn verify_inner(req: VerificationRequest) -> Result<DecompositionResult, Str
                 let new_s = s
                     .cast(&DataType::Float64)
                     .map_err(|_| format!("Column '{}' contains non-numeric data.", col))?;
+
+                if new_s.null_count() > s.null_count() {
+                    return Err(format!("Column '{}' contains non-numeric data.", col));
+                }
+
                 df.with_column(new_s).map_err(|e| e.to_string())?;
             }
         } else {
@@ -312,6 +322,14 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
                 let new_s = s.cast(&DataType::Float64).map_err(|_| {
                     format!("Column '{}' contains non-numeric data but was selected as a continuous variable.", col)
                 })?;
+
+                if new_s.null_count() > s.null_count() {
+                    return Err(format!(
+                        "Column '{}' contains non-numeric data but was selected as a continuous variable.",
+                        col
+                    ));
+                }
+
                 df.with_column(new_s).map_err(|e| e.to_string())?;
             }
         } else {
@@ -872,6 +890,11 @@ pub fn calculate_efficient_frontier_inner(
                 let new_s = s
                     .cast(&DataType::Float64)
                     .map_err(|_| format!("Column '{}' contains non-numeric data.", col))?;
+
+                if new_s.null_count() > s.null_count() {
+                    return Err(format!("Column '{}' contains non-numeric data.", col));
+                }
+
                 df.with_column(new_s).map_err(|e| e.to_string())?;
             }
         } else {
@@ -1376,5 +1399,53 @@ mod tests {
         // But generally, fair pay means gender is less predictive.
         println!("Start T: {}, End T: {}", first_t, last_t);
         // assert!(last_t < first_t); // This might not always hold depending on noise, but generally true.
+    }
+
+    #[test]
+    fn test_decompose_with_non_numeric_outcome() {
+        let csv = "wage,education,experience,gender\ninvalid,12,5,Male\n50000,16,2,Female\n52000,14,3,Male\n48000,15,4,Female\n50000,16,2,Male\n48000,15,4,Female\n";
+        let req = DecompositionRequest {
+            csv_data: csv.as_bytes().to_vec(),
+            outcome_variable: "wage".to_string(),
+            group_variable: "gender".to_string(),
+            reference_group: "Female".to_string(),
+            predictors: vec!["education".to_string(), "experience".to_string()],
+            categorical_predictors: None,
+            three_fold: None,
+            quantile: None,
+            reference_coefficients: None,
+            bootstrap_reps: Some(10),
+        };
+
+        let res = decompose_inner(req);
+        assert!(res.is_err());
+        assert_eq!(
+            res.unwrap_err(),
+            "Column 'wage' contains non-numeric data but was selected as a continuous variable. Please verify your column selection."
+        );
+    }
+
+    #[test]
+    fn test_decompose_with_non_numeric_predictor() {
+        let csv = "wage,education,experience,gender\n50000,invalid,5,Male\n50000,16,2,Female\n52000,14,3,Male\n48000,15,4,Female\n50000,16,2,Male\n48000,15,4,Female\n";
+        let req = DecompositionRequest {
+            csv_data: csv.as_bytes().to_vec(),
+            outcome_variable: "wage".to_string(),
+            group_variable: "gender".to_string(),
+            reference_group: "Female".to_string(),
+            predictors: vec!["education".to_string(), "experience".to_string()],
+            categorical_predictors: None,
+            three_fold: None,
+            quantile: None,
+            reference_coefficients: None,
+            bootstrap_reps: Some(10),
+        };
+
+        let res = decompose_inner(req);
+        assert!(res.is_err());
+        assert_eq!(
+            res.unwrap_err(),
+            "Column 'education' contains non-numeric data but was selected as a continuous variable. Please verify your column selection."
+        );
     }
 }

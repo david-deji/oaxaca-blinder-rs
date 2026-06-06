@@ -473,11 +473,15 @@ fn demean_vector(
         firm_counts[idx as usize] += 1;
     }
 
+    let mut prev_vec = vec![0.0; n_obs];
+    let mut worker_sums = vec![0.0; n_workers];
+    let mut firm_sums = vec![0.0; n_firms];
+
     while diff > tolerance && iter < max_iters {
-        let prev_vec = vec.to_vec();
+        prev_vec.copy_from_slice(vec);
 
         // 1. Demean by Worker
-        let mut worker_sums = vec![0.0; n_workers];
+        worker_sums.fill(0.0);
         for i in 0..n_obs {
             worker_sums[worker_indices[i] as usize] += vec[i];
         }
@@ -490,7 +494,7 @@ fn demean_vector(
         }
 
         // 2. Demean by Firm
-        let mut firm_sums = vec![0.0; n_firms];
+        firm_sums.fill(0.0);
         for i in 0..n_obs {
             firm_sums[firm_indices[i] as usize] += vec[i];
         }
@@ -549,12 +553,17 @@ fn recover_fe(
     let mut diff = tolerance + 1.0;
     let mut iter = 0;
 
+    let mut prev_alpha = vec![0.0; n_workers];
+    let mut prev_psi = vec![0.0; n_firms];
+    let mut worker_sums = vec![0.0; n_workers];
+    let mut firm_sums = vec![0.0; n_firms];
+
     while diff > tolerance && iter < max_iters {
-        let prev_alpha = alpha.clone();
-        let prev_psi = psi.clone();
+        prev_alpha.copy_from_slice(&alpha);
+        prev_psi.copy_from_slice(&psi);
 
         // Update Alpha: alpha_i = mean(R - psi | i)
-        let mut worker_sums = vec![0.0; n_workers];
+        worker_sums.fill(0.0);
         for i in 0..n_obs {
             let f_idx = firm_indices[i] as usize;
             worker_sums[worker_indices[i] as usize] += r[i] - psi[f_idx];
@@ -567,7 +576,7 @@ fn recover_fe(
         }
 
         // Update Psi: psi_j = mean(R - alpha | j)
-        let mut firm_sums = vec![0.0; n_firms];
+        firm_sums.fill(0.0);
         for i in 0..n_obs {
             let w_idx = worker_indices[i] as usize;
             firm_sums[firm_indices[i] as usize] += r[i] - alpha[w_idx];
