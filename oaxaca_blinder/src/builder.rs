@@ -120,7 +120,7 @@ impl OaxacaBuilder {
             group: group.to_string(),
             reference_group: reference_group.to_string(),
             bootstrap_reps: 20,
-            reference_coeffs: ReferenceCoefficients::GroupA,
+            reference_coeffs: ReferenceCoefficients::GroupB,
             normalization_vars: Vec::new(),
             weights_col: None,
             selection_outcome: None,
@@ -151,7 +151,7 @@ impl OaxacaBuilder {
             group: group.to_string(),
             reference_group: reference_group.to_string(),
             bootstrap_reps: 20,
-            reference_coeffs: ReferenceCoefficients::GroupA,
+            reference_coeffs: ReferenceCoefficients::GroupB,
             normalization_vars: Vec::new(),
             weights_col: None,
             selection_outcome: None,
@@ -247,7 +247,16 @@ impl OaxacaBuilder {
 
     /// Exposes the internal data matrices for advanced usage (e.g., optimization).
     /// This method prepares the data (creating dummies, etc.) and returns the matrices for Group A and Group B.
-    /// Returns: (X_A, y_A, X_B, y_B, predictor_names)
+    ///
+    /// Returns `(X_A, y_A, X_B, y_B, predictor_names)`. Per `split_groups`, which sets
+    /// `group_b_name = reference_group`, the binding is:
+    ///   * **A = the NON-reference group** (every group value that is not `reference_group`),
+    ///   * **B = the reference group** (the `reference_group` value passed to `new`/`from_formula`).
+    ///
+    /// A consumer that solves a fair-wage standard from the advantaged/reference group must
+    /// therefore bind the *third* returned matrix (`X_B`), not the first. See the engine crate's
+    /// `ab_binding_regression_test` for the guardrail that locks this convention against the
+    /// recurring "A = reference" mistake.
     #[allow(clippy::type_complexity)]
     pub fn get_data_matrices(
         &self,

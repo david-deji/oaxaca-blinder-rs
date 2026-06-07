@@ -964,11 +964,13 @@ pub fn calculate_efficient_frontier_inner(
     let n_a = x_a.nrows();
     let n_b = x_b.nrows();
     let n_pooled = n_a + n_b;
-    // Check for intercept in feature names
-    let intercept_idx = _feature_names.iter().position(|f| {
-        let l = f.to_lowercase();
-        l == "intercept" || l == "const" || l == "__ob_intercept__"
-    });
+    // Check for intercept in feature names. The internal intercept is always the reserved
+    // column `__ob_intercept__` injected by OaxacaBuilder::prepare_data — match only that name.
+    // A fuzzy "intercept"/"const" match would misclassify a user predictor literally named
+    // `intercept` or `const` as the intercept and silently drop it from the pooled design matrix.
+    let intercept_idx = _feature_names
+        .iter()
+        .position(|f| f == "__ob_intercept__");
 
     let cols_a = x_a.ncols();
 
@@ -1036,13 +1038,7 @@ pub fn calculate_efficient_frontier_inner(
 
     // 4. Budget Loop
     let steps = req.steps.unwrap_or(50);
-    // Ensure we start at 0 and have enough steps
-    let safe_max_budget = if max_budget < 1e-9 {
-        1000.0
-    } else {
-        max_budget
-    };
-    let step_size = safe_max_budget / (steps as f64);
+    let step_size = max_budget / (steps as f64);
     let mut points = Vec::new();
 
     // Map `adjustments` to Pooled Indices
@@ -1119,6 +1115,18 @@ pub fn calculate_efficient_frontier_inner(
         p_value: p0,
         is_significant: s0,
     });
+
+    // Degenerate case: no positive adjustment budget (e.g. a zero-gap dataset where total_need
+    // collapses to ~0 and the caller supplied no explicit max_budget). There is no spend range
+    // to explore, so return only the baseline (budget = 0) point rather than fabricating a
+    // budget axis from a placeholder maximum.
+    if max_budget < 1e-9 {
+        eprintln!(
+            "Warning: efficient frontier requested with no positive adjustment budget \
+             (max_budget ~ 0; no gap to close). Returning a single zero-budget point."
+        );
+        return Ok(points);
+    }
 
     let mut current_y = y_pooled.clone();
     let mut pay_idx = 0;

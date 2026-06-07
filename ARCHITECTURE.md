@@ -2,52 +2,77 @@
 
 ## Key Components
 
-The project is organized as a Rust workspace with two primary members:
+The project is a Rust workspace with **three** member crates:
 
-### 1. `oaxaca_blinder`
-This is the core library implementing various statistical decomposition methods.
-- **Purpose**: To perform econometric decompositions on wage gaps or other outcome differentials.
-- **Key Modules**:
-    - `decomposition.rs`: Standard Oaxaca-Blinder decomposition.
-    - `quantile_decomposition.rs`: RIF-Regression based quantile decomposition (Firpo, Fortin, Lemieux).
-    - `jpm.rs`: Juhn-Murphy-Pierce decomposition.
-    - `dfl.rs`: DiNardo-Fortin-Lemieux (reweighting) decomposition.
-    - `matching/`: Propensity score matching logic.
-    - `akm.rs`: Abowd-Kramarz-Margolis (AKM) high-dimensional fixed effects.
-- **Interface**:
-    - **CLI**: `src/main.rs` exposes a command-line tool `oaxaca-cli`.
-    - **Python**: `python.rs` and `pyo3` provide Python bindings.
+### 1. `oaxaca_blinder` — Core Decomposition Library
 
-### 2. `optimization_engine`
-A separate crate focused on optimization problems related to pay equity and wage scaling.
-- **Purpose**: To solve linear programming constraints for wage adjustments.
-- **Key Modules**:
-    - `pay_equity.rs`: Logic for correcting pay inequities.
-    - `wage_scale.rs`: Designing compliant wage scales.
-    - `engine.rs`: Core optimization engine.
+The statistical engine implementing econometric decomposition methods for pay-equity analysis.
+Operates on **Polars DataFrames** with linear algebra via **Nalgebra**.
+
+- **Purpose**: Decompose mean wage gaps (or other outcome differentials) between two groups into
+  an *explained* part (differences in observable characteristics) and an *unexplained* part
+  (differences in the returns to those characteristics).
+- **Decomposition modules**:
+    - `decomposition.rs`: Standard Oaxaca-Blinder (two-fold and three-fold).
+    - `quantile_decomposition.rs`: RIF-Regression quantile decomposition (Firpo-Fortin-Lemieux).
+    - `jmp.rs`: Juhn-Murphy-Pierce decomposition.
+    - `dfl.rs`: DiNardo-Fortin-Lemieux reweighting.
+    - `akm.rs`: Abowd-Kramarz-Margolis high-dimensional fixed effects.
+    - `heckman.rs`: Heckman two-step selection correction.
+    - `matching/`: Propensity-score matching (logistic model, distance metrics, matching engine).
+- **Math utilities** (`math/`): OLS, quantile regression, KDE, RIF, probit, logit, diagnostics,
+  coefficient normalization.
+- **Entry points**: `OaxacaBuilder` and `QuantileDecompositionBuilder` (builder pattern).
+- **Interfaces**:
+    - **CLI**: `src/main.rs` exposes the `oaxaca-cli` binary.
+    - **Python**: `python.rs` holds PyO3 bindings behind a `python` feature flag. The flag is
+      currently **disabled** (commented out in `Cargo.toml`); the module does not compile in the
+      default build.
+
+### 2. `pay-equity-engine` (directory: `engine/`) — Optimization, Verification & WASM
+
+Wraps `oaxaca_blinder` with the analysis layer the Meridian app consumes.
+
+- **Purpose**: Budget-constrained wage-adjustment optimization, adjustment verification, efficient
+  frontier calculation, and defensibility scoring.
+- **Key modules**:
+    - `analysis.rs`: decomposition driver, budget optimizer, and efficient-frontier calculation.
+    - `defensibility.rs`: per-adjustment defensibility scoring against the reference-group standard.
+    - `types.rs`: request/response structs shared across the WASM and MCP surfaces.
+    - `access.rs`: partner offline-access codes, gated behind the off-by-default `partner-access`
+      feature (not part of the default or standard WASM build).
+- **WASM target**: the `wasm` feature exposes `decompose`, `optimize`, `verify_adjustments`,
+  `calculate_efficient_frontier`, and `check_defensibility` to the browser via `wasm-bindgen`.
+
+### 3. `meridian-mcp` — MCP Server
+
+A JSON-RPC server (stdio, or SSE/HTTP via Axum) exposing the engine functions as MCP tools:
+`decompose`, `optimize`, `verify_adjustments`, `calculate_efficient_frontier`,
+`check_defensibility`. Configurable via CLI args or env vars (`PORT`, `MCP_TRANSPORT`, `MCP_API_KEY`).
 
 ## Data Flow
 
-1.  **Input**: Data is ingested via **Polars DataFrames** (CSV, Parquet, etc.).
-2.  **Processing (Decomposition)**:
-    -   The `oaxaca_blinder` crate processes these frames.
-    -   Linear algebra operations are handled by **Nalgebra**.
-    -   High-performance computing uses **Rayon** for parallelism.
-3.  **Processing (Optimization)**:
-    -   The `optimization_engine` takes constraints and objectives.
-    -   It utilizes **GoodLP** (with HiGHS solver) to find optimal wage allocations.
-4.  **Output**:
-    -   Results are returned as structs (e.g., `OaxacaBlinderResult`) or printed to stdout (CLI).
-    -   Python users receive standard Python objects/dataframes.
+1.  **Input**: Data is ingested as **Polars DataFrames** (from CSV bytes at the WASM/MCP boundary).
+2.  **Decomposition** (`oaxaca_blinder`): linear algebra via **Nalgebra**; bootstrap replications
+    parallelized with **Rayon**.
+3.  **Optimization** (`pay-equity-engine`): budget-constrained wage adjustments. Fair-wage standards
+    are solved with direct linear algebra (OLS/SVD via Nalgebra); convex optimization is available
+    via **Clarabel**.
+4.  **Output**: results are returned as Rust structs (CLI / MCP), as `JsValue` across the WASM
+    boundary, or printed to stdout (CLI).
 
 ## Tech Stack
 
 -   **Language**: Rust (Edition 2021)
--   **Data Processing**: `polars` (Lazy evaluation, high performance)
--   **Math/Stats**:
-    -   `nalgebra`: Linear algebra.
-    -   `statrs`: Statistical distributions.
-    -   `clarabel`: Convex optimization solver.
--   **Optimization**: `good_lp` (Linear Programming interface).
--   **Interop**: `pyo3` and `pyo3-polars` for Python bindings.
+-   **Data Processing**: `polars` (lazy evaluation, high performance)
+-   **Math / Stats**:
+    -   `nalgebra`: linear algebra (`DMatrix`/`DVector`).
+    -   `statrs`: statistical distributions.
+    -   `clarabel`: convex optimization solver.
+-   **Parallelism**: `rayon` (bootstrap iterations).
 -   **CLI**: `clap`.
+-   **WASM**: `wasm-bindgen` (+ `serde-wasm-bindgen`), behind the `wasm` feature.
+-   **MCP transport**: `axum` (SSE/HTTP) or stdio.
+
+> Monetary values are represented with fixed-point precision, never `Float64`, per the
+> comp-audit-suite rule (see `CLAUDE.md`).

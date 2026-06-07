@@ -63,7 +63,7 @@ pub fn check_defensibility(val: JsValue) -> Result<JsValue, JsValue> {
     Ok(serde_wasm_bindgen::to_value(&res)?)
 }
 
-#[cfg(feature = "wasm")]
+#[cfg(all(feature = "wasm", feature = "partner-access"))]
 #[wasm_bindgen]
 pub async fn validate_access_code(code: String, registry_url: String) -> Result<JsValue, JsValue> {
     let res = crate::access::validate_access_code_inner(&code, &registry_url)
@@ -72,6 +72,11 @@ pub async fn validate_access_code(code: String, registry_url: String) -> Result<
     Ok(serde_wasm_bindgen::to_value(&res)?)
 }
 
+// `access` (partner offline-access codes) is dead in the default/TM build: auth is status-quo
+// Supabase-gated (0002-MERIDIAN Decision 1), so the offline-code path has zero callers. Gated
+// behind an opt-in, off-by-default `partner-access` feature so it is not compiled into the
+// standard WASM bundle. Build a partner bundle with `--features wasm,partner-access` to include it.
+#[cfg(feature = "partner-access")]
 mod access;
 
 #[cfg(test)]

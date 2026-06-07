@@ -32,6 +32,9 @@ optional = true
 
 [features]
 default = []
+# Opt-in (off by default): compiles the partner offline-access module (engine/src/access.rs).
+# TM/default builds keep this off — see engine/src/lib.rs gating comment.
+partner-access = []
 wasm = [
     "wasm-bindgen",
     "serde-wasm-bindgen",
@@ -43,10 +46,6 @@ wasm = [
     "getrandom/wasm_js"
 ]
 
-
-[patch.crates-io]
-# crossterm = { path = "./crates/crossterm" }
-# openpay_optimization = { path = "./vendor/openpay_optimization" }
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.42"
