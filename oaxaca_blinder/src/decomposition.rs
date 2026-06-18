@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use nalgebra::DVector;
 use serde::Serialize;
 
@@ -36,8 +38,8 @@ pub struct TwoFoldDecomposition {
 
 /// Represents the contribution of a single variable to a decomposition component.
 #[derive(Debug, PartialEq, Clone)]
-pub struct DetailedComponent {
-    pub variable_name: String,
+pub struct DetailedComponent<'a> {
+    pub variable_name: Cow<'a, str>,
     pub contribution: f64,
 }
 
@@ -89,30 +91,30 @@ pub fn three_fold_decomposition(
 }
 
 /// Computes the detailed decomposition for both explained and unexplained parts.
-pub fn detailed_decomposition(
+pub fn detailed_decomposition<'a>(
     xa_mean: &DVector<f64>,
     xb_mean: &DVector<f64>,
     beta_a: &DVector<f64>,
     beta_b: &DVector<f64>,
     beta_star: &DVector<f64>,
     predictor_names: &[String],
-) -> (Vec<DetailedComponent>, Vec<DetailedComponent>) {
-    let explained: Vec<DetailedComponent> = (0..predictor_names.len())
+) -> (Vec<DetailedComponent<'a>>, Vec<DetailedComponent<'a>>) {
+    let explained: Vec<DetailedComponent<'a>> = (0..predictor_names.len())
         .map(|i| {
             let contribution = (xa_mean[i] - xb_mean[i]) * beta_star[i];
             DetailedComponent {
-                variable_name: predictor_names[i].clone(),
+                variable_name: Cow::Owned(predictor_names[i].clone()),
                 contribution,
             }
         })
         .collect();
 
-    let unexplained: Vec<DetailedComponent> = (0..predictor_names.len())
+    let unexplained: Vec<DetailedComponent<'a>> = (0..predictor_names.len())
         .map(|i| {
             let contribution =
                 xa_mean[i] * (beta_a[i] - beta_star[i]) + xb_mean[i] * (beta_star[i] - beta_b[i]);
             DetailedComponent {
-                variable_name: predictor_names[i].clone(),
+                variable_name: Cow::Owned(predictor_names[i].clone()),
                 contribution,
             }
         })

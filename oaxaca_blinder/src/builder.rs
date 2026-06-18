@@ -1,4 +1,5 @@
 // oaxaca_blinder/src/builder.rs
+use std::borrow::Cow;
 use std::collections::HashMap;
 
 use nalgebra::{DMatrix, DVector};
@@ -20,18 +21,18 @@ use crate::types::{ComponentResult, DecompositionDetail, OaxacaResults, TwoFoldR
 
 #[derive(Clone)]
 #[allow(dead_code)]
-pub(crate) struct SinglePassResult {
+pub(crate) struct SinglePassResult<'a> {
     three_fold: ThreeFoldDecomposition,
     two_fold: TwoFoldDecomposition,
-    detailed_explained: Vec<DetailedComponent>,
-    detailed_unexplained: Vec<DetailedComponent>,
+    detailed_explained: Vec<DetailedComponent<'a>>,
+    detailed_unexplained: Vec<DetailedComponent<'a>>,
     total_gap: f64,
     residuals_a: DVector<f64>,
     residuals_b: DVector<f64>,
     xa_mean: DVector<f64>,
     xb_mean: DVector<f64>,
     beta_star: DVector<f64>,
-    detailed_selection: Vec<DetailedComponent>,
+    detailed_selection: Vec<DetailedComponent<'a>>,
 }
 
 pub struct OaxacaBuilder {
@@ -417,13 +418,13 @@ impl OaxacaBuilder {
         ))
     }
 
-    fn run_single_pass(
-        &self,
+    fn run_single_pass<'a>(
+        &'a self,
         df: &DataFrame,
         all_dummy_names: &[String],
         category_counts: &std::collections::HashMap<String, usize>,
         base_categories: &std::collections::HashMap<String, String>,
-    ) -> Result<SinglePassResult, OaxacaError> {
+    ) -> Result<SinglePassResult<'a>, OaxacaError> {
         let groups = self.split_groups(df)?;
         let df_a = groups.df_a;
         let df_b = groups.df_b;
@@ -517,16 +518,17 @@ impl OaxacaBuilder {
             // Usually we show variables.
 
             // Reconstruct selection variable names: "intercept" + sel_predictors
-            let mut full_sel_names = vec!["__ob_intercept__".to_string()];
-            full_sel_names.extend(self.selection_predictors.clone());
+            let full_sel_names = std::iter::once("__ob_intercept__")
+                .chain(self.selection_predictors.iter().map(|s| s.as_str()));
+            let total_sel_len = self.selection_predictors.len() + 1;
 
             // Check dimensions
-            if gamma_ref.len() == full_sel_names.len() && z_mean_a.len() == full_sel_names.len() {
-                for (i, name) in full_sel_names.iter().enumerate() {
+            if gamma_ref.len() == total_sel_len && z_mean_a.len() == total_sel_len {
+                for (i, name) in full_sel_names.enumerate() {
                     let diff_z = z_mean_a[i] - z_mean_b[i];
                     let contribution = theta_ref * delta_ref * gamma_ref[i] * diff_z;
                     detailed_selection_components.push(DetailedComponent {
-                        variable_name: name.clone(),
+                        variable_name: Cow::Borrowed(name),
                         contribution,
                     });
                 }
@@ -659,12 +661,12 @@ impl OaxacaBuilder {
                 let contribution_explained = (xa_mean_base - xb_mean_base) * beta_star_base;
 
                 detailed_unexplained.push(DetailedComponent {
-                    variable_name: base_dummy_name.clone(),
+                    variable_name: Cow::Owned(base_dummy_name.clone()),
                     contribution: contribution_unexplained,
                 });
 
                 detailed_explained.push(DetailedComponent {
-                    variable_name: base_dummy_name.clone(),
+                    variable_name: Cow::Owned(base_dummy_name.clone()),
                     contribution: contribution_explained,
                 });
 
@@ -813,7 +815,7 @@ impl OaxacaBuilder {
         let df_a_global = groups.df_a;
         let df_b_global = groups.df_b;
 
-        let bootstrap_results: Vec<SinglePassResult> = (0..self.bootstrap_reps)
+        let bootstrap_results: Vec<SinglePassResult<'_>> = (0..self.bootstrap_reps)
             .into_par_iter()
             .filter_map(|_| {
                 let df_a = df_a_global.clone();
@@ -950,21 +952,21 @@ impl OaxacaBuilder {
         })
     }
 
-    fn process_detailed_components<'a, F>(
+    fn process_detailed_components<'a, 'b, F>(
         &self,
-        point_components: &[DetailedComponent],
-        bootstrap_results: &'a [SinglePassResult],
+        point_components: &[DetailedComponent<'b>],
+        bootstrap_results: &'a [SinglePassResult<'b>],
         extract_fn: F,
         process_component: &dyn Fn(&str, f64, Vec<f64>) -> ComponentResult,
     ) -> Vec<ComponentResult>
     where
-        F: Fn(&'a SinglePassResult) -> &'a Vec<DetailedComponent> + Sync,
+        F: Fn(&'a SinglePassResult<'b>) -> &'a Vec<DetailedComponent<'b>> + Sync,
     {
         let mut bootstrap_map: HashMap<String, Vec<f64>> = HashMap::new();
         for r in bootstrap_results.iter() {
             for comp in extract_fn(r) {
                 bootstrap_map
-                    .entry(comp.variable_name.clone())
+                    .entry(comp.variable_name.to_string())
                     .or_default()
                     .push(comp.contribution);
             }
@@ -974,7 +976,7 @@ impl OaxacaBuilder {
             .iter()
             .map(|comp| {
                 let estimates = bootstrap_map
-                    .get(&comp.variable_name)
+                    .get(comp.variable_name.as_ref())
                     .cloned()
                     .unwrap_or_else(Vec::new);
                 process_component(&comp.variable_name, comp.contribution, estimates)

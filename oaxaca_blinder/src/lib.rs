@@ -54,7 +54,7 @@
 //! ```
 
 mod builder;
-mod decomposition;
+pub mod decomposition;
 mod display;
 mod error;
 mod estimation;

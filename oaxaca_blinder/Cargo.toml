@@ -51,5 +51,9 @@ path = "src/main.rs"
 version = "0.5"
 
 [[bench]]
-name = "distance_bench"
+name="distance_bench"
 harness = false
+
+[[bench]]
+name="bench"
+harness=false
