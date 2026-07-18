@@ -1,8 +1,8 @@
+mod ab_binding_regression_test;
 pub mod analysis;
 pub mod defensibility;
 pub mod types;
 mod verification_test;
-mod ab_binding_regression_test;
 
 #[cfg(feature = "wasm")]
 use crate::analysis::{decompose_inner, optimize_inner};
@@ -62,6 +62,14 @@ pub fn check_defensibility(val: JsValue) -> Result<JsValue, JsValue> {
         .map_err(|e| JsValue::from_str(e.as_str()))?;
     Ok(serde_wasm_bindgen::to_value(&res)?)
 }
+
+// --- Threaded WASM: rayon thread-pool initializer (0014-MERIDIAN, engine-parallel-surface D2) ---
+// Plain function re-export (W1: no macro). wasm-bindgen emits an async
+// `initThreadPool(numThreads) -> Promise` in the generated JS glue; the Meridian worker calls
+// `await init(); await initThreadPool(cap);` before any par_iter-backed compute. Gated on the
+// superset `wasm-threads` feature so native and sequential-wasm builds never see it (INV-01).
+#[cfg(all(feature = "wasm", feature = "wasm-threads"))]
+pub use wasm_bindgen_rayon::init_thread_pool;
 
 #[cfg(all(feature = "wasm", feature = "partner-access"))]
 #[wasm_bindgen]

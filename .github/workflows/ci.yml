@@ -37,49 +37,92 @@ jobs:
         run: cargo test --workspace --all-features
 
   wasm-verify:
-    name: WASM Build + Verify
+    name: WASM Build + Verify (dual-artifact, Strategy A)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Rust toolchain (reads rust-toolchain.toml)
+      # Pinned nightly for the THREADED pass (build-std + atomics); stable (rust-toolchain.toml)
+      # for the SEQUENTIAL pass. INV-01: native/seq stays on stable, only the threaded pass is nightly.
+      - name: Setup pinned nightly (rust-src + wasm target)
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          toolchain: nightly-2025-06-27
+          components: rust-src
+          targets: wasm32-unknown-unknown
+
+      - name: Setup stable (reads rust-toolchain.toml for the sequential pass)
         uses: dtolnay/rust-toolchain@stable
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: "rust-wasm"
+          shared-key: "rust-wasm-threaded"
+          # Caches ./target only. The threaded repro double-build below uses non-default
+          # CARGO_TARGET_DIRs (target-repro-a / -b), which this action never restores, so both
+          # repro builds recompile std from source under -Zbuild-std — no cache masking (W8).
 
       - name: Install wasm-bindgen-cli (pinned)
         run: cargo install wasm-bindgen-cli --version 0.2.106 --locked
 
-      - name: Build WASM
+      - name: Build + verify SEQUENTIAL artifact (stable, --target web)
         run: |
-          # The RAW cargo wasm is the reproducible unit we verify. Path remapping strips
-          # host-specific absolute paths so the blob matches across machines.
           RUSTFLAGS="--remap-path-prefix $HOME/.cargo=/cargo --remap-path-prefix $PWD=/src --remap-path-prefix $HOME/.rustup=/rustup" \
             cargo build -p pay-equity-engine --features wasm --target wasm32-unknown-unknown --release
-          # Smoke only (output NOT hashed — wasm-bindgen 0.2.106 is nondeterministic):
-          # confirm the binding step still produces a package without error.
-          wasm-bindgen \
-            target/wasm32-unknown-unknown/release/pay_equity_engine.wasm \
-            --out-dir engine/pkg \
-            --target bundler \
-            --remove-name-section --remove-producers-section
-
-      - name: Verify raw WASM sha256 (reproducibility baseline)
-        run: |
+          # Smoke the binding step (output NOT hashed — wasm-bindgen is nondeterministic).
+          wasm-bindgen target/wasm32-unknown-unknown/release/pay_equity_engine.wasm \
+            --out-dir engine/pkg --target web --remove-name-section --remove-producers-section
           EXPECTED=$(cut -d' ' -f1 engine/pay_equity_engine.wasm.sha256)
           ACTUAL=$(sha256sum target/wasm32-unknown-unknown/release/pay_equity_engine.wasm | cut -d' ' -f1)
           if [ "$EXPECTED" != "$ACTUAL" ]; then
-            echo "Raw WASM sha256 mismatch!"
-            echo "Expected: $EXPECTED"
-            echo "Actual:   $ACTUAL"
-            echo "The compiled engine wasm changed. If intentional, run scripts/build-wasm.sh"
-            echo "and commit the updated engine/pay_equity_engine.wasm.sha256."
+            echo "Sequential raw WASM sha256 mismatch! Expected $EXPECTED Actual $ACTUAL"
+            echo "If intentional, run scripts/build-wasm.sh and commit engine/pay_equity_engine.wasm.sha256."
             exit 1
           fi
-          echo "Raw WASM sha256 verified: $ACTUAL"
+          echo "Sequential raw WASM sha256 verified: $ACTUAL"
+
+      - name: Build + verify THREADED artifact (nightly, build-std, atomics, --target web)
+        run: |
+          RUSTFLAGS="-C target-feature=+atomics,+bulk-memory,+mutable-globals \
+            -C link-arg=--max-memory=342228992 -C link-arg=-zstack-size=1048576 \
+            --remap-path-prefix $HOME/.cargo=/cargo --remap-path-prefix $PWD=/src \
+            --remap-path-prefix $HOME/.rustup=/rustup" \
+            cargo +nightly-2025-06-27 build -p pay-equity-engine \
+              --features wasm-threads --target wasm32-unknown-unknown --release \
+              -Zbuild-std=panic_abort,std --locked
+          wasm-bindgen target/wasm32-unknown-unknown/release/pay_equity_engine.wasm \
+            --out-dir engine/pkg-threaded --target web \
+            --remove-name-section --remove-producers-section
+          EXPECTED=$(cut -d' ' -f1 engine/pay_equity_engine.threaded.wasm.sha256)
+          ACTUAL=$(sha256sum target/wasm32-unknown-unknown/release/pay_equity_engine.wasm | cut -d' ' -f1)
+          if [ "$EXPECTED" != "$ACTUAL" ]; then
+            echo "Threaded raw WASM sha256 mismatch! Expected $EXPECTED Actual $ACTUAL"
+            echo "If intentional, run scripts/build-wasm.sh (pinned container) and commit"
+            echo "engine/pay_equity_engine.threaded.wasm.sha256."
+            exit 1
+          fi
+          echo "Threaded raw WASM sha256 verified: $ACTUAL"
+
+      - name: Threaded reproducibility double-build (two non-default target dirs — no cache masking, W8)
+        run: |
+          FLAGS="-C target-feature=+atomics,+bulk-memory,+mutable-globals \
+            -C link-arg=--max-memory=342228992 -C link-arg=-zstack-size=1048576 \
+            --remap-path-prefix $HOME/.cargo=/cargo --remap-path-prefix $PWD=/src \
+            --remap-path-prefix $HOME/.rustup=/rustup"
+          RUSTFLAGS="$FLAGS" CARGO_TARGET_DIR=target-repro-a \
+            cargo +nightly-2025-06-27 build -p pay-equity-engine \
+              --features wasm-threads --target wasm32-unknown-unknown --release \
+              -Zbuild-std=panic_abort,std --locked
+          RUSTFLAGS="$FLAGS" CARGO_TARGET_DIR=target-repro-b \
+            cargo +nightly-2025-06-27 build -p pay-equity-engine \
+              --features wasm-threads --target wasm32-unknown-unknown --release \
+              -Zbuild-std=panic_abort,std --locked
+          A=$(sha256sum target-repro-a/wasm32-unknown-unknown/release/pay_equity_engine.wasm | cut -d' ' -f1)
+          B=$(sha256sum target-repro-b/wasm32-unknown-unknown/release/pay_equity_engine.wasm | cut -d' ' -f1)
+          if [ "$A" != "$B" ]; then
+            echo "build-std threaded output not byte-reproducible across fresh recompiles: $A vs $B"; exit 1
+          fi
+          echo "Threaded double-build reproducibility verified: $A"
 
   security:
     name: Security Audit

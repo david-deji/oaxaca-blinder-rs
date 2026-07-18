@@ -1,2 +1,23 @@
 [env]
 PYO3_USE_ABI3_FORWARD_COMPATIBILITY = "1"
+
+# --- WASM-threads build config (0014-MERIDIAN, Strategy A) ---
+#
+# Strategy A (dual artifact): the SEQUENTIAL baseline (stable, --features wasm, --target
+# bundler) and the THREADED blob (pinned nightly, --features wasm-threads, --target web) are
+# built SEPARATELY (scripts/build-wasm.sh). The threaded rustflags
+# (+atomics,+bulk-memory,+mutable-globals / --shared-memory / --import-memory / --max-memory /
+# -zstack-size) are injected via RUSTFLAGS in the nightly pass of build-wasm.sh and CI ONLY.
+# They are deliberately NOT placed in a [target.wasm32-unknown-unknown] table here, because
+# that table would ALSO apply to the stable sequential build and contaminate its committed
+# baseline (engine/pay_equity_engine.wasm.sha256), defeating the dual-artifact defensibility
+# model (D7-A / buildability-gate ruling 1).
+#
+# [unstable] build-std takes effect only under the `cargo +nightly-2025-06-27` override (the
+# threaded pass); it is ignored (at most an unused/unstable config-key warning) on the stable
+# default toolchain, so every native invocation (oaxaca-cli, meridian-mcp, the rlib, and
+# cargo fmt/clippy/test) stays byte-behaviour-unchanged (INV-01; guarded by AC-2 / AC-8).
+# build-std is ALSO passed as `-Zbuild-std=panic_abort,std` on the nightly command line, so
+# the threaded build never relies on this file alone.
+[unstable]
+build-std = ["panic_abort", "std"]

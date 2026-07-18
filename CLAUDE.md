@@ -62,5 +62,6 @@ JSON-RPC server (stdio or SSE/HTTP via Axum) exposing engine functions as MCP to
 - **Nalgebra** `DMatrix`/`DVector` for all linear algebra; `clarabel` for convex optimization
 - **Rayon** for parallel bootstrap iterations
 - All monetary values must use `Decimal(18,2)`, never `Float64` (comp-audit-suite rule)
+  - **Statistical-math exemption (INV-08 — 0014-MERIDIAN, founder ruling 2026-07-17):** the decomposition/regression engine (`oaxaca_blinder`, `engine`) is EXEMPT — `f64` is correct for OLS/RIF/quantile/bootstrap math and must not be forced to `Decimal`. Monetary values round through `Decimal(18,2)` only at the display/ledger boundaries the spec names, never inside the estimator.
 - Feature flags: `display` (default, comfy-table output), `python` (PyO3 bindings), `wasm` (engine WASM target)
 - The `engine` crate patches `crossterm` via a local vendored crate at `engine/crates/crossterm/`

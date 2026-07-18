@@ -6,6 +6,9 @@ use statrs::distribution::{ContinuousCDF, Normal};
 use std::collections::HashMap;
 use std::io::Cursor;
 
+/// Parallelization audit verdict: **SKIP** (engine-parallel-surface D1, entry point 5).
+/// Scalar defensibility scoring over the decompose output (the scoring arithmetic below) —
+/// trivial and serial; no solve, no fan-out site.
 pub fn check_defensibility_inner(req: VerificationRequest) -> Result<OptimizationResult, String> {
     // 1. Load Data
     let cursor = Cursor::new(&req.decomposition_params.csv_data);

@@ -39,6 +39,10 @@ display = ["dep:comfy-table"]
 # D1). Installs a tracking GlobalAlloc + checkpoint API behind this flag.
 # OFF by default (INV-01): never enabled in the production/wasm build path.
 mem-profile = []
+# WASM threading cfg gate (0014-MERIDIAN, engine-parallel-surface D3). No deps —
+# `rayon` stays UNCONDITIONAL (line 23) so native parallelism is byte-unchanged
+# (INV-01). Enabling this only cfg-gates the wasm build; never in `default`.
+wasm-threads = []
 
 [dev-dependencies]
 assert_cmd = "2.0"

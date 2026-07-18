@@ -1,6 +1,6 @@
 use crate::types::*;
 use nalgebra::{DMatrix, DVector};
-use oaxaca_blinder::{OaxacaBuilder, QuantileDecompositionBuilder, ReferenceCoefficients};
+use oaxaca_blinder::{OaxacaBuilder, ReferenceCoefficients};
 use polars::prelude::*;
 use statrs::distribution::{ContinuousCDF, Normal};
 use std::io::Cursor;
@@ -165,15 +165,21 @@ fn run_decomposition_on_df(
         unexplained_std_err,
         run_metadata,
     ) = if let Some(q) = req.quantile {
-        // QUANTILE DECOMPOSITION
-        let mut builder = QuantileDecompositionBuilder::new(
+        // QUANTILE DECOMPOSITION (RIF-regression — 0014-MERIDIAN ruling a-1).
+        // Route through OaxacaBuilder::decompose_quantile (one-stage RIF-OLS with
+        // per-predictor detail, RIF recomputed per bootstrap replicate — ruling 4) instead of
+        // the MM-simulation builder, so the aggregate and the per-predictor detail are ONE
+        // coherent additive method (W10). Detail is extracted with the SAME two_fold accessors
+        // the OLS branch uses below; the postMessage {type,payload} contract is unchanged —
+        // detail flows through the existing DecompositionResult fields the mean path serializes.
+        let mut builder = OaxacaBuilder::new(
             df,
             &req.outcome_variable,
             &req.group_variable,
             &req.reference_group,
         );
         builder.predictors(predictors.iter().copied());
-        builder.quantiles(&[q]); // Single quantile for now
+        builder.reference_coefficients(ref_coef);
 
         if let Some(cats) = &cats_vec {
             builder.categorical_predictors(cats.iter().copied());
@@ -181,28 +187,46 @@ fn run_decomposition_on_df(
 
         builder.bootstrap_reps(reps);
 
-        let results = builder.run().map_err(|e| e.to_string())?;
+        let results = builder.decompose_quantile(q).map_err(|e| e.to_string())?;
 
-        // Results are QuantileDecompositionResults. Access via results_by_quantile.
-        let results_map = results.results_by_quantile();
+        let total = *results.total_gap();
+        let mut explained = 0.0;
+        let mut unexplained = 0.0;
+        let mut unexplained_std_err = None;
+        let mut d_exp = Vec::new();
+        let mut d_unexp = Vec::new();
 
-        // Since we don't know the exact key (e.g. "q0.5" or "0.5" or "50%"), and we only requested one,
-        // we take the first value.
-        let (_, detail) = results_map
-            .iter()
-            .next()
-            .ok_or_else(|| "Failed to retrieve results for the specified quantile.".to_string())?;
+        let two_fold = results.two_fold();
+        for component in two_fold.aggregate() {
+            if component.name() == "explained" {
+                explained = *component.estimate();
+            } else if component.name() == "unexplained" {
+                unexplained = *component.estimate();
+                unexplained_std_err = Some(*component.std_err());
+            }
+        }
 
-        // Extract values using methods
-        // NOTE: QuantileDecompositionDetail total_gap returns ComponentResult, so we need .estimate()
-        let total = *detail.total_gap().estimate();
-        let explained = *detail.characteristics_effect().estimate();
-        let unexplained = *detail.coefficients_effect().estimate();
+        for c in two_fold.detailed_explained() {
+            d_exp.push(DetailedComponent {
+                name: c.name().to_string(),
+                estimate: *c.estimate(),
+                std_err: Some(*c.std_err()),
+                p_value: Some(*c.p_value()),
+                ci_lower: Some(*c.ci_lower()),
+                ci_upper: Some(*c.ci_upper()),
+            });
+        }
 
-        // Detailed components - Currently not exposed in public API for QuantileDecompositionDetail
-        // We return empty vectors
-        let d_exp = Vec::new();
-        let d_unexp = Vec::new();
+        for c in two_fold.detailed_unexplained() {
+            d_unexp.push(DetailedComponent {
+                name: c.name().to_string(),
+                estimate: *c.estimate(),
+                std_err: Some(*c.std_err()),
+                p_value: Some(*c.p_value()),
+                ci_lower: Some(*c.ci_lower()),
+                ci_upper: Some(*c.ci_upper()),
+            });
+        }
 
         (
             total,
@@ -211,7 +235,7 @@ fn run_decomposition_on_df(
             None,
             d_exp,
             d_unexp,
-            None,
+            unexplained_std_err,
             results.run_metadata().clone(),
         )
     } else {
@@ -318,6 +342,9 @@ fn run_decomposition_on_df(
     })
 }
 
+/// Parallelization audit verdict: **SKIP** (engine-parallel-surface D1, entry point 2).
+/// One clarabel LP/QP solve (the `clarabel` optimize call below) — nothing to fan out;
+/// clarabel's default build is single-threaded direct LDL, no rayon (L5). No parallel site.
 pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, String> {
     // 1. Load Data
     let cursor = Cursor::new(req.csv_data);
@@ -884,6 +911,11 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
     })
 }
 
+/// Parallelization audit verdict: **SKIP** (engine-parallel-surface D1, entry point 4).
+/// Not an independent-optimization grid: one upfront `optimize_inner` solve plus a
+/// SEQUENTIAL cumulative budget sweep that carries `current_y`/`pay_idx`/`budget_cursor`
+/// across steps (the budget loop below); `compute_t_stat` is one projector multiply.
+/// Nothing safe to fan out — the sweep is inherently serial.
 pub fn calculate_efficient_frontier_inner(
     req: EfficientFrontierRequest,
 ) -> Result<Vec<FrontierPoint>, String> {
@@ -980,9 +1012,7 @@ pub fn calculate_efficient_frontier_inner(
     // column `__ob_intercept__` injected by OaxacaBuilder::prepare_data — match only that name.
     // A fuzzy "intercept"/"const" match would misclassify a user predictor literally named
     // `intercept` or `const` as the intercept and silently drop it from the pooled design matrix.
-    let intercept_idx = _feature_names
-        .iter()
-        .position(|f| f == "__ob_intercept__");
+    let intercept_idx = _feature_names.iter().position(|f| f == "__ob_intercept__");
 
     let cols_a = x_a.ncols();
 
@@ -1321,9 +1351,15 @@ mod tests {
         let res = res.unwrap();
 
         // Basic checks
-        assert!(res.total_gap > 0.0);
-        // Detailed should be empty for quantile
-        assert!(res.detailed_explained.is_empty());
+        assert!(res.total_gap.is_finite());
+        // In-Scope 12 (ruling a-1): the quantile branch now routes through the RIF path
+        // (OaxacaBuilder::decompose_quantile), which returns full per-predictor detail — the old
+        // MM path returned unconditional empties. Detail must be populated now.
+        assert!(
+            !res.detailed_explained.is_empty(),
+            "RIF quantile path must populate per-predictor detail (In-Scope 12)"
+        );
+        assert!(!res.detailed_unexplained.is_empty());
     }
 
     #[test]

@@ -1,5 +1,5 @@
 use clap::{CommandFactory, Parser, Subcommand};
-use oaxaca_blinder::{OaxacaBuilder, QuantileDecompositionBuilder, ReferenceCoefficients};
+use oaxaca_blinder::{OaxacaBuilder, ReferenceCoefficients};
 use polars::prelude::*;
 
 use std::error::Error;
@@ -232,6 +232,11 @@ fn run_mean_analysis(args: &RunArgs, df: DataFrame) -> Result<(), Box<dyn std::e
 }
 
 fn run_quantile_analysis(args: &RunArgs, df: DataFrame) -> Result<(), Box<dyn Error>> {
+    // RIF-regression quantile decomposition (0014-MERIDIAN ruling a-1): the CLI uses the SAME
+    // OaxacaBuilder::decompose_quantile path as the WASM/MCP surface — one coherent method
+    // everywhere, no CLI-vs-browser divergence (AC-13). QuantileDecompositionBuilder (MM
+    // simulation) stays exported for direct-API consumers but is no longer the CLI default;
+    // `--simulations` is therefore inert on this path (kept for backward CLI compatibility).
     let predictors: Vec<&str> = args.predictors.iter().map(AsRef::as_ref).collect();
     let quantiles = args
         .quantiles
@@ -242,18 +247,30 @@ fn run_quantile_analysis(args: &RunArgs, df: DataFrame) -> Result<(), Box<dyn Er
         .as_ref()
         .map(|v| v.iter().map(AsRef::as_ref).collect())
         .unwrap_or_default();
+    let reference_coeffs = match args.ref_coeffs {
+        ReferenceType::GroupA => ReferenceCoefficients::GroupA,
+        ReferenceType::GroupB => ReferenceCoefficients::GroupB,
+        ReferenceType::Pooled => ReferenceCoefficients::Pooled,
+        ReferenceType::Weighted => ReferenceCoefficients::Weighted,
+    };
 
-    let mut builder =
-        QuantileDecompositionBuilder::new(df, &args.outcome, &args.group, &args.reference);
-    builder
-        .predictors(predictors.iter().copied())
-        .categorical_predictors(categorical_predictors.iter().copied())
-        .quantiles(&quantiles)
-        .bootstrap_reps(args.bootstrap_reps)
-        .simulations(args.simulations);
+    for &q in &quantiles {
+        // Arc/COW-cheap clone (stage-2 Finding 1); each τ gets a fresh builder.
+        let mut builder =
+            OaxacaBuilder::new(df.clone(), &args.outcome, &args.group, &args.reference);
+        builder
+            .predictors(predictors.iter().copied())
+            .categorical_predictors(categorical_predictors.iter().copied())
+            .bootstrap_reps(args.bootstrap_reps)
+            .reference_coefficients(reference_coeffs);
+        if let Some(weights) = &args.weights {
+            builder.weights(weights);
+        }
 
-    let results = builder.run()?;
-    results.summary();
+        let results = builder.decompose_quantile(q)?;
+        println!("\n=== Quantile τ = {:.2} (RIF-regression) ===", q);
+        results.summary();
+    }
     Ok(())
 }
 

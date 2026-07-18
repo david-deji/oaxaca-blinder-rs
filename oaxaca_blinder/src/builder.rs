@@ -787,55 +787,142 @@ impl OaxacaBuilder {
     ///
     /// * `quantile` - The target quantile (e.g., 0.9 for the 90th percentile).
     pub fn decompose_quantile(&self, quantile: f64) -> Result<OaxacaResults, OaxacaError> {
-        // 1. Clean data first to ensure quantiles are calculated on non-null data
+        // RIF-regression quantile decomposition (Firpo-Fortin-Lemieux 2009), 0014-MERIDIAN
+        // rulings a-1 / 4.
+        //
+        // Ruling 4 (`fixed_rif: false`): the RIF transform is recomputed INSIDE each bootstrap
+        // replicate — every resample re-estimates its own quantile q_τ and density f_Y(q_τ)
+        // before the RIF-OLS — so the bootstrap CIs reflect the full sampling variability of
+        // the quantile estimate (the legacy compute-once-on-the-full-sample form understated
+        // them). The POINT estimate still uses the full-sample RIF.
+        //
+        // Structure mirrors `run()` (shared dummy prep → `run_single_pass` → the
+        // bounded-parallel chunked bootstrap → `aggregate_results`), with one addition: each
+        // resampled group's outcome is replaced by its per-replicate RIF before the pass.
+        // Reusing run()'s chunked loop keeps the stage-2 WASM-OOM bound (peak = H_res +
+        // chunk·Sc) AND the fixed rep-index reduction order (so the quantile path is
+        // byte-identical across thread counts too, INV-02), and reusing the same
+        // `unit_rng(master, Bootstrap, rep*2 [+1])` streams keeps determinism.
         let df_dirty = self.dataframe.clone();
-        let df = self.clean_dataframe(&df_dirty)?;
+        let mut df = self.clean_dataframe(&df_dirty)?;
 
-        let groups = self.split_groups(&df)?;
-        let df_a = groups.df_a;
-        let df_b = groups.df_b;
-
-        // 3. Calculate RIF for each group
-        let rif_a = calculate_rif(
-            df_a.column(&self.outcome)?.as_materialized_series(),
-            quantile,
-        )
-        .map_err(OaxacaError::PolarsError)?;
-        let rif_b = calculate_rif(
-            df_b.column(&self.outcome)?.as_materialized_series(),
-            quantile,
-        )
-        .map_err(OaxacaError::PolarsError)?;
-
-        // 4. Replace outcome with RIF
-        let mut df_a_mod = df_a.clone();
-        df_a_mod.with_column(rif_a)?;
-
-        let mut df_b_mod = df_b.clone();
-        df_b_mod.with_column(rif_b)?;
-
-        // 5. Combine back
-        let df_mod = df_a_mod.vstack(&df_b_mod)?;
-
-        // 6. Create new builder and run
-        let mut builder =
-            OaxacaBuilder::new(df_mod, &self.outcome, &self.group, &self.reference_group);
-        builder
-            .predictors(self.predictors.iter().map(|s| s.as_str()))
-            .categorical_predictors(self.categorical_predictors.iter().map(|s| s.as_str()))
-            .bootstrap_reps(self.bootstrap_reps)
-            .reference_coefficients(self.reference_coeffs)
-            .normalize(self.normalization_vars.iter().map(|s| s.as_str()))
-            // CV-1 (CRITICAL): forward the master seed verbatim so `.seed(X)` on the
-            // outer builder reproduces byte-identically on the RIF quantile path. `None`
-            // stays `None` and resolves to DEFAULT_SEED in the inner `run()`.
-            .seed_opt(self.seed);
-
-        if let Some(w) = &self.weights_col {
-            builder.weights(w);
+        // Categorical one-hot dummies — same construction as run() so run_single_pass sees the
+        // one-hot columns and the Gardeazabal-Ugidos normalization applies unchanged (L6).
+        let mut all_dummy_names = Vec::new();
+        let mut category_counts = std::collections::HashMap::new();
+        let mut base_categories = std::collections::HashMap::new();
+        if !self.categorical_predictors.is_empty() {
+            for cat_pred in &self.categorical_predictors {
+                let series = df.column(cat_pred)?;
+                let (dummies, m, base_name) =
+                    self.create_dummies_manual(series.as_materialized_series())?;
+                category_counts.insert(cat_pred.clone(), m);
+                base_categories.insert(cat_pred.clone(), base_name);
+                for s in dummies.get_columns() {
+                    all_dummy_names.push(s.name().to_string());
+                }
+                df = df.hstack(dummies.get_columns())?;
+            }
         }
 
-        builder.run()
+        let groups = self.split_groups(&df)?;
+        let df_a_global = groups.df_a;
+        let df_b_global = groups.df_b;
+
+        // Point estimate: RIF computed once on the FULL sample of each group.
+        let point_df = self
+            .rif_replace_outcome(&df_a_global, quantile)?
+            .vstack(&self.rif_replace_outcome(&df_b_global, quantile)?)?;
+        let point_estimates = self.run_single_pass(
+            &point_df,
+            &all_dummy_names,
+            &category_counts,
+            &base_categories,
+        )?;
+
+        let master = self.seed.unwrap_or(DEFAULT_SEED);
+
+        // Bounded-parallel chunked bootstrap (stage-2 invariant — NEVER an unbounded
+        // into_par_iter().collect(), which reintroduces the WASM-OOM). Each rep: resample the
+        // ORIGINAL groups → recompute the per-group RIF on the resample (ruling 4) → RIF-OLS
+        // decomposition pass. Same streams + index-ordered chunk consumption as run().
+        let chunk = rayon::current_num_threads().max(1);
+        let mut bootstrap_results: Vec<RepEstimates> = Vec::with_capacity(self.bootstrap_reps);
+        let mut discarded = 0usize;
+        let mut start = 0usize;
+        while start < self.bootstrap_reps {
+            let end = (start + chunk).min(self.bootstrap_reps);
+            let chunk_out: Vec<RepOutcome<RepEstimates>> = (start..end)
+                .into_par_iter()
+                .map(|rep| {
+                    let rep = rep as u64;
+                    let mut rng_a = unit_rng(master, RngPurpose::Bootstrap, rep * 2);
+                    let mut rng_b = unit_rng(master, RngPurpose::Bootstrap, rep * 2 + 1);
+
+                    let result = (|| -> Result<SinglePassResult, OaxacaError> {
+                        let sample_a = df_a_global
+                            .take(&resample_indices(&mut rng_a, df_a_global.height()))?;
+                        let sample_b = df_b_global
+                            .take(&resample_indices(&mut rng_b, df_b_global.height()))?;
+                        // Ruling 4: recompute the RIF per replicate, per group.
+                        let sample_a = self.rif_replace_outcome(&sample_a, quantile)?;
+                        let sample_b = self.rif_replace_outcome(&sample_b, quantile)?;
+                        let sample_df = sample_a.vstack(&sample_b)?;
+                        self.run_single_pass(
+                            &sample_df,
+                            &all_dummy_names,
+                            &category_counts,
+                            &base_categories,
+                        )
+                    })();
+
+                    match result {
+                        Ok(r) => RepOutcome::Ok(RepEstimates::from_pass(&r)),
+                        Err(_) => RepOutcome::Failed,
+                    }
+                })
+                .collect();
+
+            for o in chunk_out {
+                match o {
+                    RepOutcome::Ok(r) => bootstrap_results.push(r),
+                    RepOutcome::Failed => discarded += 1,
+                }
+            }
+            start = end;
+        }
+
+        let successful_bootstraps = bootstrap_results.len();
+        if successful_bootstraps < self.bootstrap_reps {
+            eprintln!(
+                "Warning: {} out of {} bootstrap replications failed and were discarded. The analysis is based on {} successful replications.",
+                self.bootstrap_reps - successful_bootstraps, self.bootstrap_reps, successful_bootstraps
+            );
+        }
+
+        // fixed_rif = Some(false): RIF recomputed per replicate (ruling 4).
+        Ok(self.aggregate_results(
+            &point_estimates,
+            &bootstrap_results,
+            master,
+            successful_bootstraps,
+            discarded,
+            df_a_global.height(),
+            df_b_global.height(),
+            Some(false),
+        ))
+    }
+
+    /// Replace the outcome column of `g` with its Recentered Influence Function at
+    /// `quantile` (RIF-regression transform, FFL 2009). Called once per group for the point
+    /// estimate and once per group PER bootstrap replicate (ruling 4). `clone()` is an
+    /// Arc/COW refcount bump (stage-2 Finding 1), so it adds no meaningful per-rep memory.
+    fn rif_replace_outcome(&self, g: &DataFrame, quantile: f64) -> Result<DataFrame, OaxacaError> {
+        let rif = calculate_rif(g.column(&self.outcome)?.as_materialized_series(), quantile)
+            .map_err(OaxacaError::PolarsError)?;
+        let mut out = g.clone();
+        out.with_column(rif)?;
+        Ok(out)
     }
 
     /// Helper to drop rows with missing values in relevant columns.
@@ -985,6 +1072,40 @@ impl OaxacaBuilder {
             );
         }
 
+        // fixed_rif = None: mean/OLS path (no quantile RIF transform). The aggregation is
+        // shared verbatim with decompose_quantile() via aggregate_results() — one path, no
+        // divergent copy (RK2). The mean path is byte-identical to before the extraction
+        // (AC-9 / AC-6 baselines) and INV-02 deterministic across thread counts.
+        Ok(self.aggregate_results(
+            &point_estimates,
+            &bootstrap_results,
+            master,
+            successful_bootstraps,
+            discarded,
+            df_a_global.height(),
+            df_b_global.height(),
+            None,
+        ))
+    }
+
+    /// Shared bootstrap-aggregation: turns the point-estimate pass plus the collected per-rep
+    /// scalar estimates into the final `OaxacaResults` (per-component SE / percentile-CI /
+    /// p-value / t-stat). Used verbatim by `run()` (mean/OLS, `fixed_rif` = None) and
+    /// `decompose_quantile()` (RIF, `fixed_rif` = Some(false)) — one path, no divergent copy
+    /// (RK2). The computation and iteration order are identical for both, so the mean path
+    /// stays byte-identical and INV-02 within-platform determinism holds.
+    #[allow(clippy::too_many_arguments)]
+    fn aggregate_results(
+        &self,
+        point_estimates: &SinglePassResult,
+        bootstrap_results: &[RepEstimates],
+        master: u64,
+        successful_bootstraps: usize,
+        discarded: usize,
+        n_a: usize,
+        n_b: usize,
+        fixed_rif: Option<bool>,
+    ) -> OaxacaResults {
         let process_component = |name: &str, point: f64, estimates: Vec<f64>| {
             let (std_err, p_value, (ci_lower, ci_upper)) = bootstrap_stats(&estimates, point);
             let t_stat = if std_err.abs() > 1e-9 {
@@ -1050,25 +1171,35 @@ impl OaxacaBuilder {
 
         let detailed_explained = self.process_detailed_components(
             &point_estimates.detailed_explained,
-            &bootstrap_results,
+            bootstrap_results,
             |r| &r.detailed_explained,
             &process_component,
         );
         let detailed_unexplained = self.process_detailed_components(
             &point_estimates.detailed_unexplained,
-            &bootstrap_results,
+            bootstrap_results,
             |r| &r.detailed_unexplained,
             &process_component,
         );
 
         let detailed_selection = self.process_detailed_components(
             &point_estimates.detailed_selection,
-            &bootstrap_results,
+            bootstrap_results,
             |r| &r.detailed_selection,
             &process_component,
         );
 
-        Ok(OaxacaResults {
+        let mut run_metadata = RunMetadata::new(
+            master,
+            self.bootstrap_reps,
+            successful_bootstraps,
+            discarded,
+        );
+        if let Some(fr) = fixed_rif {
+            run_metadata = run_metadata.with_fixed_rif(fr);
+        }
+
+        OaxacaResults {
             total_gap: point_estimates.total_gap,
             two_fold: TwoFoldResults {
                 aggregate: two_fold_agg,
@@ -1080,19 +1211,14 @@ impl OaxacaBuilder {
                 aggregate: three_fold_agg,
                 detailed: Vec::new(),
             },
-            n_a: df_a_global.height(),
-            n_b: df_b_global.height(),
+            n_a,
+            n_b,
             residuals: point_estimates.residuals_b.iter().copied().collect(),
-            xa_mean: point_estimates.xa_mean,
-            xb_mean: point_estimates.xb_mean,
-            beta_star: point_estimates.beta_star,
-            run_metadata: RunMetadata::new(
-                master,
-                self.bootstrap_reps,
-                successful_bootstraps,
-                discarded,
-            ),
-        })
+            xa_mean: point_estimates.xa_mean.clone(),
+            xb_mean: point_estimates.xb_mean.clone(),
+            beta_star: point_estimates.beta_star.clone(),
+            run_metadata,
+        }
     }
 
     fn process_detailed_components<'a, F>(

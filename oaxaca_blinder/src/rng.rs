@@ -89,10 +89,18 @@ pub struct RunMetadata {
     pub bootstrap_reps_requested: usize,
     pub bootstrap_reps_succeeded: usize,
     pub bootstrap_reps_discarded: usize,
+    /// RIF quantile bootstrap policy (0014-MERIDIAN ruling 4). `Some(false)` = the RIF
+    /// transform is recomputed inside every bootstrap replicate (each resample re-estimates
+    /// its own `q_τ`/`f_Y(q_τ)` → correct quantile CIs — the ratified default). `Some(true)`
+    /// = legacy compute-once. `None` on non-quantile (mean/OLS) runs; omitted from
+    /// serialization there so the mean-path bytes are unchanged (AC-9/AC-6 baselines hold).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fixed_rif: Option<bool>,
 }
 
 impl RunMetadata {
-    /// Build the record from a resolved master seed and the rep accounting.
+    /// Build the record from a resolved master seed and the rep accounting. `fixed_rif`
+    /// defaults to `None` (mean/OLS run); the quantile path sets it via [`with_fixed_rif`].
     pub(crate) fn new(seed: u64, requested: usize, succeeded: usize, discarded: usize) -> Self {
         RunMetadata {
             seed,
@@ -101,7 +109,15 @@ impl RunMetadata {
             bootstrap_reps_requested: requested,
             bootstrap_reps_succeeded: succeeded,
             bootstrap_reps_discarded: discarded,
+            fixed_rif: None,
         }
+    }
+
+    /// Record the RIF-recompute policy on a quantile run (ruling 4). `false` = per-replicate
+    /// recompute (the ratified default); `true` = legacy compute-once on the full sample.
+    pub(crate) fn with_fixed_rif(mut self, fixed_rif: bool) -> Self {
+        self.fixed_rif = Some(fixed_rif);
+        self
     }
 }
 
@@ -154,8 +170,15 @@ mod tests {
         let mut r2 = base;
         let idx1: Vec<IdxSize> = resample_indices(&mut r1, n).into_no_null_iter().collect();
         let idx2: Vec<IdxSize> = resample_indices(&mut r2, n).into_no_null_iter().collect();
-        assert_eq!(idx1, idx2, "resample_indices not reproducible for cloned rng");
-        assert_eq!(idx1.len(), n, "resample_indices must return exactly n indices");
+        assert_eq!(
+            idx1, idx2,
+            "resample_indices not reproducible for cloned rng"
+        );
+        assert_eq!(
+            idx1.len(),
+            n,
+            "resample_indices must return exactly n indices"
+        );
         assert!(
             idx1.iter().all(|&i| (i as usize) < n),
             "every resampled index must be < n"

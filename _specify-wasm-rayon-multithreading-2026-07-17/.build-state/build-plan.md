@@ -108,7 +108,7 @@ unbounded `into_par_iter().collect()`.
 - [x] Stage 2 — memory profile (GATE PASS: profile committed; N_max_const=8 true safe; WASM-OOM
       hazard found + fixed via bounded-parallel bootstrap; peak 248 MiB @ N=8/50k in-band; INV-02
       byte-identity + AC-9 + determinism all hold). AC-M10 retired (clone-lever falsified).
-- [ ] Stage 3 — threading (E2/E3 preflights inside) — INVARIANT: keep bootstrap bounded-parallel; N_max_const=8; link-args in report
+- [x] Stage 3 — threading (GATE PASS 2026-07-18): dual WASM artifacts build reproducibly; quantile INV-02 byte-id 2ea93797 across threads 1/2/4/8; mean path d74efb3c unchanged; 3 adversarial reviews (stats/refactor-safety/contract) CLEAN — 0 confirmed defects; David ruled commit-the-threaded-artifacts. Committed per-repo on build/wasm-rayon-mt/main (NO push/merge). E3 nested-worker browser spawn deferred to stage-4 CI. INVARIANT held: bootstrap bounded-parallel; N_max_const=8.
 - [ ] Stage 4 — validation
 - [ ] Phase 3 — review panel (Charter-compliance reviewer incl.)
 - [ ] Phase 4 — integration, cross-surface parity, BUILD-REPORT.md, merge to main
@@ -122,13 +122,28 @@ Re-verify the stage's ACs before assuming it's done. Build branch: `build/wasm-r
 
 ```yaml
 phase: executing
-current: stage-3-threading
-completed: [phase-0-init, stage-1-determinism, stage-2-memory-profile]
-commits: {stage-1: 356faab, stage-2: c005837}
-next: stage-3-threading
+current: stage-4-validation
+completed: [phase-0-init, stage-1-determinism, stage-2-memory-profile, stage-3-threading]
+commits: {stage-1: 356faab, stage-2: c005837, stage-3: see-git-log-build/wasm-rayon-mt/main}
+stage_3_substages:
+  3A-engine-feature-plumbing: DONE        # Cargo.toml x2 wasm-threads feature, lib.rs init_thread_pool re-export, SKIP doc comments, INV-08 in CLAUDE.md, AC-4 clean
+  3B-decompose-quantile-rif-seed: DONE    # per-rep RIF recompute + seed fwd (builder.rs); RunMetadata.fixed_rif (skip-if-none); aggregate_results extracted; MEAN PATH BYTE-IDENTICAL d74efb3c across 1/2/4/8
+  3C-wire-both-surfaces-rif: DONE         # analysis.rs quantile branch + main.rs CLI -> decompose_quantile (RIF); QuantileDecompositionBuilder import dropped both sites
+  # 3A/B/C verified: native build 0; AC-3/6 wasm-bindgen-rayon absent native; AC-9 parity 2/2; rng_determinism 5/5; rif_test 1/1
+  3D-toolchain-build-strategy-a: DONE     # .cargo/config.toml (appended to existing PyO3 [env]); build-wasm.sh dual-pass --target web; ci.yml dual-artifact+double-build. E1 GREEN (nightly-2025-06-27 builds full graph+wasm-bindgen-rayon 1.3.0/ASM-01). E2 RESOLVED: minimal flags link (atomics auto-emits shared-memory). baselines seq f14eb326 / threaded c7076609 REPRODUCED across 2 runs. config.toml native-safe (AC-2/8 exit 0).
+  3E-meridian-audit-forge: DONE           # audit-forge COOP/COEP (2 lines, additive) + AC-M6 test (10 pass incl 8 CSP regression); vite.config; analysis.worker.js Strategy-A dual dynamic-import; service INIT_RESULT+getComputeMode; thread-cap.js=8; M7 pkg refresh + wasm-threaded/package.json (fixes rayon workerHelpers ../../.. import). pnpm build PASS (AC-M4.3, 42s). E3 deferred to stage-4 browser CI (W7).
+  3F-gate-verify-commit: DONE             # VERIFIED: quantile INV-02 byte-id 2ea93797 across 1/2/4/8; mean path still d74efb3c; AC-6/8/11 pass; engine suite 14/14; oaxaca lib 38/38; clippy MY files clean; fmt MY files clean; pnpm build + audit-forge 10 tests pass. 3 adversarial reviews CLEAN (stats 6/6 CORRECT; refactor-safety 5/5 SAFE mean-path byte-identical; contract 6/7 OK + 1 SUSPECT=untracked wasm-threaded/ now resolved). David ruled COMMIT-the-threaded-artifacts (matches tracked seq wasm). Committed per-repo on build/wasm-rayon-mt/main — NO push/merge. Non-blocking carried to stage 4: AC-13 CLI<->WASM parity independent verify; density-floor SE at tau 0.1/0.9 via ddecompose golden; calculate_rif n<2 latent-unreachable.
+  # PRE-EXISTING DEBT discovered (NOT mine, flag to David): CI quality job already red on main — clippy akm.rs:376 needless_range_loop + cargo fmt --check dirty across ab_binding_regression_test.rs/parity_test.rs/etc. My changes add zero clippy warnings + are fmt-clean.
+  # SPEC RECONCILIATIONS: (1) .cargo/config.toml was NOT new — appended to existing PyO3 [env]. (2) E2 minimal flag set suffices (no explicit --shared-memory). (3) seq baseline moved cff16253->f14eb326 (engine RIF change, expected). (4) AC-9 forced seq glue to --target web too (baseline is target-independent).
+next: stage-4-validation
 n_max_const: 8            # true safe; bounded peak 248 MiB @ N=8/50k
-threading_invariant: "bootstrap must stay bounded-parallel (chunked to pool size); never revert to unbounded into_par_iter().collect()"
+threading_invariant: "bootstrap must stay bounded-parallel (chunked to pool size); never revert to unbounded into_par_iter().collect() — reintroduces WASM-OOM"
 link_args: {stack_size: 1048576, max_memory: 342228992, initial_memory: 82378752}
+nightly_pin: nightly-2025-06-27          # E1-proven (Phase 0); spec's 2024-08-02 was provisional
+in_scope_12_ruling: "a-1: both WASM(analysis.rs) + CLI(main.rs) -> decompose_quantile (RIF); per-rep RIF recompute (fixed_rif:false)"
+strategy: A-dual-artifact                 # untouched stable seq baseline + threaded --target web blob
+repos: {engine: build/wasm-rayon-mt/main, pay-equity-app: TBD-branch-off-main, audit-forge: TBD-branch-off-master (foreign _shell.html untouched)}
 safe_to_retry: true
+started_at: 2026-07-18
 updated: 2026-07-18
 ```
