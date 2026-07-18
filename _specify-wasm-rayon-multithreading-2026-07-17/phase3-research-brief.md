@@ -54,26 +54,30 @@ Does Swatinem/rust-cache@v2 scope caches such that the CI double-build (separate
 ### W9 — r-stata-seed-practice (Phase-1 leftover, citation hygiene)
 Primary-source confirmation: R boot/set.seed and Stata `set seed` bootstrap reproducibility practice (official docs), for the spec's defensibility citations.
 
+### W10 — per-predictor-quantile-detail-methodology (NEW — founder scope expansion, In-Scope 12 full math)
+How is per-covariate (detailed) decomposition computed for quantile gaps in the RIF-regression framework (Firpo-Fortin-Lemieux 2009 Econometrica / 2018 Econometrics "Decomposing Wage Distributions Using Recentered Influence Function Regressions")? Specifically: (a) RIF-OLS makes the detailed decomposition formally identical to the mean-path Oaxaca detail — confirm the exact formulas for endowments/coefficients per predictor at quantile tau, incl. the reweighting-error and specification-error terms in the two-stage FFL procedure and whether a spec may defensibly ship the first-stage (no reweighting) detail alone; (b) does the MM simulation path admit per-predictor detail at all, or is RIF the only defensible detailed route (Fortin-Lemieux-Firpo 2011 Handbook ch. — MM path-dependence problem); (c) reference implementations for goldens: Stata `oaxaca_rif` / `rif` package (Rios-Avila 2020, Stata Journal), R `dineq::rif`/`rifreg`, `ddecompose` — which produce per-predictor quantile detail and what are their function signatures; (d) categorical-predictor base-category dependence at quantiles — does Gardeazabal-Ugidos normalization carry over to RIF detail?
+
 ## EXPERIMENT units (→ spec as /build Phase 0 preflight tasks, not /specify research)
 
-### E1 — nightly-compile-validation (toolchain gap 1)
+#### E1 — nightly-compile-validation (toolchain gap 1)
 Does nightly-2024-08-02 build the full dep set (polars 0.44 + clarabel + nalgebra + statrs) for wasm32 with -Zbuild-std? Forward-bump procedure specified in phase2-spec-toolchain-build.md §4.1.
 
-### E2 — shared-memory-link-args (toolchain gap 2 + memory M2)
+#### E2 — shared-memory-link-args (toolchain gap 2 + memory M2)
 Does +atomics alone emit shared memory or are --shared-memory/--import-memory link args required; where does --max-memory bind under --target web + wbr glue?
 
-### E3 — nested-worker-pool-spawn (meridian RK1 + verify VB2 — TOP unknown)
+#### E3 — nested-worker-pool-spawn (meridian RK1 + verify VB2 — TOP unknown)
 initThreadPool from inside a dedicated worker in evergreen Chrome/Edge (+ headless Chromium for the harness). Minimal COI page experiment; decides init call-site (worker vs main-thread relay fallback).
 
 ## HUMAN decisions (gate items, not research)
 
-### H1 — In-Scope 12 scope ruling (engine-parallel-surface §7)
-Per-predictor quantile detail does not exist mathematically today (quantile_decomposition.rs:267-271 aggregates only). Expose-plumbing-now (empty/aggregate accessors) vs add per-predictor RIF/MM math (Charter anti-goal: algorithm changes — scope expansion). → asked at council gate.
+#### H1 — In-Scope 12 scope ruling — RESOLVED 2026-07-17 at council gate
+Founder chose FULL per-predictor math (scope expansion, Charter Scope-Delta logged, anti-goal carved out). Research routed to new unit W10; W6 golden unit now load-bearing for the detail path too.
 
-### H2 — memory margins ratification (memory-budget §7.4)
+#### H2 — memory margins ratification (memory-budget §7.4)
 Marg/Marg_init/headroom_frac/St confirmation once the profile lands. → buildability gate.
 
 ## DEPENDENT (no action in Phase 3)
 
-- Final --max-memory / ceiling constants → memory profile output (build-time).
-- Strategy A conditional-import question moot if Strategy B ratified (W3 covers the live variant).
+> Not research gaps — resolved by other deliverables, listed for completeness.
+> (1) Final --max-memory / ceiling constants come from the memory-profile output (build-time).
+> (2) The Strategy-A conditional-import question is moot if Strategy B is ratified; W3 covers the live variant.

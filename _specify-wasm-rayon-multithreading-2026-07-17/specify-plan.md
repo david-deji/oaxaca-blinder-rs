@@ -12,7 +12,67 @@ completed:
   - phase-0-brief
   - plan-confirmation-gate
   - phase-1-research   # gate 19/0 pass
-current: council-gate-post-phase-2
+  - phase-1.5-citation-verifier   # fix-in-place, 0/12 post-fix
+  - council-gate-post-phase-1     # no council
+  - phase-2-spec-drafts           # 7 drafts, gate 16/0, drift 0 findings
+  - phase-2.5-gap-extraction      # phase3-research-brief.md
+  - council-gate-post-phase-2     # founder: NO COUNCIL. Plus In-Scope 12 ruling: FULL per-predictor
+                                  # quantile math (scope expansion APPROVED, Charter Scope-Delta logged,
+                                  # anti-goal carved out, W10 research unit added, H1 resolved)
+  - phase-3-gap-fill-research   # 6 LOCAL (L1-L6) + 10 WEB (W1-W10) all resolved
+  - phase-3-quality-gate        # 4/0 PASS (files renamed to embed slugs; brief E/H/DEP demoted to h4;
+                                # provenance URLs added. Friction logged: gate assumes 1-file-per-gap + web URLs)
+  - phase-3.5-citation-verifier # PASS 3/3 verified, 0 mismatch (<10%). W10 academic anchors confirmed
+                                # verbatim: FFL-2018 Econometrics 6(2):28 DOI 10.3390/econometrics6020028;
+                                # Rios-Avila 2020 Stata Journal 20(1):51-94 oaxaca_rif; ddecompose ob_decompose() sig captured.
+  - phase-4-refined-specs       # 5 opus writers → 7 phase4-final-*.md; quality gate 22/0
+  - phase-4.5-reconciliation-and-gates   # SaaS-creep clean, drift clean, no [CLARIFY]
+  - phase-4-build-readiness-audit         # Sonnet, VERDICT: CRITICAL-PRESENT (2 CRITICAL, 2 MINOR)
+  - phase-4-critical-fixes                # BOTH CRITICALs FIXED + 2 MINOR citations. gate re-run 22/0.
+                                          # C1: In-Scope 12 = WIRE existing decompose_quantile (builder.rs:720,
+                                          #     already does RIF per-predictor detail via run()), NOT new math.
+                                          #     Surfaces founder decision: MM->RIF quantile aggregate (client-facing).
+                                          # C2: thread-cap.js single-owner (memory-budget=value, meridian M7=file).
+  - phase-4.6-mandatory-adversarial-council   # 5 opus seats, ALL SHIP_WITH_FIXES (no BLOCK).
+                                              # council-synthesis.md + 5 council-*.md written.
+  - phase-4.7-council-fixes                    # ALL code-grounded fixes applied, gate 22/0:
+                                              #  CV-1 seed-propagation seam (decompose_quantile must forward self.seed) - TOP FIX
+                                              #  CV-2 adding-up re-pointed at RIF aggregate + CLI-divergence surfaced
+                                              #  MJ-3 golden tolerance -> measured-then-pinned + track-2 custom-R
+                                              #  MJ-5 decompose_quantile fixed-RIF SE disclosure + AC
+                                              #  MJ-6 thread-cap 8-clamp baked into N_max_const
+                                              #  MJ-4 E1 nightly subgraph-trim (default-features=false, cfg-gate askama)
+                                              #  entropy scoped native; MJ-1 native<->wasm split annotated (pending founder)
+current: buildability-gate
+# FOUR founder decisions (council-sharpened), presenting as AskUserQuestion:
+#  1. Strategy A vs B (council: A more competitive than spec claimed; B needs container/2-host baseline)
+#  2. INV-02 reframe (within-platform byte-identical + native<->wasm tolerance) - touches "bit-identical" ruling
+#  3. In-Scope 12 aggregate: (a-1) MM->RIF both surfaces / (a-2) accept+doc CLI divergence / (c) keep MM+expose both
+#  4. In-Scope 12 SE rigor: fixed-RIF+disclose vs recompute-RIF-per-replicate (client-facing defensibility)
+# H2 memory margins: DECIDE-AND-PROCEED (low-stakes, memory non-binding at 50k; band defaults, revisit at profile).
+# ultracode ON (xhigh + workflow orchestration). blast_radius client-facing => council floor.
+# Running post-reconciliation adversarial council as a Workflow over the CORRECTED specs.
+# FOUNDER GATE PENDING (NOT answered — /effort + task-notif are NOT user input): Strategy B ratify,
+#   H2 memory margins, In-Scope 12 MM->RIF aggregate decision (NEW, from C1 fix).
+# RECONCILIATION WIN (build-safety.md): math/rif.rs:14 calculate_rif ALREADY implements the
+# exact unconditional-quantile RIF form In-Scope 12 needs (Q_tau + (tau - I(y<=Q_tau))/f, own
+# Silverman KDE). math/kde.rs:20, math/normalization.rs:5 (G-U norm), math/ols.rs, math/
+# quantile_regression.rs all exist. In-Scope 12 is WIRING existing primitives, not new math →
+# de-risks the scope expansion (writer's OI-1/MAJOR risk resolved safe). Engine-parallel-surface
+# spec build-step 5 is "reuse calculate_rif" not "implement rif_quantile".
+# Pending: build-readiness audit (dispatched), SaaS-creep scan, drift/[CLARIFY] scan,
+# mandatory post-recon council (blast_radius client-facing floor — surface at gate), buildability gate.
+# Phase 3 COMPLETE. Outputs: phase3-local-findings.md, phase3-web-findings.md.
+# Six Phase-4 corrections queued (see phase3-web-findings.md § Phase 4 corrections):
+#  1. W4 worker OOM: budget-prevention + structured self-report, not RuntimeError parsing
+#  2. W5 mean golden: bespoke manual-loop R script, not oaxaca(R=)
+#  3. W7 threaded browser CI: custom COOP/COEP server + Playwright, not wasm-pack test
+#  4. W8 double-build: two non-default CARGO_TARGET_DIRs (or disable rust-cache)
+#  5. L4 drop POLARS_MAX_THREADS=1 (no-op on wasm); reframe one-parallel-layer via polars wasm stub
+#  6. W10 In-Scope 12: one-stage RIF-OLS detail (reuse mean OB detail + G-U norm), golden=R ddecompose,
+#     MM stays aggregate-only, two-stage reweighting = documented v2
+# Key DECISIONS locked: worker.format:'es' REQUIRED (W3); page-level COOP/COEP sufficient, no per-worker (W2);
+#   clarabel thread-safe default build (L5); take() bounds-checked gather (L1); rand_chacha 0.3 direct dep (L2).
 # phase-2 COMPLETE: 7 drafts, quality gate 16/0 (after mechanical header/provenance normalization),
 # drift check 2.4: ZERO findings (report: phase2-drift-check.md), no [CLARIFY] markers.
 # phase-2.5 COMPLETE: phase3-research-brief.md written — 6 LOCAL + 9 WEB + 3 EXPERIMENT(→build preflight) + 2 HUMAN + dependents.
