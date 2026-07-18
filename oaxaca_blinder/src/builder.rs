@@ -35,6 +35,45 @@ pub(crate) struct SinglePassResult {
     detailed_selection: Vec<DetailedComponent>,
 }
 
+/// Lightweight per-rep bootstrap estimates — only the scalar decomposition
+/// components the SE/CI reduction actually consumes. Extracted from the full
+/// [`SinglePassResult`] inside the parallel map so each rep's heavy fields
+/// (`residuals_a/b`, `xa_mean`, `xb_mean`, `beta_star` — never read from
+/// bootstrap reps; the final result reads those from the point estimate)
+/// are freed immediately instead of accumulating R times.
+///
+/// This is the 0014-MERIDIAN Stage-2 memory fix (`mem-profile-report.md`
+/// Finding 2): the retained bootstrap pile — not the thread count — was the
+/// dominant memory term (~4 MiB/rep at 50k → ~40 GiB at the R=10 000 cap).
+/// Retaining only these scalars (~KB/rep) drops peak into the portable
+/// SharedArrayBuffer envelope. Field values are copied verbatim from
+/// `SinglePassResult`, so the reduction output is numerically identical
+/// (INV-02 within-platform byte-identity and the AC-9 mean-path parity
+/// baseline both still hold).
+#[derive(Clone)]
+pub(crate) struct RepEstimates {
+    three_fold: ThreeFoldDecomposition,
+    two_fold: TwoFoldDecomposition,
+    detailed_explained: Vec<DetailedComponent>,
+    detailed_unexplained: Vec<DetailedComponent>,
+    detailed_selection: Vec<DetailedComponent>,
+}
+
+impl RepEstimates {
+    /// Copy only the consumed scalar components out of a full pass result. The
+    /// borrowed `SinglePassResult` is dropped by the caller immediately after,
+    /// freeing its residual/mean/beta allocations.
+    fn from_pass(r: &SinglePassResult) -> Self {
+        RepEstimates {
+            three_fold: r.three_fold.clone(),
+            two_fold: r.two_fold.clone(),
+            detailed_explained: r.detailed_explained.clone(),
+            detailed_unexplained: r.detailed_unexplained.clone(),
+            detailed_selection: r.detailed_selection.clone(),
+        }
+    }
+}
+
 pub struct OaxacaBuilder {
     dataframe: DataFrame,
     outcome: String,
@@ -848,6 +887,12 @@ impl OaxacaBuilder {
             }
         }
 
+        // Checkpoint A (D1, mem-profile only): resident bytes immediately after
+        // the categorical dummy hstack — a sub-component of H_res. Additive,
+        // side-effect-only; does not touch the RNG/resampling logic below.
+        #[cfg(feature = "mem-profile")]
+        crate::mem_profile::checkpoint_a();
+
         let groups = self.split_groups(&df)?;
 
         let point_estimates =
@@ -859,47 +904,77 @@ impl OaxacaBuilder {
         // Resolve the master seed once. `None` -> DEFAULT_SEED (reproducible-by-default).
         let master = self.seed.unwrap_or(DEFAULT_SEED);
 
+        // Checkpoint B (D1, mem-profile only): resident bytes immediately before
+        // the bootstrap into_par_iter() loop — the H_res(n) measurement point.
+        // Additive, side-effect-only; does not touch the RNG/resampling logic
+        // below (unit_rng/resample_indices/take/vstack are untouched).
+        #[cfg(feature = "mem-profile")]
+        crate::mem_profile::checkpoint_b();
+
         // Deterministic bootstrap. Each rep's resample and success/failure is a pure
         // function of (master, rep, base frames): group A draws from stream `rep*2`,
         // group B from `rep*2+1`, both via owned index-vector resampling (`take`) — no
         // dependence on execution order. The indexed `into_par_iter().map` collects in
         // order, then a sequential partition records the discard count deterministically
         // (D5, INV-02). `take` borrows the shared base frames; no per-rep clone.
-        let outcomes: Vec<RepOutcome<SinglePassResult>> = (0..self.bootstrap_reps)
-            .into_par_iter()
-            .map(|rep| {
-                let rep = rep as u64;
-                let mut rng_a = unit_rng(master, RngPurpose::Bootstrap, rep * 2);
-                let mut rng_b = unit_rng(master, RngPurpose::Bootstrap, rep * 2 + 1);
+        // Bounded-parallel bootstrap (0014-MERIDIAN memory fix). A single
+        // `(0..reps).into_par_iter().map(..).collect()` lets rayon keep many
+        // reps' ~Sc-sized `run_single_pass` working sets in flight at once, so
+        // peak memory scales with the rep count — harmless natively (the
+        // allocator reclaims it) but fatal in wasm, whose linear memory only
+        // ever grows. Processing reps in index-ordered chunks of the pool size
+        // caps the concurrently-live working sets at `chunk`, so peak =
+        // H_res + chunk·Sc (the D2 shared-memory budget model), while each
+        // chunk still runs fully in parallel. Chunks and within-chunk results
+        // are consumed in strict rep-index order, so the estimates reach the
+        // SE/CI reduction in a fixed order independent of thread count →
+        // deterministic floating-point reduction (INV-02 byte-identity across
+        // thread counts) and the AC-9 parity baseline both hold.
+        let chunk = rayon::current_num_threads().max(1);
+        let mut bootstrap_results: Vec<RepEstimates> = Vec::with_capacity(self.bootstrap_reps);
+        let mut discarded = 0usize; // sequential fold over ordered chunks — deterministic
+        let mut start = 0usize;
+        while start < self.bootstrap_reps {
+            let end = (start + chunk).min(self.bootstrap_reps);
+            let chunk_out: Vec<RepOutcome<RepEstimates>> = (start..end)
+                .into_par_iter()
+                .map(|rep| {
+                    let rep = rep as u64;
+                    let mut rng_a = unit_rng(master, RngPurpose::Bootstrap, rep * 2);
+                    let mut rng_b = unit_rng(master, RngPurpose::Bootstrap, rep * 2 + 1);
 
-                let result = (|| -> Result<SinglePassResult, OaxacaError> {
-                    let sample_a =
-                        df_a_global.take(&resample_indices(&mut rng_a, df_a_global.height()))?;
-                    let sample_b =
-                        df_b_global.take(&resample_indices(&mut rng_b, df_b_global.height()))?;
-                    let sample_df = sample_a.vstack(&sample_b)?;
-                    self.run_single_pass(
-                        &sample_df,
-                        &all_dummy_names,
-                        &category_counts,
-                        &base_categories,
-                    )
-                })();
+                    let result = (|| -> Result<SinglePassResult, OaxacaError> {
+                        let sample_a = df_a_global
+                            .take(&resample_indices(&mut rng_a, df_a_global.height()))?;
+                        let sample_b = df_b_global
+                            .take(&resample_indices(&mut rng_b, df_b_global.height()))?;
+                        let sample_df = sample_a.vstack(&sample_b)?;
+                        self.run_single_pass(
+                            &sample_df,
+                            &all_dummy_names,
+                            &category_counts,
+                            &base_categories,
+                        )
+                    })();
 
-                match result {
-                    Ok(r) => RepOutcome::Ok(r),
-                    Err(_) => RepOutcome::Failed,
+                    match result {
+                        // Extract the small scalar estimates, then let the heavy
+                        // SinglePassResult (`r`) drop at the end of this arm so
+                        // its residual/mean/beta allocations free before the next
+                        // chunk — bounding in-flight memory to `chunk` working sets.
+                        Ok(r) => RepOutcome::Ok(RepEstimates::from_pass(&r)),
+                        Err(_) => RepOutcome::Failed,
+                    }
+                })
+                .collect();
+
+            for o in chunk_out {
+                match o {
+                    RepOutcome::Ok(r) => bootstrap_results.push(r),
+                    RepOutcome::Failed => discarded += 1,
                 }
-            })
-            .collect();
-
-        let mut bootstrap_results: Vec<SinglePassResult> = Vec::with_capacity(outcomes.len());
-        let mut discarded = 0usize; // sequential fold — deterministic order
-        for o in outcomes {
-            match o {
-                RepOutcome::Ok(r) => bootstrap_results.push(r),
-                RepOutcome::Failed => discarded += 1,
             }
+            start = end;
         }
 
         let successful_bootstraps = bootstrap_results.len();
@@ -1023,12 +1098,12 @@ impl OaxacaBuilder {
     fn process_detailed_components<'a, F>(
         &self,
         point_components: &[DetailedComponent],
-        bootstrap_results: &'a [SinglePassResult],
+        bootstrap_results: &'a [RepEstimates],
         extract_fn: F,
         process_component: &dyn Fn(&str, f64, Vec<f64>) -> ComponentResult,
     ) -> Vec<ComponentResult>
     where
-        F: Fn(&'a SinglePassResult) -> &'a Vec<DetailedComponent> + Sync,
+        F: Fn(&'a RepEstimates) -> &'a Vec<DetailedComponent> + Sync,
     {
         let mut bootstrap_map: HashMap<String, Vec<f64>> = HashMap::new();
         for r in bootstrap_results.iter() {

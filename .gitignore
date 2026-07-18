@@ -17,6 +17,10 @@ oaxaca_blinder/check_output.txt
 */target/*
 */.venv/*
 build.log
+# Memory-profile ×5 fixture (0014-MERIDIAN, In-Scope 13 / AC-M15): a derived,
+# regenerable artifact — `cargo run -p oaxaca_blinder --example gen_mem_fixture`.
+# Never committed (repo-management.md output-pruning posture).
+oaxaca_blinder/tests/fixtures/mem_profile_50k.csv
 .DS_Store
 *.iml
 .idea/

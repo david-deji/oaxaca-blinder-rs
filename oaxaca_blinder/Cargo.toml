@@ -35,6 +35,10 @@ askama = "0.14.0"
 [features]
 default = ["display"]
 display = ["dep:comfy-table"]
+# Native, dev/test-only memory-profiling harness (0014-MERIDIAN, In-Scope 11 /
+# D1). Installs a tracking GlobalAlloc + checkpoint API behind this flag.
+# OFF by default (INV-01): never enabled in the production/wasm build path.
+mem-profile = []
 
 [dev-dependencies]
 assert_cmd = "2.0"
@@ -43,6 +47,14 @@ predicates = "2.1"
 [[bin]]
 name = "oaxaca-cli"
 path = "src/main.rs"
+
+# The memory-profile harness only compiles with the native-only, off-by-default
+# `mem-profile` feature (INV-01) — so `cargo build --examples` under default
+# features never touches it. `gen_mem_fixture` needs no feature and is
+# auto-discovered.
+[[example]]
+name = "mem_profile_harness"
+required-features = ["mem-profile"]
 
 [dev-dependencies.criterion]
 version = "0.5"

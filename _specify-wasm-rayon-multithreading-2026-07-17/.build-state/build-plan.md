@@ -53,13 +53,62 @@ AC verification (9/10 confirmed; AC-10 full-suite running):
 Build lesson: `cargo test --workspace` OOMs on 31GiB when uncapped (parallel linking of ~15 polars test
 binaries). Always run with CARGO_BUILD_JOBS=2, or one --test target at a time.
 
+## Stage 2 results (memory profile) — 2026-07-18
+
+Implementation: dispatched Sonnet worker created `mem_profile.rs` (tracking `GlobalAlloc` +
+checkpoint A/B API), wired checkpoints A/B into `builder.rs`, added the `mem-profile` feature
+(off by default, INV-01) — then stopped at budget (same pattern as stage 1), before the
+empirical half. Orchestrator completed inline: `examples/gen_mem_fixture.rs` (×5 D7
+perturbation generator), `examples/mem_profile_harness.rs` (D1 measurement driver, gated by
+`required-features = ["mem-profile"]`), `.gitignore` entry for the fixture, ran the profile,
+computed the constants, wrote the committed report.
+
+Feature compile: `cargo build -p oaxaca_blinder --features mem-profile` exit 0 (1m28s).
+Fixture: seed 0x0014_50CE_5EED_A115, 50000 rows, sha256 8de0a364… (deterministic across runs).
+
+AC verification:
+- AC-M13/14/15 PASS (fixture determinism / unperturbed group+categoricals / gitignored).
+- AC-M1 PASS — profile report committed (`.build-state/mem-profile-report.md`) with H_res/H_peak/Sc/St_obs.
+- AC-M9 revised / AC-M10 RETIRED — profile FALSIFIED the D4 "memory lever": Polars clone is
+  Arc-shallow, so Sc_before (8.352 MiB) ≈ Sc_after (8.386 MiB), no reduction. Stage-1 refactor
+  kept for determinism (INV-02), not memory.
+- AC-M6 PASS — N_max_const=8, a TRUE safe (bounded peak 248 MiB @ N=8 < ceiling 277 MiB).
+
+### Founder decision + corrected diagnosis (2026-07-18) — Finding 2
+
+David chose **Option A (bounded/streaming refactor)** at the AskUserQuestion gate. The DIAGNOSIS
+was then corrected twice by measurement (both wrong hypotheses recorded in the report for honesty):
+- ❌ "retained bootstrap results dominate" — refuted: `RepEstimates` extraction (dropping heavy
+  per-rep `SinglePassResult`) left peak UNCHANGED. current-after-collect ≈ H_res → no retention.
+- ❌ "D2 formula omits an R×retained term / 40 GiB leak" — refuted: no leak; the peak is transient.
+
+**True mechanism:** unbounded `into_par_iter().map().collect()` lets rayon keep many reps'
+`Sc`-sized working sets in flight → peak scales with reps AND threads (461 MiB N=1 … 899 MiB N=16
+@ R=100). Sequential `into_iter` → flat 64 MiB. Benign natively (reclaimed); **fatal in WASM**
+(linear memory only grows, never returns pages → permanent SharedArrayBuffer bloat).
+
+**Fix (both in `builder.rs`, honoring Option A):**
+1. `RepEstimates` — map extracts only the scalars the SE/CI reduction reads, drops heavy result
+   per-rep. Bounds RETENTION (original ~400 KB/rep → 4 GB at R=10000; now ~2.3 KB/rep). Necessary.
+2. **Bounded-parallel (chunked) bootstrap** — reps run in index-ordered chunks of the pool size →
+   at most N working sets in flight → peak = H_res + N·Sc, FLAT in rep count. Index-ordered
+   consumption keeps the FP reduction order fixed across thread counts.
+Quantile path unchanged (its `SinglePassResult` = 3 scalars/quantile, already memory-safe).
+
+**Verification (all PASS):** bounded peak @ N=8/50k = 248 MiB (was 860), flat in reps → in-band
+(512) and no rep-count OOM at R=10000; AC-6 sha256 `d74efb3c…` IDENTICAL across
+RAYON_NUM_THREADS 1/2/4/8 (INV-02, same hash as stage 1); AC-9 byte-identity; rng_determinism 5/5;
+parity 2/2. **Threading invariant:** the bootstrap must stay bounded-parallel — never revert to
+unbounded `into_par_iter().collect()`.
+
 ## Status
 
 - [x] Phase 0 — init, git isolation, baseline build, E1 preflight, anchors, control files
 - [x] Stage 1 — determinism (ALL 10 ACs PASS; AC-6 sha256 byte-identical across threads; AC-10 workspace 85/0). Committed 356faab.
-- [ ] Stage 2 — memory profile (IN PROGRESS)
-- [ ] Stage 2 — memory profile
-- [ ] Stage 3 — threading (E2/E3 preflights inside)
+- [x] Stage 2 — memory profile (GATE PASS: profile committed; N_max_const=8 true safe; WASM-OOM
+      hazard found + fixed via bounded-parallel bootstrap; peak 248 MiB @ N=8/50k in-band; INV-02
+      byte-identity + AC-9 + determinism all hold). AC-M10 retired (clone-lever falsified).
+- [ ] Stage 3 — threading (E2/E3 preflights inside) — INVARIANT: keep bootstrap bounded-parallel; N_max_const=8; link-args in report
 - [ ] Stage 4 — validation
 - [ ] Phase 3 — review panel (Charter-compliance reviewer incl.)
 - [ ] Phase 4 — integration, cross-surface parity, BUILD-REPORT.md, merge to main
