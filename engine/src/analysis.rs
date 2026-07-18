@@ -163,6 +163,7 @@ fn run_decomposition_on_df(
         detailed_exp,
         detailed_unexp,
         unexplained_std_err,
+        run_metadata,
     ) = if let Some(q) = req.quantile {
         // QUANTILE DECOMPOSITION
         let mut builder = QuantileDecompositionBuilder::new(
@@ -203,7 +204,16 @@ fn run_decomposition_on_df(
         let d_exp = Vec::new();
         let d_unexp = Vec::new();
 
-        (total, explained, unexplained, None, d_exp, d_unexp, None)
+        (
+            total,
+            explained,
+            unexplained,
+            None,
+            d_exp,
+            d_unexp,
+            None,
+            results.run_metadata().clone(),
+        )
     } else {
         // STANDARD OLS DECOMPOSITION
         // Pass ownership of df
@@ -288,6 +298,7 @@ fn run_decomposition_on_df(
             d_exp,
             d_unexp,
             unexplained_std_err,
+            results.run_metadata().clone(),
         )
     };
 
@@ -303,6 +314,7 @@ fn run_decomposition_on_df(
         detailed_unexplained: detailed_unexp,
         data_summary: Some(summary),
         unexplained_standard_error: unexplained_std_err,
+        run_metadata,
     })
 }
 

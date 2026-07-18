@@ -166,3 +166,60 @@ fn test_parity_two_fold_decomposition() {
     assert_close("pooled.unexplained", p_unexp, cc["unexplained"].as_f64().unwrap(), TOLERANCE);
     assert_close("pooled internal", p_exp + p_unexp, rp.total_gap, INTERNAL_TOL);
 }
+
+// ---- AC-9: mean-path point estimates byte-identical to the pre-refactor baseline ----
+// The deterministic-RNG refactor (0014-MERIDIAN) does not touch mean-path point math. This
+// test freezes that guarantee against `tests/fixtures/parity_meanpath_baseline.json`, captured
+// pre-refactor by `examples/capture_meanpath_baseline.rs`. Serializer mirrored from that example.
+
+const MEANPATH_BASELINE_PATH: &str = "tests/fixtures/parity_meanpath_baseline.json";
+
+fn meanpath_point_estimates(r: &OaxacaResults) -> Value {
+    let est = |comps: &[ComponentResult], name: &str| -> f64 {
+        comps
+            .iter()
+            .find(|c| c.name == name)
+            .unwrap_or_else(|| panic!("missing component '{name}'"))
+            .estimate
+    };
+    let two_fold = serde_json::json!({
+        "explained": est(&r.two_fold.aggregate, "explained"),
+        "unexplained": est(&r.two_fold.aggregate, "unexplained"),
+    });
+    let three_fold = serde_json::json!({
+        "endowments": est(&r.three_fold.aggregate, "endowments"),
+        "coefficients": est(&r.three_fold.aggregate, "coefficients"),
+        "interaction": est(&r.three_fold.aggregate, "interaction"),
+    });
+    let mut de = serde_json::Map::new();
+    for c in &r.two_fold.detailed_explained {
+        de.insert(c.name.clone(), serde_json::json!(c.estimate));
+    }
+    let mut du = serde_json::Map::new();
+    for c in &r.two_fold.detailed_unexplained {
+        du.insert(c.name.clone(), serde_json::json!(c.estimate));
+    }
+    serde_json::json!({
+        "total_gap": r.total_gap,
+        "two_fold": two_fold,
+        "three_fold": three_fold,
+        "detailed_explained": Value::Object(de),
+        "detailed_unexplained": Value::Object(du),
+    })
+}
+
+#[test]
+fn meanpath_point_estimates_byte_unchanged() {
+    let current = serde_json::json!({
+        "groupb": meanpath_point_estimates(&run(ReferenceCoefficients::GroupB)),
+        "pooled": meanpath_point_estimates(&run(ReferenceCoefficients::Pooled)),
+    });
+    let committed_text = std::fs::read_to_string(MEANPATH_BASELINE_PATH)
+        .expect("parity_meanpath_baseline.json must be committed and readable");
+    let committed: Value =
+        serde_json::from_str(&committed_text).expect("parity_meanpath_baseline.json must parse");
+    assert_eq!(
+        current, committed,
+        "AC-9: mean-path point estimates changed vs the pre-refactor baseline — the RNG refactor must not touch point math"
+    );
+}

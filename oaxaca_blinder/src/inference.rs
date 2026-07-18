@@ -1,6 +1,11 @@
 //! This module contains functions for statistical inference, primarily bootstrapping.
 
 /// Calculates the standard error, p-value, and confidence interval from a vector of bootstrap estimates.
+///
+/// INV-02: summation here stays sequential (`iter().sum`) — do NOT introduce a rayon
+/// reduce/fold. Float addition is non-associative; a parallel reduce reorders partial sums
+/// and breaks bit-identity across thread counts. The input is the indexed, order-fixed
+/// `estimates` vector built by the caller.
 pub fn bootstrap_stats(estimates: &[f64], _point_estimate: f64) -> (f64, f64, (f64, f64)) {
     if estimates.is_empty() {
         return (f64::NAN, f64::NAN, (f64::NAN, f64::NAN));

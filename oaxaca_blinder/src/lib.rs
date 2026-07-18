@@ -60,6 +60,7 @@ mod error;
 mod estimation;
 mod inference;
 mod math;
+mod rng;
 mod types;
 
 pub mod akm;
@@ -82,6 +83,7 @@ pub use heckman::heckman_two_step;
 pub use jmp::decompose_changes;
 pub use matching::engine::MatchingEngine;
 pub use quantile_decomposition::QuantileDecompositionBuilder;
+pub use rng::{RunMetadata, DEFAULT_SEED};
 pub use types::{ComponentResult, DecompositionDetail, OaxacaResults, TwoFoldResults};
 
 #[cfg(test)]

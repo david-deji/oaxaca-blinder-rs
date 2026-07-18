@@ -16,6 +16,7 @@ use crate::inference::bootstrap_stats;
 use crate::math::normalization::normalize_categorical_coefficients;
 use crate::math::ols::ols;
 use crate::math::rif::calculate_rif;
+use crate::rng::{resample_indices, unit_rng, RepOutcome, RngPurpose, RunMetadata, DEFAULT_SEED};
 use crate::types::{ComponentResult, DecompositionDetail, OaxacaResults, TwoFoldResults};
 
 #[derive(Clone)]
@@ -47,6 +48,8 @@ pub struct OaxacaBuilder {
     weights_col: Option<String>,
     selection_outcome: Option<String>,
     selection_predictors: Vec<String>,
+    /// Master seed for bootstrap resampling. `None` resolves to `DEFAULT_SEED` at `run()`.
+    seed: Option<u64>,
 }
 
 pub(crate) struct GroupSplit {
@@ -125,6 +128,7 @@ impl OaxacaBuilder {
             weights_col: None,
             selection_outcome: None,
             selection_predictors: Vec::new(),
+            seed: None,
         }
     }
 
@@ -156,6 +160,7 @@ impl OaxacaBuilder {
             weights_col: None,
             selection_outcome: None,
             selection_predictors: Vec::new(),
+            seed: None,
         })
     }
 
@@ -202,6 +207,31 @@ impl OaxacaBuilder {
     /// * `reps` - The number of bootstrap samples to generate. Defaults to 100.
     pub fn bootstrap_reps(&mut self, reps: usize) -> &mut Self {
         self.bootstrap_reps = reps;
+        self
+    }
+
+    /// Sets a fixed master seed for all bootstrap resampling. Reproducible-by-default:
+    /// the same seed and input always produce byte-identical output within a platform.
+    pub fn seed(&mut self, seed: u64) -> &mut Self {
+        self.seed = Some(seed);
+        self
+    }
+
+    /// Copies an `Option<u64>` master seed verbatim (`None` stays `None`, resolving to
+    /// `DEFAULT_SEED` at `run()`). Used to forward a seed to an inner builder — e.g.
+    /// `decompose_quantile` — so `.seed(X)` reproduces on the RIF quantile path (CV-1).
+    pub fn seed_opt(&mut self, seed: Option<u64>) -> &mut Self {
+        self.seed = seed;
+        self
+    }
+
+    /// Draws one master seed from OS entropy and records it in `RunMetadata`, so the
+    /// run stays reproducible after the fact via `.seed(recorded_value)`. Native-only:
+    /// `oaxaca_blinder` has no direct `getrandom` dependency, so entropy seeding is a
+    /// CLI/native affordance; the wasm path uses `DEFAULT_SEED` or an explicit seed (D1).
+    #[cfg(not(target_family = "wasm"))]
+    pub fn seed_from_entropy(&mut self) -> &mut Self {
+        self.seed = Some(crate::rng::draw_entropy_seed());
         self
     }
 
@@ -756,7 +786,11 @@ impl OaxacaBuilder {
             .categorical_predictors(self.categorical_predictors.iter().map(|s| s.as_str()))
             .bootstrap_reps(self.bootstrap_reps)
             .reference_coefficients(self.reference_coeffs)
-            .normalize(self.normalization_vars.iter().map(|s| s.as_str()));
+            .normalize(self.normalization_vars.iter().map(|s| s.as_str()))
+            // CV-1 (CRITICAL): forward the master seed verbatim so `.seed(X)` on the
+            // outer builder reproduces byte-identically on the RIF quantile path. `None`
+            // stays `None` and resolves to DEFAULT_SEED in the inner `run()`.
+            .seed_opt(self.seed);
 
         if let Some(w) = &self.weights_col {
             builder.weights(w);
@@ -822,30 +856,51 @@ impl OaxacaBuilder {
         let df_a_global = groups.df_a;
         let df_b_global = groups.df_b;
 
-        let bootstrap_results: Vec<SinglePassResult> = (0..self.bootstrap_reps)
+        // Resolve the master seed once. `None` -> DEFAULT_SEED (reproducible-by-default).
+        let master = self.seed.unwrap_or(DEFAULT_SEED);
+
+        // Deterministic bootstrap. Each rep's resample and success/failure is a pure
+        // function of (master, rep, base frames): group A draws from stream `rep*2`,
+        // group B from `rep*2+1`, both via owned index-vector resampling (`take`) — no
+        // dependence on execution order. The indexed `into_par_iter().map` collects in
+        // order, then a sequential partition records the discard count deterministically
+        // (D5, INV-02). `take` borrows the shared base frames; no per-rep clone.
+        let outcomes: Vec<RepOutcome<SinglePassResult>> = (0..self.bootstrap_reps)
             .into_par_iter()
-            .filter_map(|_| {
-                let df_a = df_a_global.clone();
-                let df_b = df_b_global.clone();
+            .map(|rep| {
+                let rep = rep as u64;
+                let mut rng_a = unit_rng(master, RngPurpose::Bootstrap, rep * 2);
+                let mut rng_b = unit_rng(master, RngPurpose::Bootstrap, rep * 2 + 1);
 
-                let sample_a = df_a
-                    .sample_n_literal(df_a.height(), true, false, None)
-                    .ok()?;
-                let sample_b = df_b
-                    .sample_n_literal(df_b.height(), true, false, None)
-                    .ok()?;
+                let result = (|| -> Result<SinglePassResult, OaxacaError> {
+                    let sample_a =
+                        df_a_global.take(&resample_indices(&mut rng_a, df_a_global.height()))?;
+                    let sample_b =
+                        df_b_global.take(&resample_indices(&mut rng_b, df_b_global.height()))?;
+                    let sample_df = sample_a.vstack(&sample_b)?;
+                    self.run_single_pass(
+                        &sample_df,
+                        &all_dummy_names,
+                        &category_counts,
+                        &base_categories,
+                    )
+                })();
 
-                let sample_df = sample_a.vstack(&sample_b).ok()?;
-
-                self.run_single_pass(
-                    &sample_df,
-                    &all_dummy_names,
-                    &category_counts,
-                    &base_categories,
-                )
-                .ok()
+                match result {
+                    Ok(r) => RepOutcome::Ok(r),
+                    Err(_) => RepOutcome::Failed,
+                }
             })
             .collect();
+
+        let mut bootstrap_results: Vec<SinglePassResult> = Vec::with_capacity(outcomes.len());
+        let mut discarded = 0usize; // sequential fold — deterministic order
+        for o in outcomes {
+            match o {
+                RepOutcome::Ok(r) => bootstrap_results.push(r),
+                RepOutcome::Failed => discarded += 1,
+            }
+        }
 
         let successful_bootstraps = bootstrap_results.len();
         if successful_bootstraps < self.bootstrap_reps {
@@ -956,6 +1011,12 @@ impl OaxacaBuilder {
             xa_mean: point_estimates.xa_mean,
             xb_mean: point_estimates.xb_mean,
             beta_star: point_estimates.beta_star,
+            run_metadata: RunMetadata::new(
+                master,
+                self.bootstrap_reps,
+                successful_bootstraps,
+                discarded,
+            ),
         })
     }
 

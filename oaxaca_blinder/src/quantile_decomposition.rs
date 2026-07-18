@@ -11,6 +11,7 @@ use rand::Rng;
 use rayon::prelude::*;
 use std::collections::HashMap;
 
+use crate::rng::{resample_indices, unit_rng, RepOutcome, RngPurpose, RunMetadata, DEFAULT_SEED};
 use crate::{
     inference::bootstrap_stats, math::quantile_regression::solve_qr, ComponentResult, OaxacaError,
 };
@@ -28,6 +29,9 @@ pub struct QuantileDecompositionBuilder {
     quantiles: Vec<f64>,
     simulations: usize,
     bootstrap_reps: usize,
+    /// Master seed for the MM simulation and bootstrap resampling. `None` resolves to
+    /// `DEFAULT_SEED` at `run()`.
+    seed: Option<u64>,
 }
 
 /// Holds the raw decomposition results for a single quantile from one pass.
@@ -56,7 +60,31 @@ impl QuantileDecompositionBuilder {
             quantiles: vec![0.1, 0.25, 0.5, 0.75, 0.9],
             simulations: 200,
             bootstrap_reps: 20,
+            seed: None,
         }
+    }
+
+    /// Sets a fixed master seed for the MM simulation and bootstrap resampling.
+    /// Reproducible-by-default: same seed + input -> byte-identical output within a platform.
+    pub fn seed(&mut self, seed: u64) -> &mut Self {
+        self.seed = Some(seed);
+        self
+    }
+
+    /// Copies an `Option<u64>` master seed verbatim (`None` stays `None`, resolving to
+    /// `DEFAULT_SEED` at `run()`). Used to forward a seed from an outer builder.
+    pub fn seed_opt(&mut self, seed: Option<u64>) -> &mut Self {
+        self.seed = seed;
+        self
+    }
+
+    /// Draws one master seed from OS entropy and records it in `RunMetadata`. Native-only:
+    /// `oaxaca_blinder` has no direct `getrandom` dep, so entropy seeding is a CLI/native
+    /// affordance; the wasm path uses `DEFAULT_SEED` or an explicit seed (D1).
+    #[cfg(not(target_family = "wasm"))]
+    pub fn seed_from_entropy(&mut self) -> &mut Self {
+        self.seed = Some(crate::rng::draw_entropy_seed());
+        self
     }
 
     pub fn predictors<I, S>(&mut self, predictors: I) -> &mut Self
@@ -174,6 +202,7 @@ impl QuantileDecompositionBuilder {
         &self,
         df: &DataFrame,
         all_dummy_names: &[String],
+        rep_master: u64,
     ) -> Result<SinglePassResult, OaxacaError> {
         let unique_groups = df.column(&self.group)?.unique()?.sort(SortOptions {
             descending: false,
@@ -212,7 +241,9 @@ impl QuantileDecompositionBuilder {
         let (x_a, y_a, _) = self.prepare_data(&df_a, all_dummy_names)?;
         let (x_b, y_b, _) = self.prepare_data(&df_b, all_dummy_names)?;
 
-        let mut rng = rand::thread_rng();
+        // D4: seeded, schedule-independent tau grid. Stream is a closed-form function of
+        // (rep_master, QuantileTau) — bit-identical across thread counts (INV-02).
+        let mut rng = unit_rng(rep_master, RngPurpose::QuantileTau, 0);
         let uniform_dist = Uniform::from(0.01..0.99);
         let random_quantiles: Vec<f64> = (0..self.simulations)
             .map(|_| uniform_dist.sample(&mut rng))
@@ -241,7 +272,8 @@ impl QuantileDecompositionBuilder {
         let mut y_bb_vec = Vec::with_capacity(num_successful_sims);
         let mut y_ab_vec = Vec::with_capacity(num_successful_sims);
 
-        let mut rng_resample = rand::thread_rng();
+        // D4: seeded counterfactual row resampling (QuantileResample stream).
+        let mut rng_resample = unit_rng(rep_master, RngPurpose::QuantileResample, 0);
 
         for i in 0..num_successful_sims {
             let rand_idx_a = rng_resample.gen_range(0..x_a.nrows());
@@ -318,7 +350,11 @@ impl QuantileDecompositionBuilder {
             group_a_name_temp
         };
 
-        let point_estimates = self.run_single_pass(&df, &all_dummy_names)?;
+        // Resolve the master seed once (None -> DEFAULT_SEED, reproducible-by-default).
+        let master = self.seed.unwrap_or(DEFAULT_SEED);
+        // Point-estimate pass uses the raw master; bootstrap reps use decorrelated per-rep
+        // masters (master ^ (rep+1)*phi) so no rep collides with the point-estimate stream.
+        let point_estimates = self.run_single_pass(&df, &all_dummy_names, master)?;
 
         let group_a_name_owned = group_a_name.to_string();
         let group_b_name_owned = group_b_name.to_string();
@@ -334,24 +370,44 @@ impl QuantileDecompositionBuilder {
                 .equal(group_b_name_owned.as_str())?,
         )?;
 
-        let bootstrap_results: Vec<SinglePassResult> = (0..self.bootstrap_reps)
+        // Deterministic bootstrap (D5). Each rep resamples group A/B via owned index
+        // vectors keyed on (master, Bootstrap, rep*2 | rep*2+1) and runs the MM sim under a
+        // decorrelated per-rep master. The indexed into_par_iter().map collects in order; a
+        // sequential partition records the discard count deterministically (INV-02).
+        let outcomes: Vec<RepOutcome<SinglePassResult>> = (0..self.bootstrap_reps)
             .into_par_iter()
-            .filter_map(|_| {
-                let df_a = df_a_global.clone();
-                let df_b = df_b_global.clone();
+            .map(|rep| {
+                let rep = rep as u64;
+                let mut rng_a = unit_rng(master, RngPurpose::Bootstrap, rep * 2);
+                let mut rng_b = unit_rng(master, RngPurpose::Bootstrap, rep * 2 + 1);
+                // splitmix step decorrelates the two nesting levels; (rep+1) so rep 0's
+                // master never equals the raw master used by the point-estimate pass.
+                let rep_master = master ^ (rep + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15);
 
-                let sample_a = df_a
-                    .sample_n_literal(df_a.height(), true, false, None)
-                    .ok()?;
-                let sample_b = df_b
-                    .sample_n_literal(df_b.height(), true, false, None)
-                    .ok()?;
+                let result = (|| -> Result<SinglePassResult, OaxacaError> {
+                    let sample_a =
+                        df_a_global.take(&resample_indices(&mut rng_a, df_a_global.height()))?;
+                    let sample_b =
+                        df_b_global.take(&resample_indices(&mut rng_b, df_b_global.height()))?;
+                    let sample_df = sample_a.vstack(&sample_b)?;
+                    self.run_single_pass(&sample_df, &all_dummy_names, rep_master)
+                })();
 
-                let sample_df = sample_a.vstack(&sample_b).ok()?;
-
-                self.run_single_pass(&sample_df, &all_dummy_names).ok()
+                match result {
+                    Ok(r) => RepOutcome::Ok(r),
+                    Err(_) => RepOutcome::Failed,
+                }
             })
             .collect();
+
+        let mut bootstrap_results: Vec<SinglePassResult> = Vec::with_capacity(outcomes.len());
+        let mut discarded = 0usize; // sequential fold — deterministic order
+        for o in outcomes {
+            match o {
+                RepOutcome::Ok(r) => bootstrap_results.push(r),
+                RepOutcome::Failed => discarded += 1,
+            }
+        }
 
         let mut final_results = HashMap::new();
         for (key, point) in &point_estimates.effects_by_quantile {
@@ -420,6 +476,12 @@ impl QuantileDecompositionBuilder {
         }
 
         Ok(QuantileDecompositionResults {
+            run_metadata: RunMetadata::new(
+                master,
+                self.bootstrap_reps,
+                bootstrap_results.len(),
+                discarded,
+            ),
             results_by_quantile: final_results,
             n_a: self
                 .dataframe
@@ -449,6 +511,9 @@ impl QuantileDecompositionBuilder {
 #[derive(Debug, Getters)]
 #[getset(get = "pub")]
 pub struct QuantileDecompositionResults {
+    /// Provenance of this run: effective master seed, RNG algorithm/version, and the
+    /// bootstrap-rep accounting (requested/succeeded/discarded).
+    run_metadata: RunMetadata,
     /// A map where keys are quantile labels (e.g., "q10") and values are the
     /// decomposition results for that quantile.
     results_by_quantile: HashMap<String, QuantileDecompositionDetail>,

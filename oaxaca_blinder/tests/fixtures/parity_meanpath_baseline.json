@@ -1,0 +1,50 @@
+{
+  "groupb": {
+    "detailed_explained": {
+      "__ob_intercept__": 0.0,
+      "education": 0.07651399831806537,
+      "experience": 0.04323520567405591,
+      "tenure": 0.0015311437478683272
+    },
+    "detailed_unexplained": {
+      "__ob_intercept__": 0.3668510091518924,
+      "education": 0.33947374087361276,
+      "experience": 0.07642745848012698,
+      "tenure": 0.004640590977565004
+    },
+    "three_fold": {
+      "coefficients": 0.7542160167898229,
+      "endowments": 0.1212803477399896,
+      "interaction": 0.033176782693374214
+    },
+    "total_gap": 0.9086731472231868,
+    "two_fold": {
+      "explained": 0.1212803477399896,
+      "unexplained": 0.7873927994831976
+    }
+  },
+  "pooled": {
+    "detailed_explained": {
+      "__ob_intercept__": 0.0,
+      "education": 0.08843734748890879,
+      "experience": 0.049474952309129704,
+      "tenure": 0.0015804930033113584
+    },
+    "detailed_unexplained": {
+      "__ob_intercept__": 0.3668510091518924,
+      "education": 0.32755039170276934,
+      "experience": 0.07018771184505318,
+      "tenure": 0.004591241722121973
+    },
+    "three_fold": {
+      "coefficients": 0.7542160167898229,
+      "endowments": 0.1212803477399896,
+      "interaction": 0.033176782693374214
+    },
+    "total_gap": 0.9086731472231868,
+    "two_fold": {
+      "explained": 0.13949279280134985,
+      "unexplained": 0.7691803544218374
+    }
+  }
+}

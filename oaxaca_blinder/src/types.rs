@@ -3,6 +3,7 @@ use nalgebra::DVector;
 use serde::Serialize;
 
 use crate::decomposition::BudgetAdjustment;
+use crate::rng::RunMetadata;
 
 /// Holds results for the two-fold decomposition, including detailed components.
 #[derive(Debug, Getters, Serialize)]
@@ -44,6 +45,9 @@ pub struct OaxacaResults {
     /// The reference coefficients used in the decomposition.
     #[serde(skip)]
     pub beta_star: DVector<f64>,
+    /// Provenance of this run: master seed, RNG algorithm/version, and bootstrap-rep
+    /// accounting. Serialized so a run is reproducible after the fact.
+    pub run_metadata: RunMetadata,
 }
 
 impl OaxacaResults {

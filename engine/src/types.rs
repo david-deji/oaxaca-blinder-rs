@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use oaxaca_blinder::RunMetadata;
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct DecompositionRequest {
     pub csv_data: Vec<u8>,
@@ -46,6 +48,8 @@ pub struct DecompositionResult {
     pub detailed_unexplained: Vec<DetailedComponent>,
     pub data_summary: Option<DataSummary>,
     pub unexplained_standard_error: Option<f64>,
+    /// Provenance of the underlying decomposition run (seed, RNG algorithm, rep accounting).
+    pub run_metadata: RunMetadata,
 }
 
 #[derive(Deserialize, Debug)]
