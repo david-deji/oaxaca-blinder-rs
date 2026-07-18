@@ -56,7 +56,8 @@ binaries). Always run with CARGO_BUILD_JOBS=2, or one --test target at a time.
 ## Status
 
 - [x] Phase 0 — init, git isolation, baseline build, E1 preflight, anchors, control files
-- [~] Stage 1 — determinism (9/10 ACs PASS; AC-10 full-suite verifying, then commit)
+- [x] Stage 1 — determinism (ALL 10 ACs PASS; AC-6 sha256 byte-identical across threads; AC-10 workspace 85/0). Committed 356faab.
+- [ ] Stage 2 — memory profile (IN PROGRESS)
 - [ ] Stage 2 — memory profile
 - [ ] Stage 3 — threading (E2/E3 preflights inside)
 - [ ] Stage 4 — validation
