@@ -122,9 +122,13 @@ Re-verify the stage's ACs before assuming it's done. Build branch: `build/wasm-r
 
 ```yaml
 phase: executing
-current: stage-1-determinism
-completed: [phase-0-init]
-next: stage-2-memory-profile
+current: stage-3-threading
+completed: [phase-0-init, stage-1-determinism, stage-2-memory-profile]
+commits: {stage-1: 356faab, stage-2: c005837}
+next: stage-3-threading
+n_max_const: 8            # true safe; bounded peak 248 MiB @ N=8/50k
+threading_invariant: "bootstrap must stay bounded-parallel (chunked to pool size); never revert to unbounded into_par_iter().collect()"
+link_args: {stack_size: 1048576, max_memory: 342228992, initial_memory: 82378752}
 safe_to_retry: true
 updated: 2026-07-18
 ```
