@@ -12,7 +12,11 @@ completed:
   - phase-0-brief
   - plan-confirmation-gate
   - phase-1-research   # gate 19/0 pass
-current: phase-2-collect
+current: council-gate-post-phase-2
+# phase-2 COMPLETE: 7 drafts, quality gate 16/0 (after mechanical header/provenance normalization),
+# drift check 2.4: ZERO findings (report: phase2-drift-check.md), no [CLARIFY] markers.
+# phase-2.5 COMPLETE: phase3-research-brief.md written — 6 LOCAL + 9 WEB + 3 EXPERIMENT(→build preflight) + 2 HUMAN + dependents.
+# Toolchain recommendation on table: Strategy B (single threaded artifact). Founder ratifies at buildability gate.
 # Phase 2 DISPATCHED (2026-07-17): 5 opus document-analyst writers, 7 expected outputs:
 #   A → phase2-spec-toolchain-build.md
 #   B → phase2-spec-deterministic-rng.md + phase2-spec-engine-parallel-surface.md
