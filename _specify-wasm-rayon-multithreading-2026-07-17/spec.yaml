@@ -1,0 +1,168 @@
+spec_version: 1
+spec_id: wasm-rayon-multithreading-pay-equity-engine
+deliverable_type: app
+complexity_class: system
+blast_radius: client-facing
+reversibility: committable
+
+in_scope:
+  - id: IS-01
+    name: Threaded WASM build path (atomics/bulk-memory + wasm-bindgen-rayon 1.3.0 behind wasm-threads; native untouched)
+    source: "Founder goal statement + Intake round 1"
+  - id: IS-02
+    name: Reproducibility strategy (decided Strategy A dual-artifact at buildability gate; sha256 baseline + CI)
+    source: "Intake round 1; buildability gate 2026-07-18 ruling 1"
+  - id: IS-03
+    name: Bit-identical seeded RNG (builder.rs + quantile_decomposition.rs schedule-independent per-rep seeding)
+    source: "Intake round 2"
+  - id: IS-04
+    name: Full-surface parallelization audit of all 5 WASM entry points
+    source: "Intake round 1"
+  - id: IS-05
+    name: Memory budget for 50k rows (profile, shared-memory maximum, per-thread stack, thread-cap derivation)
+    source: "Intake round 2"
+  - id: IS-06
+    name: Meridian worker wiring (crossOriginIsolated feature-detect + initThreadPool + sequential fallback)
+    source: "Intake round 1"
+  - id: IS-07
+    name: Serving-surface headers (COOP/COEP on audit-forge /pay-equity/ + Vite dev server.headers)
+    source: "Intake round 2; wrap-up"
+  - id: IS-08
+    name: Verification + benchmark (parity, 50k memory-ceiling, wall-clock, CI wasm-verify)
+    source: "Intake round 1 + round 2 scale"
+  - id: IS-09
+    name: Statistical trust layer (R oaxaca/Stata golden parity, property-based adding-up identities, heteroskedastic/skewed QR cases)
+    source: "Founder pre-gate review item 1, 2026-07-17"
+  - id: IS-10
+    name: Determinism as prerequisite + standalone feature (lands and verified BEFORE threading; fixes silent rep discard + unseeded sites)
+    source: "Founder pre-gate review item 2"
+  - id: IS-11
+    name: Pre-threading memory profile (measure current single-threaded curve at 50k before parallel design finalized)
+    source: "Founder pre-gate review item 3"
+  - id: IS-12
+    name: Per-predictor quantile decomposition — WIRE existing OaxacaBuilder::decompose_quantile (builder.rs:720) into both WASM and CLI surfaces (RIF); recompute RIF per replicate; forward seed
+    source: "Founder pre-gate review item 5a; council-gate ruling 2026-07-17; audit CRITICAL-1 reframe 2026-07-18; buildability gate rulings 3 and 4 2026-07-18"
+  - id: IS-13
+    name: "Test fixture: Employers_data.csv (10k rows) replicated ~5x for 50k-row memory/benchmark cases"
+    source: "Founder directive 2026-07-17"
+
+success_criteria:
+  - id: SC-01
+    description: Spec specifies the complete threaded build (nightly pin, .cargo/config.toml rustflags, build-std list, max-memory link arg, wasm-bindgen invocation) executable by /build without further research
+    verify_by: "build-readiness audit: every command literal, no [CLARIFY] remaining (PASSED — audit CRITICALs resolved)"
+  - id: SC-02
+    description: Spec contains the reproducibility decision (Strategy A dual-artifact) with rationale, founder-approved, incl. sha256 baseline procedure + CI diff
+    verify_by: "presence of approved decision record (buildability-gate-rulings.md) + ci.yml change plan (phase4-final-toolchain-build.md)"
+  - id: SC-03
+    description: Spec contains a schedule-independent RNG design with a proof-sketch that per-rep streams are thread-schedule-independent, plus the parity test plan
+    verify_by: "statistical-correctness council seat + adversarial verifier sign-off (council all SHIP_WITH_FIXES, fixes applied)"
+  - id: SC-04
+    description: Spec audits all 5 WASM entry points with a parallelize/skip verdict and rationale each
+    verify_by: "5-entry audit table present in phase4-final-engine-parallel-surface.md (decompose parallel; optimize/frontier/check skip; clarabel concurrent-safe)"
+  - id: SC-05
+    description: Spec contains a memory budget table for 50k rows with cited measurement or estimation method and the thread-cap formula
+    verify_by: "memory/performance seat review; N_max_const formula in phase4-final-memory-budget.md"
+  - id: SC-06
+    description: Spec specifies Meridian worker changes and exact COOP/COEP insertions for audit-forge + Vite with file:line anchors
+    verify_by: "file:line references resolve against actual files (webui/__init__.py:130; analysis.worker.js; vite.config.js)"
+  - id: SC-07
+    description: Spec defines the verification suite (parity, memory ceiling, benchmark) with pass thresholds and CI integration
+    verify_by: "acceptance-criteria section listing runnable commands in phase4-final-verification-benchmark.md"
+
+invariants:
+  - id: INV-01
+    statement: Native builds (CLI, meridian-mcp, engine rlib) remain byte-equivalent in behavior; wasm-threads changes are feature-gated off the native path
+    source: "Founder Intake; apps-file-caution.md"
+  - id: INV-02
+    statement: "Same input + same seed produces byte-identical output WITHIN a platform across thread counts and threaded/sequential modes; the native<->wasm leg is tolerance-parity <= 1e-6 (cross-ISA libm makes byte-equality across ISAs unachievable)"
+    source: "Intake round 2 REFRAMED at buildability gate 2026-07-18 per council MJ-1; founder chose the split"
+  - id: INV-03
+    statement: A non-cross-origin-isolated context must degrade to working sequential execution; never a crash, never a blank screen
+    source: "build-safety.md error-handling default"
+  - id: INV-04
+    statement: The raw-wasm reproducibility model survives; every shipped blob has a committed sha256 baseline + a pinned toolchain that rebuilds it byte-identically (per artifact under Strategy A)
+    source: "Track-0 SC-04; scripts/build-wasm.sh header"
+  - id: INV-05
+    statement: Peak memory at 50k rows must fit the declared shared-memory maximum with measured headroom; thread count is capped by the memory budget, not just hardwareConcurrency
+    source: "Intake round 2"
+  - id: INV-06
+    statement: audit-forge header changes are additive and scoped to /pay-equity/ + /api/; the 9 pre-existing blueprints' surfaces stay untouched
+    source: "audit-forge webui/__init__.py:127 scoping comment"
+  - id: INV-07
+    statement: Monetary values remain Decimal(18,2); no Float64 introduction during refactors (scoped by INV-08)
+    source: "comp-audit-suite rule via oaxaca-blinder-rs CLAUDE.md"
+  - id: INV-08
+    statement: The statistical engine is EXEMPT from Decimal(18,2); f64 is correct for regression/decomposition math; monetary values round through Decimal(18,2) at display/ledger boundaries which the spec must name
+    source: "Founder ruling 2026-07-17, plan gate"
+
+assumptions:
+  - id: ASM-01
+    statement: wasm-bindgen-rayon 1.3.0 is current and compatible with wasm-bindgen 0.2.106
+    validity: "valid until 2026-10-17; re-verify via Perplexity at build time"
+  - id: ASM-02
+    statement: No stable-Rust threaded std for wasm32-unknown-unknown exists; nightly + build-std remains required
+    validity: "valid until 2026-10-17"
+  - id: ASM-03
+    statement: audit-forge serves Meridian at /pay-equity/ with the _apply_meridian_csp hook at webui/__init__.py:125
+    validity: "verified 2026-07-17; re-Read before dispatch"
+  - id: ASM-04
+    statement: Day-job dataset ceiling in scope is ~50k employee rows
+    validity: "INVALIDATED if founder reports larger consolidated analyses"
+  - id: ASM-05
+    statement: The corp-PC browser supports SharedArrayBuffer when cross-origin-isolated (evergreen Chrome/Edge/Firefox)
+    validity: "INVALIDATED if a managed-browser policy disables it; INV-03 fallback covers regardless"
+  - id: ASM-06
+    statement: Meridian's built bundle + engine pkg are regenerable from source on this machine (pnpm + cargo present)
+    validity: "verify via cargo build -p pay-equity-engine --features wasm --target wasm32-unknown-unknown before build dispatch"
+
+anti_goals:
+  - "Changing the Meridian worker postMessage API or any Vue/Pinia layer (keep {type, payload} byte-compatible)"
+  - "Parallelizing native (non-wasm) code paths further (native already uses rayon)"
+  - "Public/hosted deployment of Meridian or new serving infrastructure (local-only: audit-forge Flask + Vite dev)"
+  - "Algorithm changes to decomposition/optimization mathematics EXCEPT the founder-approved In-Scope 12 quantile detail (additive, own golden + identity validation)"
+  - "Dropping or weakening the reproducible-build model (SC-04, Track-0)"
+  - "Adopting wasm32-wasip1-threads or non-browser thread targets (browser target only)"
+  - "Committing pkg/ or nightly-toolchain binaries to git (pkg/ stays gitignored; toolchains pinned by config)"
+
+deliverable_shape:
+  files_to_modify:
+    - apps/hr-apps/oaxaca-blinder-rs/rust-toolchain.toml
+    - apps/hr-apps/oaxaca-blinder-rs/oaxaca_blinder/Cargo.toml
+    - apps/hr-apps/oaxaca-blinder-rs/oaxaca_blinder/src/builder.rs
+    - apps/hr-apps/oaxaca-blinder-rs/oaxaca_blinder/src/quantile_decomposition.rs
+    - apps/hr-apps/oaxaca-blinder-rs/oaxaca_blinder/src/analysis.rs
+    - apps/hr-apps/oaxaca-blinder-rs/oaxaca_blinder/src/main.rs
+    - apps/hr-apps/oaxaca-blinder-rs/engine/Cargo.toml
+    - apps/hr-apps/oaxaca-blinder-rs/engine/src/lib.rs
+    - apps/hr-apps/oaxaca-blinder-rs/engine/src/analysis.rs
+    - apps/hr-apps/oaxaca-blinder-rs/scripts/build-wasm.sh
+    - apps/hr-apps/oaxaca-blinder-rs/.github/workflows/ci.yml
+    - apps/hr-apps/oaxaca-blinder-rs/engine/pay_equity_engine.wasm.sha256
+    - apps/hr-apps/pay-equity-app/frontend/src/wasm/analysis.worker.js
+    - apps/hr-apps/pay-equity-app/frontend/vite.config.js
+    - /home/deji/telos/audit-forge/webui/__init__.py
+  files_to_create:
+    - apps/hr-apps/oaxaca-blinder-rs/.cargo/config.toml
+    - apps/hr-apps/pay-equity-app/frontend/src/wasm/thread-cap.js
+    - "parity/benchmark/memory-ceiling test files (paths per phase4-final-verification-benchmark.md)"
+  composes: []
+  composed_by:
+    - /build
+
+scope_delta_log:
+  - date: "2026-07-17"
+    round: Draft
+    change: Initial Charter authored from Founder Intake
+    decision: "n/a"
+  - date: "2026-07-17"
+    round: Post-Phase-2 council gate
+    change: In-Scope 12 UPGRADED from API-plumbing to full per-predictor quantile decomposition math + API; anti-goal carved out for this item only
+    decision: "APPROVED (founder chose FULL MATH)"
+  - date: "2026-07-18"
+    round: Build-readiness audit reconciliation
+    change: In-Scope 12 REFRAMED from "implement new RIF math" to "WIRE existing OaxacaBuilder::decompose_quantile (builder.rs:720, already implements one-stage RIF-OLS per-predictor detail)"; audit CRITICAL-1 corrected the false "math does not exist" premise; also fixed CRITICAL-2 (thread-cap.js single-owner)
+    decision: "APPLIED (orchestrator ground-truth verification)"
+  - date: "2026-07-18"
+    round: Buildability gate (4 rulings, post adversarial council)
+    change: "(1) Reproducibility = Strategy A dual-artifact; (2) INV-02 = within-platform byte-identical + native<->wasm <=1e-6 split; (3) In-Scope 12 aggregate = a-1 (both WASM and CLI switch to RIF decompose_quantile); (4) Quantile SE = recompute RIF per bootstrap replicate (fixed_rif:false)"
+    decision: "APPROVED"

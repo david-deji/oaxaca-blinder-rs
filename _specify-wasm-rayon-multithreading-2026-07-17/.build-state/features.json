@@ -1,0 +1,55 @@
+{
+  "project": "wasm-rayon-multithreading-pay-equity-engine",
+  "issue": "0014-MERIDIAN",
+  "created": "2026-07-18",
+  "deliverable": "app",
+  "charter_mode": true,
+  "build_branch": "build/wasm-rayon-mt/main",
+  "stages": ["determinism", "memory-profile", "threading", "validation"],
+  "domains": {
+    "deterministic-rng": {
+      "stage": "determinism",
+      "spec": "phase4-final-deterministic-rng.md",
+      "repo": "oaxaca-blinder-rs",
+      "status": "verified_9_of_10_ac10_running",
+      "ac_summary": "AC-1..9,11 PASS (AC-6 sha256 byte-identical across 1/2/4 threads); AC-10 full-suite running b2qqjku6a",
+      "features": [
+        {"id": "AC-1", "name": "no sample_n_literal / no thread_rng in quantile_decomposition", "verify": "grep zero-match", "status": "pending"},
+        {"id": "AC-2", "name": "no rayon par-iter in inference.rs", "verify": "grep zero-match", "status": "pending"},
+        {"id": "AC-3", "name": "rng:: unit tests (referential transparency, disjoint purposes, resample bounds)", "verify": "cargo test -p oaxaca_blinder rng::", "status": "pending"},
+        {"id": "AC-4", "name": "default determinism + seed(1)!=seed(2)", "verify": "cargo test", "status": "pending"},
+        {"id": "AC-5", "name": "entropy round-trip (native-only)", "verify": "cargo test", "status": "pending"},
+        {"id": "AC-6", "name": "INV-02 within-platform byte-identity across 1/2/4 threads", "verify": "sha256 compare RAYON_NUM_THREADS", "status": "pending"},
+        {"id": "AC-7", "name": "discard determinism across thread counts", "verify": "cargo test", "status": "pending"},
+        {"id": "AC-8", "name": "run_metadata present with 6 fields, seed echoes, algo ChaCha8", "verify": "cargo test", "status": "pending"},
+        {"id": "AC-9", "name": "mean-path point estimates byte-unchanged vs baseline", "verify": "cargo test -p oaxaca_blinder --test parity_test", "status": "pending"},
+        {"id": "AC-10", "name": "native build+test no regression (INV-01)", "verify": "cargo build && cargo test", "status": "pending"}
+      ]
+    },
+    "memory-budget": {
+      "stage": "memory-profile", "spec": "phase4-final-memory-budget.md", "repo": "oaxaca-blinder-rs", "status": "pending",
+      "features": [{"id": "AC-M1..M15", "name": "profile report, reproducible harness, N_max_const (8-clamp), clone-pair removal, OOM tag no-message-parse, 50k fixture PII-clean+gitignored", "status": "pending"}]
+    },
+    "toolchain-build": {
+      "stage": "threading", "spec": "phase4-final-toolchain-build.md", "repo": "oaxaca-blinder-rs", "status": "pending",
+      "features": [{"id": "AC-1..16", "name": "native untouched, threaded blob links (nightly+build-std), pin single literal, .cargo/config.toml, --target web, --max-memory link args, double-build reproducibility, baseline sha256", "status": "pending"}]
+    },
+    "engine-parallel-surface": {
+      "stage": "threading", "spec": "phase4-final-engine-parallel-surface.md", "repo": "oaxaca-blinder-rs", "status": "pending",
+      "features": [{"id": "AC-1..13", "name": "5-entry audit, init_thread_pool export, no POLARS_MAX_THREADS, In-Scope 12 wiring (decompose_quantile both surfaces), seed propagation CV-1, quantile SE fixed_rif:false, cross-surface parity, threaded build", "status": "pending"}]
+    },
+    "meridian-integration": {
+      "stage": "threading", "spec": "phase4-final-meridian-integration.md", "repo": "pay-equity-app + audit-forge", "status": "pending",
+      "features": [{"id": "AC-M1.1..M8.1", "name": "COI feature-detect + initThreadPool, sequential fallback (INV-03), postMessage API unchanged, Vite worker.format:es + COOP/COEP, audit-forge scoped headers (INV-06), OOM no-message-parse", "status": "pending"}]
+    },
+    "statistical-trust-layer": {
+      "stage": "validation", "spec": "phase4-final-statistical-trust-layer.md", "repo": "oaxaca-blinder-rs", "status": "pending",
+      "features": [{"id": "trust-ACs", "name": "R oaxaca/ddecompose goldens (measured-then-pinned tol + track-2 custom-R), proptest adding-up identities, heteroskedastic QR, In-Scope 12 quantile golden, recompute-per-rep SE", "status": "pending"}]
+    },
+    "verification-benchmark": {
+      "stage": "validation", "spec": "phase4-final-verification-benchmark.md", "repo": "oaxaca-blinder-rs", "status": "pending",
+      "features": [{"id": "AC-1..10", "name": "serializer determinism, mode-parity gate (split), COI proven, memory ceiling, structured OOM, reproducibility double-build, no POLARS_MAX_THREADS, speedup non-blocking, INV-03 fallback, 50k PII-clean", "status": "pending"}]
+    }
+  },
+  "coverage": {"baseline_tests": 45, "current_tests": 45, "gate": "current >= baseline", "note": "45 passed/0 failed on clean runs (8 test binaries + doctests). KNOWN FLAKE: an RNG-dependent test intermittently fails (passed runs 1&3, failed run 2) due to unseeded thread_rng/sample_n_literal — this is the exact nondeterminism stage-1 eliminates. Post-stage-1 the suite must be stable across repeated runs (bonus AC)."}
+}

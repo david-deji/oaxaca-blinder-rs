@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "skill": "specify",
+  "run_id": "_specify-wasm-rayon-multithreading-2026-07-17",
+  "tier": "balanced",
+  "deliverable_type": null,
+  "runs": [
+    {
+      "started_at": "2026-07-17T00:00:00Z",
+      "completed_at": "2026-07-18T00:00:00Z",
+      "phase_durations": {
+        "phase-1-research": 1
+      },
+      "retry_counts": {
+        "phase-1-research": 0
+      },
+      "gate_failures": [
+        {
+          "phase": "drift",
+          "gate": "drift",
+          "resolved": true
+        }
+      ],
+      "council_acceptance_rates": {
+        "council_size": 25,
+        "recommendations_emitted": 0,
+        "accepted_by_founder": 0,
+        "rejected_by_founder": 0,
+        "deferred": 0,
+        "acceptance_rate": null
+      },
+      "circuit_breaker_events": [],
+      "cost_actual_usd": null,
+      "source_files": [
+        "council-adversarial-verifier.md",
+        "council-build-feasibility.md",
+        "council-nbj.md",
+        "council-statistical-correctness.md",
+        "council-synthesis.md",
+        "council-systems-architect.md",
+        "phase2-drift-check.md",
+        "phase4-build-readiness-audit.md",
+        "phase4.5-reconciliation.md"
+      ],
+      "notes": [],
+      "emitted_at": "2026-07-18T15:01:44Z"
+    },
+    {
+      "started_at": "2026-07-17T00:00:00Z",
+      "completed_at": "2026-07-18T00:00:00Z",
+      "phase_durations": {
+        "phase-1-research": 1
+      },
+      "retry_counts": {
+        "phase-1-research": 0
+      },
+      "gate_failures": [
+        {
+          "phase": "drift",
+          "gate": "drift",
+          "resolved": true
+        }
+      ],
+      "council_acceptance_rates": {
+        "council_size": 25,
+        "recommendations_emitted": 0,
+        "accepted_by_founder": 0,
+        "rejected_by_founder": 0,
+        "deferred": 0,
+        "acceptance_rate": null
+      },
+      "circuit_breaker_events": [],
+      "cost_actual_usd": null,
+      "source_files": [
+        "council-adversarial-verifier.md",
+        "council-build-feasibility.md",
+        "council-nbj.md",
+        "council-statistical-correctness.md",
+        "council-synthesis.md",
+        "council-systems-architect.md",
+        "phase2-drift-check.md",
+        "phase4-build-readiness-audit.md",
+        "phase4.5-reconciliation.md"
+      ],
+      "notes": [],
+      "emitted_at": "2026-07-18T15:02:45Z"
+    }
+  ],
+  "completed_at": "2026-07-18T15:02:45Z"
+}

@@ -7,7 +7,8 @@
 
 ```yaml
 # Workflow State
-phase: executing
+deliverable_type: app
+phase: completed
 completed:
   - phase-0-brief
   - plan-confirmation-gate
@@ -43,7 +44,23 @@ completed:
                                               #  MJ-6 thread-cap 8-clamp baked into N_max_const
                                               #  MJ-4 E1 nightly subgraph-trim (default-features=false, cfg-gate askama)
                                               #  entropy scoped native; MJ-1 native<->wasm split annotated (pending founder)
-current: buildability-gate
+  - buildability-gate                          # 4 founder rulings (2026-07-18), recorded in buildability-gate-rulings.md:
+                                              #   1. Reproducibility = Strategy A (dual artifact; container baseline)
+                                              #   2. INV-02 = the split (within-platform byte-identical + native<->wasm <=1e-6)
+                                              #   3. In-Scope 12 aggregate = a-1 (both surfaces -> RIF)
+                                              #   4. Quantile SE = recompute RIF per bootstrap replicate (fixed_rif:false)
+                                              #   H2 memory margins: decide-and-proceed (band defaults; revisit at profile).
+                                              #   ALL 4 baked into Charter (INV-02 reframe + 3 Scope-Delta rows) + 7 phase4-final specs.
+                                              #   Phase 4 gate re-passed 22/0 after all edits.
+  - phase-4.8-saas-creep-scan                  # clean (AI-native N/A: Rust engine + browser plumbing, no SaaS creep)
+  - phase-4.9-final-synthesis                  # synthesis.md (build handoff, required preamble present; canonical Bundle-C name)
+  - phase-4.9-distillation                     # distilled.md (<=200w) + tldr.md (<=50w) + quickstart.md (app-type) + spec.yaml (machine contract)
+                                              # NOTE canonical names synthesis.md/distilled.md (NOT final-synthesis*): directory-contract
+                                              # check + /build Phase 0.1 both read canonical; /specify SKILL Handoff prose names final-synthesis* (drift, friction-logged)
+  - phase-4.10-final-synthesis-review-gate     # APPROVED (A) by founder 2026-07-18. Handoff accepted.
+  - phase-4.11-telemetry-emit                  # specify-telemetry.json written (INV-21 non-blocking)
+  - phase-4.11-knowledge-registration          # 0014-MERIDIAN issue -> SPECIFIED, spec dir linked
+current: completed  # /specify pipeline DONE. /build is a separate founder-triggered invocation — NOT auto-started.
 # FOUR founder decisions (council-sharpened), presenting as AskUserQuestion:
 #  1. Strategy A vs B (council: A more competitive than spec claimed; B needs container/2-host baseline)
 #  2. INV-02 reframe (within-platform byte-identical + native<->wasm tolerance) - touches "bit-identical" ruling
@@ -105,9 +122,9 @@ side_effects:
     - _specify-wasm-rayon-multithreading-2026-07-17/phase1-verification-benchmark-browser-ci.md
   issues_filed: [0014-MERIDIAN, 0015-MERIDIAN]
 safe_to_retry: true
-next: phase-1.5-citation-verifier, then phase-2-dispatch
+next: founder-synthesis-review-gate -> (on approve) telemetry-emit + knowledge-registration -> /build handoff
 started_at: 2026-07-17T00:00:00Z
-updated: 2026-07-17T00:00:00Z
+updated: 2026-07-18T00:00:00Z
 phase_durations:
   phase-1-research: 1
 retry_counts:
