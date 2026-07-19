@@ -101,6 +101,25 @@ pub use quantile_decomposition::QuantileDecompositionBuilder;
 pub use rng::{RunMetadata, DEFAULT_SEED};
 pub use types::{ComponentResult, DecompositionDetail, OaxacaResults, TwoFoldResults};
 
+/// Quantile-regression coefficient solver, exposed for the statistical-trust-layer QR
+/// validation (0014-MERIDIAN AC-5). Thin, allocation-only wrapper over the internal
+/// `math::quantile_regression::solve_qr` — additive public surface, no behavior change
+/// (INV-01). `x_rows` are the design rows INCLUDING whatever intercept column the caller
+/// wants fitted (the solver adds none); returns the coefficient vector in column order.
+pub fn qr_coefficients(x_rows: &[Vec<f64>], y: &[f64], tau: f64) -> Result<Vec<f64>, String> {
+    use ndarray::{Array1, Array2};
+    let n = x_rows.len();
+    let k = x_rows.first().map(|r| r.len()).unwrap_or(0);
+    let mut x = Array2::<f64>::zeros((n, k));
+    for (i, row) in x_rows.iter().enumerate() {
+        for (j, &v) in row.iter().enumerate() {
+            x[[i, j]] = v;
+        }
+    }
+    let yv = Array1::from(y.to_vec());
+    crate::math::quantile_regression::solve_qr(&x, &yv, tau)
+}
+
 #[cfg(test)]
 mod tests {
     #[test]

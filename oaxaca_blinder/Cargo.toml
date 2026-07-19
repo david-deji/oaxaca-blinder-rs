@@ -47,6 +47,12 @@ wasm-threads = []
 [dev-dependencies]
 assert_cmd = "2.0"
 predicates = "2.1"
+# proptest: randomized property suite for the decomposition adding-up identities
+# (0014-MERIDIAN statistical-trust-layer D-4). Dev-only — never a production dep.
+proptest = "1"
+# rayon: force a fixed-size thread pool in the memory-ceiling test (0014-MERIDIAN
+# verification-benchmark D-3) so peak is measured at N_max_const=8 (worst-case in-band).
+rayon = "1.11.0"
 
 [[bin]]
 name = "oaxaca-cli"

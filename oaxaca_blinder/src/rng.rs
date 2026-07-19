@@ -77,12 +77,24 @@ pub(crate) fn draw_entropy_seed() -> u64 {
     u64::from_le_bytes(buf)
 }
 
+/// Serialize a `u64` as a decimal string (see `RunMetadata::seed`). Lossless across the JS
+/// boundary where a bare number would exceed `Number.MAX_SAFE_INTEGER`.
+fn serialize_u64_as_str<S: serde::Serializer>(v: &u64, s: S) -> Result<S::Ok, S::Error> {
+    s.serialize_str(&v.to_string())
+}
+
 /// Provenance of a decomposition run: the effective master seed, the RNG algorithm
 /// and pinned version, and the bootstrap-rep accounting. The `*_discarded` count is
 /// the authoritative record of failed reps (the `eprintln!` log is non-authoritative).
 /// Serialized into the engine `decompose` JSON the parity harness byte-compares (D7).
 #[derive(serde::Serialize, Clone, Debug)]
 pub struct RunMetadata {
+    // Serialized as a STRING, not a JSON number. A 64-bit seed exceeds JS `Number.MAX_SAFE_INTEGER`
+    // (2^53), so a numeric encoding is (a) lossy for any JS consumer of the native JSON and (b) an
+    // outright throw under serde_wasm_bindgen at the wasm boundary. A decimal string is the correct
+    // lossless provenance encoding in both serializers. Value + Rust type are unchanged; only the
+    // JSON encoding differs, so mean-path/statistical goldens are untouched (0014-MERIDIAN stage-4).
+    #[serde(serialize_with = "serialize_u64_as_str")]
     pub seed: u64,
     pub rng_algorithm: &'static str,
     pub rand_chacha_version: &'static str,

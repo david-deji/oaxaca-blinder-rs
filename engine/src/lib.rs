@@ -26,6 +26,11 @@ pub fn init_panic_hook() {
 pub fn decompose(val: JsValue) -> Result<JsValue, JsValue> {
     let req: DecompositionRequest = serde_wasm_bindgen::from_value(val)?;
     let res = decompose_inner(req).map_err(|e| JsValue::from_str(&e))?;
+    // NOTE: `RunMetadata.seed` (u64) serializes as a STRING (see rng.rs `serde(serialize_with)`),
+    // because serde_wasm_bindgen's default integer serializer THROWS on a u64 > 2^53 (the default
+    // seed 0x5EED_0A11_CA8A_0002 ≈ 6.84e18 always exceeds it). String is the correct lossless
+    // provenance encoding across the JS boundary; counts stay plain JS Numbers. 0014-MERIDIAN
+    // stage-4 browser-parity finding (latent: the native serde_json path handled u64 fine).
     Ok(serde_wasm_bindgen::to_value(&res)?)
 }
 

@@ -1,0 +1,14 @@
+{
+  "name": "meridian-browser-parity",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "COI browser byte-parity harness for the threaded WASM pay-equity engine (0014-MERIDIAN verification-benchmark D-6).",
+  "scripts": {
+    "test": "playwright test",
+    "serve": "node coi-server.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.48.2"
+  }
+}

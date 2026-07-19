@@ -57,3 +57,8 @@ wasm-threads = ["dep:wasm-bindgen-rayon", "wasm", "oaxaca_blinder/wasm-threads"]
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.42"
+# mode-parity native byte-identity test (0014-MERIDIAN verification-benchmark D-2): rayon
+# pool control across thread counts + serde_json canonical serialization + double-serialize
+# determinism self-test.
+rayon = "1.11.0"
+serde_json = "1.0"

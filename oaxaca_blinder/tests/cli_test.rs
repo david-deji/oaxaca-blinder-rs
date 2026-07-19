@@ -76,9 +76,14 @@ fn test_quantile_decomposition() {
         .arg("--simulations")
         .arg("10");
 
-    cmd.assert().success().stdout(predicate::str::contains(
-        "Machado-Mata Quantile Decomposition Results",
-    ));
+    // Stage-3 rewired the CLI quantile path from Machado-Mata simulation to the SAME RIF-regression
+    // method the WASM/MCP surfaces use (0014-MERIDIAN ruling a-1, main.rs:235). `--simulations` is
+    // now inert (kept for CLI back-compat); the header reflects RIF, and each τ prints a two-fold
+    // decomposition summary.
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("(RIF-regression)"))
+        .stdout(predicate::str::contains("Two-Fold Decomposition"));
 }
 
 #[test]

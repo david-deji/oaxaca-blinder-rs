@@ -5,6 +5,10 @@ on:
     branches: ["main"]
   pull_request:
     branches: ["main"]
+  workflow_dispatch:
+  schedule:
+    # Monday 06:00 UTC — non-blocking perf-drift benchmark (benchmark-speedup job self-gates on this).
+    - cron: "0 6 * * 1"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -129,8 +133,100 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Run cargo-audit
         uses: rustsec/audit-check@v1.4.1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+
+  memory-ceiling:
+    name: Memory Ceiling (50k @ N=8 < 326 MiB)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "rust-stable"
+
+      # The tracking allocator + peak metric are behind `mem-profile` (native-only, off by default).
+      # `--all-features` in the quality job does NOT isolate this crate-scoped feature, so the ceiling
+      # gets its own job. Fails if peak live bytes at 50k / N_max_const=8 reach the --max-memory budget.
+      - name: Memory-ceiling test (tracking allocator)
+        run: cargo test -p oaxaca_blinder --features mem-profile --test memory_ceiling_test -- --nocapture
+
+  browser-parity:
+    name: Browser Byte-Parity (COI, threaded WASM, seq/t2/t4)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Threaded pass needs pinned nightly (build-std + atomics); INV-01 keeps native/seq on stable.
+      - name: Setup pinned nightly (rust-src + wasm target)
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          toolchain: nightly-2025-06-27
+          components: rust-src
+          targets: wasm32-unknown-unknown
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "rust-wasm-threaded"
+
+      - name: Install wasm-bindgen-cli (pinned)
+        run: cargo install wasm-bindgen-cli --version 0.2.106 --locked
+
+      # Build the THREADED artifact fresh and bindgen it into engine/pkg-threaded (a gitignored build
+      # output), so the browser test runs against a from-source build, not a stale committed pkg.
+      - name: Build threaded WASM + wasm-bindgen (--target web)
+        run: |
+          RUSTFLAGS="-C target-feature=+atomics,+bulk-memory,+mutable-globals \
+            -C link-arg=--max-memory=342228992 -C link-arg=-zstack-size=1048576" \
+            cargo +nightly-2025-06-27 build -p pay-equity-engine \
+              --features wasm-threads --target wasm32-unknown-unknown --release \
+              -Zbuild-std=panic_abort,std --locked
+          wasm-bindgen target/wasm32-unknown-unknown/release/pay_equity_engine.wasm \
+            --out-dir engine/pkg-threaded --target web \
+            --remove-name-section --remove-producers-section
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Playwright + Chromium
+        working-directory: verification/browser-parity
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+
+      - name: Run browser byte-parity (COI + nested worker spawn)
+        working-directory: verification/browser-parity
+        env:
+          CI: "1"
+        run: npx playwright test
+
+  benchmark-speedup:
+    name: Benchmark (Rust methods, non-blocking)
+    # Perf-trend job, not a gate: schedule/dispatch only, and never fails the run.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "rust-stable"
+
+      - name: Rust method benchmark (release, median, serial)
+        run: cargo run -p oaxaca_blinder --release --example bench_methods
