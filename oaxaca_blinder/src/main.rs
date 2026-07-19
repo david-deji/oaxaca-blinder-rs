@@ -270,6 +270,31 @@ fn run_quantile_analysis(args: &RunArgs, df: DataFrame) -> Result<(), Box<dyn Er
         let results = builder.decompose_quantile(q)?;
         println!("\n=== Quantile τ = {:.2} (RIF-regression) ===", q);
         results.summary();
+
+        // AC-13 CLI<->library/WASM parity (0014-MERIDIAN): `OaxacaResults::to_json()` already
+        // exists and is wired for the mean path (see `run_mean_analysis` above); wiring the same
+        // call here gives the quantile path a machine-parseable output so its numeric parity with
+        // the library/WASM path (which returns this same `OaxacaResults`) can be asserted in a
+        // test instead of only by code-path inspection. Multiple `--quantiles` values would
+        // otherwise collide on one output file, so each additional tau gets a `.qX.XX` suffix
+        // inserted before the extension; the common single-quantile case writes exactly to the
+        // path given.
+        if let Some(path) = &args.output_json {
+            let out_path = if quantiles.len() > 1 {
+                let stem = path
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("output");
+                let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("json");
+                path.with_file_name(format!("{}.q{:.2}.{}", stem, q, ext))
+            } else {
+                path.clone()
+            };
+            let json = results
+                .to_json()
+                .map_err(|e| format!("Failed to serialize to JSON: {}", e))?;
+            std::fs::write(&out_path, json)?;
+        }
     }
     Ok(())
 }

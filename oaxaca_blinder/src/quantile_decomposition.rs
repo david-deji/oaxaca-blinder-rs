@@ -2,6 +2,24 @@
 //!
 //! This module provides the implementation for performing a quantile regression
 //! decomposition using the Machado-Mata (2005) simulation-based method.
+//!
+//! MM is a genuinely distinct method from the RIF-regression quantile decomposition in
+//! [`crate::OaxacaBuilder::decompose_quantile`] — MM simulates the full conditional
+//! quantile process from repeated quantile regressions at random taus, while RIF linearizes
+//! the quantile via a single recentered-influence-function OLS pass. It is NOT redundant
+//! with the RIF path; it is a different estimator with different bias/variance tradeoffs
+//! (heavier compute, no linearization assumption).
+//!
+//! **Status (0014-MERIDIAN follow-up):** no shipped surface (CLI, WASM, MCP) calls this
+//! module — `main.rs::run_quantile_analysis` and the WASM/MCP paths use `decompose_quantile`
+//! (RIF) exclusively. This module is reachable only via direct use of the `oaxaca_blinder`
+//! crate API. Unlike the RIF path, MM has no external-oracle verification (e.g. an R
+//! `quantreg`/`rifreg` cross-check) — only the self-consistency checks in
+//! `tests/ground_truth_verification_test.rs` and `tests/integration_test.rs` (adding-up:
+//! characteristics + coefficients == total gap). Treat point estimates from this module as
+//! unverified against an external ground truth.
+
+#![allow(deprecated)]
 
 use getset::Getters;
 use ndarray::{Array1, Array2};
@@ -18,6 +36,16 @@ use crate::{
 
 /// The main entry point for configuring and running a Machado-Mata
 /// quantile regression decomposition.
+///
+/// Off the shipped surface (CLI/WASM/MCP use the RIF path); see the module-level doc for
+/// why this method is statistically distinct rather than redundant, and its verification
+/// status (self-consistency only, no external oracle).
+#[deprecated(
+    note = "not on the shipped CLI/WASM/MCP surface — those use OaxacaBuilder::decompose_quantile \
+            (RIF, Firpo-Fortin-Lemieux). MM simulation is a distinct, statistically valid method \
+            kept for direct-API consumers, but has no external-oracle verification (self-consistency \
+            tests only). See the module doc for details."
+)]
 #[derive(Debug, Clone)]
 pub struct QuantileDecompositionBuilder {
     dataframe: DataFrame,

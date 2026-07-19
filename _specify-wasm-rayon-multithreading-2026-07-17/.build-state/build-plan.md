@@ -121,9 +121,18 @@ Re-verify the stage's ACs before assuming it's done. Build branch: `build/wasm-r
 ## Workflow State
 
 ```yaml
-phase: executing
-current: stage-4-validation
-completed: [phase-0-init, stage-1-determinism, stage-2-memory-profile, stage-3-threading]
+phase: completed
+current: merge-gate-DONE-both-repos-on-main
+completed: [phase-0-init, stage-1-determinism, stage-2-memory-profile, stage-3-threading, stage-4-validation, merge-gate]
+stage_4_commit: 623ff98   # build/wasm-rayon-mt/main (engine repo). Squashed the d0a6a65 WIP. NOW ON origin/main.
+merge_gate:  # DONE 2026-07-19 (David approved "Merge both repos to main + push")
+  oaxaca-blinder-rs: "PUSHED. build/wasm-rayon-mt/main:main FF 666b36b..623ff98. origin/main=623ff98 (verified ls-remote). local main synced. origin URL corrected dot-comma-hyphen -> david-deji (stale post-rename redirect; ls-remote confirms same 623ff98)."
+  pay-equity-app: "MERGED+PUSHED. origin/main had David's dup-0016 (41563988); build branch 21366149 = same 0016 (2-line REGISTER.md delta only), not FF-able -> git merge origin/main (ort strategy, NO conflicts, identical 0016 auto-reconciled) = merge commit 7e21c771. Pushed 41563988..7e21c771 HEAD:main. origin/main=7e21c771 (verified ls-remote). local main synced. BUG-2 closed end-to-end on main (engine 623ff98 + app wasm 0030544e both integrated)."
+  audit-forge: "UNTOUCHED by stage 4 (foreign _shell.html never staged); nothing to merge."
+stage_4_open_items_for_founder:
+  - "DONE (David approved 2026-07-18): pay-equity-app wasm propagation. Copied fresh Fix-B *_bg.wasm into frontend/src/wasm (seq f2f26646) + frontend/src/wasm-threaded (threaded f4c86323 = browser-validated). ONLY the 2 .wasm binaries changed — glue/d.ts/snippets/package.json byte-identical (ABI unchanged, drop-in). Committed pay-equity-app 0030544e on build/wasm-rayon-mt/main. BUG-2 now closed engine-side (623ff98) AND app-side (0030544e). (Minor: app build.sh 'cd engine' is stale/dead — wasm comes from oaxaca-blinder-rs copy, not app-local wasm-pack.)"
+  - "[adversarial-verify follow-up, non-blocking] gen_trust_goldens.R §2 comment overstates 'independent oracle' — mean golden checks OLS fit (independent) not OB arithmetic (transliterated); loaded oaxaca R pkg never called. ddecompose (AC-6) IS the independent arithmetic oracle."
+  - "[adversarial-verify follow-up, non-blocking] Machado-Mata quantile_decomposition.rs orphaned from shipped surfaces (all use RIF decompose_quantile); still exported + self-consistency-tested, no R oracle. Cleanup candidate."
 commits: {stage-1: 356faab, stage-2: c005837, stage-3: see-git-log-build/wasm-rayon-mt/main}
 stage_3_substages:
   3A-engine-feature-plumbing: DONE        # Cargo.toml x2 wasm-threads feature, lib.rs init_thread_pool re-export, SKIP doc comments, INV-08 in CLAUDE.md, AC-4 clean
@@ -166,5 +175,5 @@ strategy: A-dual-artifact                 # untouched stable seq baseline + thre
 repos: {engine: build/wasm-rayon-mt/main, pay-equity-app: TBD-branch-off-main, audit-forge: TBD-branch-off-master (foreign _shell.html untouched)}
 safe_to_retry: true
 started_at: 2026-07-18
-updated: 2026-07-18
+updated: 2026-07-19
 ```

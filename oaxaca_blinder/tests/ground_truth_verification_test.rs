@@ -3,6 +3,8 @@
 //    so endowments/coefficients/interaction must match hand-computed values.
 // 2. Quantile decomposition: pure location shift (M = F + 5, identical X and noise)
 //    -> every quantile gap ~= 5, characteristics ~= 0, coefficients ~= 5.
+#![allow(deprecated)] // QuantileDecompositionBuilder (MM sim) is deprecated but kept as a
+                      // self-consistency guard per 0014-MERIDIAN follow-up (Item B).
 use oaxaca_blinder::{OaxacaBuilder, QuantileDecompositionBuilder};
 use polars::prelude::*;
 

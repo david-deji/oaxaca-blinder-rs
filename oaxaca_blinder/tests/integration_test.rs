@@ -1,3 +1,5 @@
+#![allow(deprecated)] // QuantileDecompositionBuilder (MM sim) is deprecated but kept as a
+                      // self-consistency guard per 0014-MERIDIAN follow-up (Item B).
 use oaxaca_blinder::{OaxacaBuilder, QuantileDecompositionBuilder, ReferenceCoefficients};
 use polars::prelude::*;
 

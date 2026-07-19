@@ -16,7 +16,21 @@ pub fn calculate_rif(series: &Series, quantile: f64) -> Result<Series, PolarsErr
     let n = y_vec.len() as f64;
 
     if n < 2.0 {
-        return Ok(series.clone()); // Not enough data to estimate density
+        // REACHABLE via the public API: `OaxacaBuilder::split_groups` (builder.rs) only
+        // requires >=2 DISTINCT group values in the full dataset -- it enforces no per-group
+        // minimum row count, so a group with exactly one row surviving `clean_dataframe`'s
+        // null-drop reaches this branch through `decompose_quantile` -> `rif_replace_outcome`
+        // (builder.rs), both for the point estimate and for every bootstrap replicate.
+        // Sample variance and the KDE bandwidth are both undefined for n<2, so silently
+        // returning the caller's own series as its "RIF" would be a silent wrong result
+        // (agentic failure mode #6) rather than a safe no-op. Fail loudly instead.
+        return Err(PolarsError::ComputeError(
+            format!(
+                "RIF density estimation requires at least 2 observations per group, got {}",
+                n as usize
+            )
+            .into(),
+        ));
     }
 
     // 1. Calculate Sample Quantile (Q_tau) using R Type 7 interpolation

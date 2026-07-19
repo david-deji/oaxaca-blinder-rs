@@ -32,9 +32,13 @@
 //!
 //! ### Quantile Regression Decomposition
 //!
+//! The shipped quantile-decomposition path (CLI, WASM, MCP) is RIF-regression
+//! (Firpo-Fortin-Lemieux 2009) via [`OaxacaBuilder::decompose_quantile`] — call it once
+//! per target quantile:
+//!
 //! ```ignore
 //! use polars::prelude::*;
-//! use oaxaca_blinder::QuantileDecompositionBuilder;
+//! use oaxaca_blinder::OaxacaBuilder;
 //!
 //! fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!     let df = df!(
@@ -43,15 +47,20 @@
 //!         "gender" => &["F", "F", "F", "F", "F", "F", "M", "M", "M", "M", "M", "M"]
 //!     )?;
 //!
-//!     let results = QuantileDecompositionBuilder::new(df, "wage", "gender", "F")
-//!         .predictors(&["education"])
-//!         .quantiles(&[0.25, 0.5, 0.75])
-//!         .run()?;
+//!     let mut builder = OaxacaBuilder::new(df, "wage", "gender", "F");
+//!     builder.predictors(["education"]);
 //!
-//!     results.summary();
+//!     for &q in &[0.25, 0.5, 0.75] {
+//!         let results = builder.decompose_quantile(q)?;
+//!         results.summary();
+//!     }
 //!     Ok(())
 //! }
 //! ```
+//!
+//! [`crate::quantile_decomposition`] (Machado-Mata simulation) is a statistically distinct
+//! alternative kept for direct-API consumers, but it is off the shipped surface and has no
+//! external-oracle verification — see that module's doc for details.
 
 mod builder;
 mod decomposition;
@@ -97,6 +106,7 @@ pub use error::OaxacaError;
 pub use heckman::heckman_two_step;
 pub use jmp::decompose_changes;
 pub use matching::engine::MatchingEngine;
+#[allow(deprecated)]
 pub use quantile_decomposition::QuantileDecompositionBuilder;
 pub use rng::{RunMetadata, DEFAULT_SEED};
 pub use types::{ComponentResult, DecompositionDetail, OaxacaResults, TwoFoldResults};

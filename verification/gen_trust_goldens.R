@@ -5,9 +5,15 @@
 # REGENERATION-ONLY TOOLING (INV-01). NOT run at `cargo test` time — the Rust
 # trust tests read the committed JSON offline (no R, no network). Mirrors the
 # statsmodels pattern in verification/gen_parity_golden.py with a SECOND, wholly
-# independent oracle stack (R `oaxaca`/`quantreg`/`ddecompose`).
+# independent oracle stack for OLS fit and quantile decomposition (R `lm()` +
+# `quantreg`/`ddecompose`). The `oaxaca` package is loaded for version
+# provenance / parity context only — it is NOT invoked as the Oaxaca-Blinder
+# arithmetic oracle; that role is filled by `ddecompose::ob_decompose()`
+# (Section 5, AC-6). Section 2's OB arithmetic is transliterated in-script from
+# builder.rs/decomposition.rs, validated only via R's independently-fit lm() OLS.
 #
-# Two independent oracles agreeing (statsmodels + R) is strictly stronger than one.
+# Two independent oracles agreeing (lm()-fit/ddecompose-arithmetic + statsmodels) is
+# strictly stronger than one.
 #
 # Defensibility (W9, primary-source): R's bootstrap reproducibility is fully
 # determined by set.seed()+RNGkind() fixing .Random.seed (R `boot`/base docs);
@@ -28,6 +34,9 @@
 # =============================================================================
 
 suppressWarnings(suppressMessages({
+  # Loaded for version provenance (_meta.oaxaca_version) and parity context only;
+  # NOT used to compute the OB decomposition below (see Section 2 note) —
+  # ddecompose::ob_decompose() (Section 5) is the independent OB-arithmetic oracle.
   library(oaxaca)
   has_quantreg   <- requireNamespace("quantreg",   quietly = TRUE)
   has_ddecompose <- requireNamespace("ddecompose", quietly = TRUE)
@@ -102,8 +111,12 @@ engine_name <- function(term) {
 
 # =============================================================================
 # 2. lm()-based OB GroupB golden — point, per-variable, three-fold (AC-3)
-#    Independent oracle: R's lm() fits the OLS; the OB arithmetic is done here,
-#    identical to builder.rs decomposition.rs:102/113 (beta* = beta_B).
+#    FIT-ORACLE, NOT ARITHMETIC-ORACLE: R's lm() independently validates the OLS
+#    fit (R lm() vs the engine's nalgebra OLS). The OB decomposition arithmetic
+#    below is transliterated in-script from builder.rs/decomposition.rs:102/113
+#    (beta* = beta_B) — it is NOT an independent implementation of the OB
+#    arithmetic. The independent OB-arithmetic oracle is ddecompose::ob_decompose()
+#    in Section 5 (AC-6), which has its own C/R implementation of the decomposition.
 # =============================================================================
 model_rhs <- paste(c(NUM_PREDS, CAT_PREDS), collapse = " + ")
 fml <- as.formula(paste(OUTCOME, "~", model_rhs))
@@ -212,6 +225,13 @@ write.csv(idx_df, INDICES, row.names = FALSE, quote = FALSE)
 bootstrap <- list(
   subset_n = SUBSET_N, reps = REPS_SE, n_a = nA, n_b = nB,
   subset_seed = SEED, index_file = "resample_indices.csv",
+  # 0-based indices into employers_trust_fixture.csv (the FULL 10k-row fixture) identifying
+  # which SUBSET_N rows form `sub`, in ascending order — required for the Rust side to
+  # reconstruct subA/subB before applying resample_indices.csv. Without this, R's exact
+  # sample.int() draw (line ~187) cannot be reproduced in Rust (no equivalent
+  # Mersenne-Twister sampler exists in the engine), so the bootstrap-SE consuming test
+  # (tests/bootstrap_se_golden_test.rs) stays BLOCKED until this golden is regenerated.
+  sub_idx_0based = as.integer(sub_idx - 1L),
   se_explained = unname(se_golden["explained"]),
   se_unexplained = unname(se_golden["unexplained"]),
   se_total_gap = unname(se_golden["total_gap"]),
