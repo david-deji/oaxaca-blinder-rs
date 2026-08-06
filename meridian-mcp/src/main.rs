@@ -129,12 +129,18 @@ struct McpProposedAdjustment {
     pub index: usize,
     pub value: f64,
     pub predictor_overrides: Option<HashMap<String, String>>,
+    /// 0017-MERIDIAN P4 stable key. Optional and forwarded verbatim: an MCP caller that echoes
+    /// back the `row_key` the engine emitted gets key-resolved identity; one that omits it gets
+    /// the unchanged `index` path.
+    #[serde(default)]
+    pub row_key: Option<String>,
 }
 
 impl From<McpProposedAdjustment> for ProposedAdjustment {
     fn from(p: McpProposedAdjustment) -> Self {
         Self {
             index: p.index,
+            row_key: p.row_key,
             value: p.value,
             predictor_overrides: p.predictor_overrides,
         }

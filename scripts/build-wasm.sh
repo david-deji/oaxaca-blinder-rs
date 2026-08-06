@@ -29,7 +29,14 @@
 # generated inside the pinned CI/container toolchain (cross-machine build-std sha256 is fragile);
 # a dev-box run refreshes engine/pkg-threaded/ for local testing, CI re-records + verifies.
 #
-# Usage:  bash scripts/build-wasm.sh   (run from the oaxaca-blinder-rs workspace root)
+# Usage:  bash scripts/build-wasm.sh                (run from the oaxaca-blinder-rs workspace root)
+#         bash scripts/build-wasm.sh --no-publish   (build only; leave the app's copies stale)
+#
+# PUBLISH (0017-P4): after both artifacts are generated the script copies them into the
+# consuming Meridian app, by default the sibling checkout ../pay-equity-app/frontend/src/
+# (override with MERIDIAN_FRONTEND=/path/to/frontend/src). Every copy is sha256-verified.
+# Without this step the app keeps running the PREVIOUS build and no test catches it — the
+# frontend suites mock the engine, so a stale blob ships green. See the PUBLISH block below.
 
 set -euo pipefail
 
@@ -113,3 +120,95 @@ PKGJSON
 echo "Dual-artifact WASM build complete."
 echo "  [seq]      raw sha256: $SEQ_HASH   -> $SEQ_BASELINE, engine/pkg/ (--target web)"
 echo "  [threaded] raw sha256: $THREADED_HASH   -> $THREADED_BASELINE, engine/pkg-threaded/ (--target web)"
+
+# ---------------------------------------------------------------------------
+# PUBLISH — copy the generated artifacts into the consuming app (0017-P4).
+#
+# Why this lives in the script rather than in a runbook: until 0017-P4 this step was manual and
+# undocumented. The build wrote engine/pkg{,-threaded}/ and stopped, so an engine change and the
+# artifact the browser actually runs could drift apart silently — and NOTHING catches it, because
+# the frontend test suites mock the engine. During P4 the shipped blobs sat 3 hours stale against
+# engine source while every suite stayed green. A manual step between a source change and the
+# binary that ships is a stale-artifact defect waiting to happen; automating it is the fix.
+#
+# File-by-file, never a directory sync: frontend/src/wasm/ also holds analysis.worker.js,
+# thread-cap.js and .gitignore, which are FRONTEND-owned and are not build output. An
+# rsync --delete or a rm -rf + cp of that directory would delete them. If you ever "simplify"
+# this into a directory copy, re-check that list first — it has grown once already.
+# ---------------------------------------------------------------------------
+
+PUBLISH=1
+for arg in "$@"; do
+    case "$arg" in
+        --no-publish) PUBLISH=0 ;;
+    esac
+done
+
+# Derived, never hardcoded: the app is a sibling checkout of this repo. Override with
+# MERIDIAN_FRONTEND when the two live elsewhere relative to each other.
+FRONTEND_SRC="${MERIDIAN_FRONTEND:-$PWD/../pay-equity-app/frontend/src}"
+
+publish_file() {
+    # publish_file <src> <dest> — copy, then prove the bytes match. A cp that half-wrote or
+    # landed on a full disk must fail the build, not print a success line.
+    local src="$1" dest="$2"
+    cp "$src" "$dest"
+    local a b
+    a=$(sha256sum "$src" | cut -d' ' -f1)
+    b=$(sha256sum "$dest" | cut -d' ' -f1)
+    if [ "$a" != "$b" ]; then
+        echo "  ERROR: published copy does not match source" >&2
+        echo "         src  $src  $a" >&2
+        echo "         dest $dest $b" >&2
+        exit 1
+    fi
+}
+
+if [ "$PUBLISH" -eq 0 ]; then
+    echo ""
+    echo "Publish SKIPPED (--no-publish). engine/pkg{,-threaded}/ are fresh; the app's"
+    echo "src/wasm{,-threaded}/ are NOT — the browser will run the previous build."
+elif [ ! -d "$FRONTEND_SRC/wasm" ] || [ ! -d "$FRONTEND_SRC/wasm-threaded" ]; then
+    # Not an error: the engine repo is usable without the app checked out beside it.
+    echo ""
+    echo "Publish SKIPPED — no consuming app found at:"
+    echo "  $FRONTEND_SRC/{wasm,wasm-threaded}"
+    echo "Set MERIDIAN_FRONTEND to the app's src/ directory if it lives elsewhere."
+else
+    echo ""
+    echo "== publishing artifacts to $FRONTEND_SRC =="
+
+    # Sequential glue + binary. Explicit list: exactly what wasm-bindgen emits into engine/pkg/.
+    for f in package.json \
+             pay_equity_engine.js \
+             pay_equity_engine.d.ts \
+             pay_equity_engine_bg.js \
+             pay_equity_engine_bg.wasm \
+             pay_equity_engine_bg.wasm.d.ts; do
+        publish_file "engine/pkg/$f" "$FRONTEND_SRC/wasm/$f"
+    done
+
+    # Threaded glue + binary. No *_bg.js here — the rayon --target web build inlines the glue
+    # into pay_equity_engine.js and emits snippets/ instead.
+    for f in package.json \
+             pay_equity_engine.js \
+             pay_equity_engine.d.ts \
+             pay_equity_engine_bg.wasm \
+             pay_equity_engine_bg.wasm.d.ts; do
+        publish_file "engine/pkg-threaded/$f" "$FRONTEND_SRC/wasm-threaded/$f"
+    done
+
+    # snippets/ is wholly generated (rayon workerHelpers). Replace rather than merge, so a
+    # snippet dropped by a newer wasm-bindgen does not linger and get bundled. Guarded on the
+    # literal suffix so this rm can never walk anywhere else.
+    SNIPPETS_DEST="$FRONTEND_SRC/wasm-threaded/snippets"
+    case "$SNIPPETS_DEST" in
+        */wasm-threaded/snippets) rm -rf "$SNIPPETS_DEST" ;;
+        *) echo "  ERROR: refusing to remove unexpected path $SNIPPETS_DEST" >&2; exit 1 ;;
+    esac
+    cp -r engine/pkg-threaded/snippets "$SNIPPETS_DEST"
+
+    echo "  [seq]      -> $FRONTEND_SRC/wasm/            (6 files, sha256-verified)"
+    echo "  [threaded] -> $FRONTEND_SRC/wasm-threaded/   (5 files + snippets/, sha256-verified)"
+    echo "  Frontend-owned analysis.worker.js, thread-cap.js, .gitignore left untouched."
+fi

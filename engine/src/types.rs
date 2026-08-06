@@ -50,6 +50,10 @@ pub struct DecompositionResult {
     pub unexplained_standard_error: Option<f64>,
     /// Provenance of the underlying decomposition run (seed, RNG algorithm, rep accounting).
     pub run_metadata: RunMetadata,
+    /// How many inbound `ProposedAdjustment.row_key` values did not resolve and were skipped.
+    /// `Some(0)` from `verify_adjustments` when every key resolved; `None` from `decompose`,
+    /// which consumes no proposed adjustments. See `crate::row_key`.
+    pub unresolved_row_keys: Option<usize>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -98,7 +102,17 @@ pub struct Contribution {
 
 #[derive(Serialize, Debug)]
 pub struct Adjustment {
+    /// POSITIONAL: the 0-based row ordinal of the parsed CSV DataFrame. Correct as an offset
+    /// (seven sites in this crate index a Vec / ChunkedArray / matrix-row map with it), wrong as
+    /// an identity across a save boundary. Kept unchanged for every existing consumer and every
+    /// payload already written.
     pub index: usize,
+    /// STABLE identity for this row — 0017-MERIDIAN P4. Derived from an employee-number column
+    /// when the CSV carries one, otherwise from the row's full cell set; never from position.
+    /// See `crate::row_key`. `None` means the engine could not mint a key for this ordinal,
+    /// which in practice only happens on a pre-P4 engine — a client seeing `undefined` here is
+    /// looking at an old build and must fall back to `index`.
+    pub row_key: Option<String>,
     pub adjustment: f64,
     pub current_wage: f64,
     pub new_wage: f64,
@@ -120,11 +134,31 @@ pub struct OptimizationResult {
     pub new_unexplained_gap: f64,
     pub required_budget: f64, // Total budget needed to meet target
     pub model_coefficients: Vec<Contribution>,
+    /// Literal key-space discriminator for `Adjustment.row_key` — always `"rowKeyV1"`
+    /// (`crate::row_key::ROW_KEY_SPACE`). A reader that does not recognise the value must
+    /// REFUSE the keys rather than reinterpret them, mirroring P2's `keySpace` guard on the
+    /// persisted ledger block.
+    pub row_key_space: String,
+    /// Which rule minted the keys: `"column"` or `"contentHash"`.
+    pub row_key_source: crate::row_key::RowKeySource,
+    /// The employee-number column the keys came from, when `row_key_source` is `"column"`.
+    pub row_key_column: Option<String>,
+    /// How many inbound `ProposedAdjustment.row_key` values did not resolve against this CSV
+    /// and were therefore SKIPPED. `None` when the entry point consumes no proposed
+    /// adjustments (optimize). A non-zero value means the CSV no longer contains those rows —
+    /// the annotations are orphaned, not misplaced.
+    pub unresolved_row_keys: Option<usize>,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct ProposedAdjustment {
     pub index: usize,
+    /// Optional stable key (0017-MERIDIAN P4). When present and resolvable it WINS over
+    /// `index`; when present and unresolvable the adjustment is skipped and counted in
+    /// `OptimizationResult.unresolved_row_keys`. Absent (every pre-P4 caller) means the
+    /// `index` path runs unchanged.
+    #[serde(default)]
+    pub row_key: Option<String>,
     pub value: f64,
     pub predictor_overrides: Option<std::collections::HashMap<String, String>>, // Can handle numbers as string "1.0"
 }

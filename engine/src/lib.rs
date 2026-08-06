@@ -1,6 +1,7 @@
 mod ab_binding_regression_test;
 pub mod analysis;
 pub mod defensibility;
+pub mod row_key;
 pub mod types;
 mod verification_test;
 

@@ -45,12 +45,20 @@ mod tests {
         for i in 0..10usize {
             let edu = 10.0 + i as f64;
             let noise = ((i % 4) as f64 - 1.5) * 100.0;
-            csv.push_str(&format!("{:.1},{:.1},A\n", a_intercept + a_slope * edu + noise, edu));
+            csv.push_str(&format!(
+                "{:.1},{:.1},A\n",
+                a_intercept + a_slope * edu + noise,
+                edu
+            ));
         }
         for i in 0..10usize {
             let edu = 10.0 + i as f64;
             let noise = ((i % 4) as f64 - 1.5) * 100.0;
-            csv.push_str(&format!("{:.1},{:.1},B\n", b_intercept + b_slope * edu + noise, edu));
+            csv.push_str(&format!(
+                "{:.1},{:.1},B\n",
+                b_intercept + b_slope * edu + noise,
+                edu
+            ));
         }
         csv.into_bytes()
     }
@@ -125,7 +133,8 @@ mod tests {
             last.p_value > p_zero,
             "p_value should rise as the gap closes; p_zero={:.4} p_max={:.4}. \
              Failure = inverted A/B binding (adjustments hitting the reference group).",
-            p_zero, last.p_value
+            p_zero,
+            last.p_value
         );
         assert!(
             !last.is_significant,
@@ -157,9 +166,24 @@ mod tests {
                 bootstrap_reps: None,
             },
             adjustments: vec![
-                ProposedAdjustment { index: 12, value: 0.0, predictor_overrides: None },
-                ProposedAdjustment { index: 15, value: 0.0, predictor_overrides: None },
-                ProposedAdjustment { index: 18, value: 0.0, predictor_overrides: None },
+                ProposedAdjustment {
+                    index: 12,
+                    row_key: None,
+                    value: 0.0,
+                    predictor_overrides: None,
+                },
+                ProposedAdjustment {
+                    index: 15,
+                    row_key: None,
+                    value: 0.0,
+                    predictor_overrides: None,
+                },
+                ProposedAdjustment {
+                    index: 18,
+                    row_key: None,
+                    value: 0.0,
+                    predictor_overrides: None,
+                },
             ],
         };
         let result = check_defensibility_inner(req).expect("defensibility must not error");
