@@ -42,6 +42,11 @@ pub fn verify_inner(req: VerificationRequest) -> Result<DecompositionResult, Str
     let cursor = Cursor::new(&req.decomposition_params.csv_data);
     let mut df = CsvReader::new(cursor).finish().map_err(|e| e.to_string())?;
 
+    // 0017-MERIDIAN P4: mint the stable key table HERE, on the raw parse, before the Float64
+    // cast below. Casting changes a cell's text rendering, so a table built after it would
+    // depend on which columns the operator picked as predictors. See `crate::row_key`.
+    let row_keys = crate::row_key::RowKeyTable::build(&df)?;
+
     // Cast to Float64 (Replicating logic to ensure type safety)
     let cast_cols = [&req.decomposition_params.outcome_variable]
         .into_iter()
@@ -73,15 +78,25 @@ pub fn verify_inner(req: VerificationRequest) -> Result<DecompositionResult, Str
     // Collect into Vec<Option<f64>> to handle potential nulls safely
     let mut wage_vec: Vec<Option<f64>> = ca.into_iter().collect();
 
-    for adj in req.adjustments {
-        if adj.index < wage_vec.len() {
-            if let Some(val) = wage_vec[adj.index] {
-                wage_vec[adj.index] = Some(val + adj.value);
+    // 0017-MERIDIAN P4: a proposed adjustment carrying a `row_key` is resolved by KEY, not by
+    // position. An unresolvable key means the row is gone from this CSV, so the adjustment is
+    // skipped and counted — applying it at `index` would move the consultant's figure onto
+    // whichever employee now sits at that offset.
+    let mut unresolved_row_keys: usize = 0;
+
+    for adj in &req.adjustments {
+        let Some(row_idx) = row_keys.resolve(adj.index, adj.row_key.as_deref()) else {
+            unresolved_row_keys += 1;
+            continue;
+        };
+        if row_idx < wage_vec.len() {
+            if let Some(val) = wage_vec[row_idx] {
+                wage_vec[row_idx] = Some(val + adj.value);
             }
         } else {
             return Err(format!(
                 "Adjustment index {} is out of bounds (dataset has {} rows)",
-                adj.index,
+                row_idx,
                 wage_vec.len()
             ));
         }
@@ -92,7 +107,9 @@ pub fn verify_inner(req: VerificationRequest) -> Result<DecompositionResult, Str
     df.with_column(new_series).map_err(|e| e.to_string())?;
 
     // 3. Run Analysis on Mutated DataFrame
-    run_decomposition_on_df(df, &req.decomposition_params)
+    let mut result = run_decomposition_on_df(df, &req.decomposition_params)?;
+    result.unresolved_row_keys = Some(unresolved_row_keys);
+    Ok(result)
 }
 
 fn run_decomposition_on_df(
@@ -339,6 +356,8 @@ fn run_decomposition_on_df(
         data_summary: Some(summary),
         unexplained_standard_error: unexplained_std_err,
         run_metadata,
+        // Not applicable at this level — `verify_inner` overwrites it with its own count.
+        unresolved_row_keys: None,
     })
 }
 
@@ -349,6 +368,12 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
     // 1. Load Data
     let cursor = Cursor::new(req.csv_data);
     let mut df = CsvReader::new(cursor).finish().map_err(|e| e.to_string())?;
+
+    // 0017-MERIDIAN P4: mint the stable key table on the RAW parse, before the Float64 cast
+    // below and before any group split, so the table is indexed by exactly the same DataFrame
+    // row ordinal that `Adjustment.index` carries. That alignment is what lets a client re-key
+    // an already-persisted, index-keyed ledger losslessly when its CSV fingerprint matches.
+    let row_keys = crate::row_key::RowKeyTable::build(&df)?;
 
     // Cast to Float64 with error checking
     let cast_cols = [&req.outcome_variable]
@@ -452,6 +477,51 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
     let (raw_x_b, y_b, raw_x_a, y_a, mut feature_names) = problem_builder
         .get_data_matrices()
         .map_err(|e| format!("Oaxaca Error: {}", e))?;
+
+    // 0017-MERIDIAN P4 — row-key alignment gate.
+    //
+    // `target_indices` / `reference_indices` above enumerate the RAW parsed frame (`:454-462`),
+    // but the matrices just destructured come from `get_data_matrices()` -> `clean_dataframe()`
+    // -> `df.drop_nulls(..)` (`oaxaca_blinder/src/builder.rs:343`, `:929-953`). A null in ANY
+    // model column drops that row from the matrix while leaving it in the index vectors, so
+    // every later pairing in that group — `orig_idx: target_indices[i]`, `reference_indices[i]`
+    // — is shifted from the first dropped row onward. That is the carried null-drop
+    // misalignment (`docs/0017-p4/design-engine.md` §4): a wrong dollar figure, pre-existing,
+    // and deliberately not repaired here because repairing it changes numeric output for every
+    // null-bearing CSV and moves the P1/P2 measured baselines.
+    //
+    // What must NOT also happen is minting a durable identity over that wrong figure. `row_key`
+    // is persisted by the client and carries the consultant's overrides and signed CNESST
+    // narratives across re-uploads; a key read at a shifted `orig_idx` names employee X while
+    // the row's fair wage, bounds and contributions belong to employee Y, and the client's
+    // fingerprint-gated re-key (§2.4) is proved on the assumption that this cannot happen.
+    //
+    // So when a frame disagrees, that group emits NO keys — its `Adjustment.row_key` is `None`
+    // and the client falls back to its documented keys-absent path
+    // (`ledgerAnnotations.store.js` `ENGINE_KEYS_ABSENT`), which is the unchanged pre-P4
+    // positional behaviour. Withholding a key costs an annotation nothing; a wrong key that
+    // reaches the ledger is unrecoverable, because the CSV fingerprint still matches.
+    //
+    // The two groups are gated INDEPENDENTLY, not by an AND. `split_groups` partitions the
+    // already-cleaned frame, so a null in a reference row shortens `y_a` alone and leaves the
+    // target group's `target_indices[i]` pairing exact. Since the common request emits target
+    // rows only (`adjust_both_groups` and `forensic_mode` both off), an AND would surrender
+    // stable keys on every CSV with a null anywhere in the advantaged group — the ordinary
+    // case — for no safety gain.
+    let target_rows_aligned = y_b.len() == target_indices.len();
+    let reference_rows_aligned = y_a.len() == reference_indices.len();
+
+    if !target_rows_aligned || !reference_rows_aligned {
+        eprintln!(
+            "pay-equity-engine: row keys withheld. Null-dropping left {} of {} target rows and \
+             {} of {} reference rows; for a misaligned group a key minted from the raw-frame \
+             ordinal would name the wrong employee, so that group stays positional (`index`).",
+            y_b.len(),
+            target_indices.len(),
+            y_a.len(),
+            reference_indices.len()
+        );
+    }
 
     let cols_a = raw_x_a.ncols();
     let predictors_count = req.predictors.len();
@@ -784,6 +854,22 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
         contribs
     };
 
+    // The single emission point for `row_key`, so neither allocation strategy can bypass the
+    // alignment gate above. A group whose model frame lost rows to null-dropping gets `None`:
+    // `orig_idx` is shifted there, so the key would name a different employee than the fair
+    // wage, bounds and contributions emitted alongside it.
+    let row_key_at = |orig_idx: usize, source: &GroupSource| -> Option<String> {
+        let aligned = match source {
+            GroupSource::GroupA => reference_rows_aligned,
+            GroupSource::GroupB => target_rows_aligned,
+        };
+        if aligned {
+            row_keys.key_at(orig_idx)
+        } else {
+            None
+        }
+    };
+
     match strategy {
         AllocationStrategy::Greedy => {
             for pot in potential_adjustments {
@@ -812,6 +898,7 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
 
                 adjustments.push(Adjustment {
                     index: pot.orig_idx,
+                    row_key: row_key_at(pot.orig_idx, &pot.source),
                     adjustment: pay_amount,
                     current_wage,
                     new_wage,
@@ -857,6 +944,7 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
 
                 adjustments.push(Adjustment {
                     index: pot.orig_idx,
+                    row_key: row_key_at(pot.orig_idx, &pot.source),
                     adjustment: pay_amount,
                     current_wage,
                     new_wage,
@@ -908,6 +996,17 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
         new_unexplained_gap,
         required_budget: total_need,
         model_coefficients,
+        // These three describe the DERIVATION RULE the table was built under, not whether this
+        // run emitted keys. On a `!row_keys_aligned` run every `Adjustment.row_key` is `None`
+        // and the client refuses adoption on the rows themselves ('absent'/'partial'), which is
+        // the correct silent pre-P4 path — so the discriminator stays `rowKeyV1` rather than
+        // being mutated into an unknown space, whose only effect would be an operator-facing
+        // warning naming the wrong cause.
+        row_key_space: crate::row_key::ROW_KEY_SPACE.to_string(),
+        row_key_source: row_keys.source(),
+        row_key_column: row_keys.column(),
+        // optimize consumes no ProposedAdjustment, so there is nothing to resolve here.
+        unresolved_row_keys: None,
     })
 }
 

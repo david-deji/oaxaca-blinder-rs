@@ -29,7 +29,14 @@
 # generated inside the pinned CI/container toolchain (cross-machine build-std sha256 is fragile);
 # a dev-box run refreshes engine/pkg-threaded/ for local testing, CI re-records + verifies.
 #
-# Usage:  bash scripts/build-wasm.sh   (run from the oaxaca-blinder-rs workspace root)
+# Usage:  bash scripts/build-wasm.sh                (run from the oaxaca-blinder-rs workspace root)
+#         bash scripts/build-wasm.sh --no-publish   (build only; leave the app's copies stale)
+#
+# PUBLISH (0017-P4): after both artifacts are generated the script copies them into the
+# consuming Meridian app, by default the sibling checkout ../pay-equity-app/frontend/src/
+# (override with MERIDIAN_FRONTEND=/path/to/frontend/src). Every copy is sha256-verified.
+# Without this step the app keeps running the PREVIOUS build and no test catches it — the
+# frontend suites mock the engine, so a stale blob ships green. See the PUBLISH block below.
 
 set -euo pipefail
 
@@ -124,9 +131,10 @@ echo "  [threaded] raw sha256: $THREADED_HASH   -> $THREADED_BASELINE, engine/pk
 # engine source while every suite stayed green. A manual step between a source change and the
 # binary that ships is a stale-artifact defect waiting to happen; automating it is the fix.
 #
-# File-by-file, never a directory sync: frontend/src/wasm/ also holds analysis.worker.js and
-# thread-cap.js, which are FRONTEND-owned and are not build output. An rsync --delete or a
-# rm -rf + cp of that directory would delete them.
+# File-by-file, never a directory sync: frontend/src/wasm/ also holds analysis.worker.js,
+# thread-cap.js and .gitignore, which are FRONTEND-owned and are not build output. An
+# rsync --delete or a rm -rf + cp of that directory would delete them. If you ever "simplify"
+# this into a directory copy, re-check that list first — it has grown once already.
 # ---------------------------------------------------------------------------
 
 PUBLISH=1
@@ -202,5 +210,5 @@ else
 
     echo "  [seq]      -> $FRONTEND_SRC/wasm/            (6 files, sha256-verified)"
     echo "  [threaded] -> $FRONTEND_SRC/wasm-threaded/   (5 files + snippets/, sha256-verified)"
-    echo "  Frontend-owned analysis.worker.js and thread-cap.js left untouched."
+    echo "  Frontend-owned analysis.worker.js, thread-cap.js, .gitignore left untouched."
 fi
