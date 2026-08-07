@@ -4,6 +4,21 @@ use oaxaca_blinder::RunMetadata;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct DecompositionRequest {
+    // `serde_bytes` is load-bearing, not a micro-optimization. This struct is #[serde(flatten)]ed
+    // into VerificationRequest and EfficientFrontierRequest, and flatten deserializes through a
+    // buffer: serde reads each value with deserialize_any into Content, then replays it. For a JS
+    // Uint8Array, serde-wasm-bindgen's deserialize_any calls visit_bytes -> Content::Bytes, and
+    // replaying Content::Bytes into a plain Vec<u8> calls deserialize_seq, which errors with
+    // "invalid type: byte array, expected a sequence".
+    //
+    // That is not hypothetical. It shipped: the browser's verify_adjustments, check_defensibility
+    // and calculate_efficient_frontier were all dead against a Uint8Array payload while
+    // `decompose` — the one entry point with no flatten above it — worked, which is exactly why
+    // it looked like the engine accepted typed arrays.
+    //
+    // serde_bytes' Vec<u8> visitor implements visit_bytes, visit_byte_buf AND visit_seq, so both
+    // a typed array and a plain JS Array of numbers deserialize. Callers may send either.
+    #[serde(with = "serde_bytes")]
     pub csv_data: Vec<u8>,
     pub outcome_variable: String,
     pub group_variable: String,
@@ -70,6 +85,10 @@ pub enum AllocationStrategy {
 
 #[derive(Deserialize, Debug)]
 pub struct OptimizationRequest {
+    // Same treatment as DecompositionRequest::csv_data. This struct is not flattened today, so it
+    // is not currently broken — annotated for symmetry so that flattening it later cannot
+    // reintroduce the bug silently, and so callers may send a Uint8Array here too.
+    #[serde(with = "serde_bytes")]
     pub csv_data: Vec<u8>,
     pub outcome_variable: String,
     pub group_variable: String,

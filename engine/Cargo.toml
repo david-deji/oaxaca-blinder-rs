@@ -13,6 +13,12 @@ oaxaca_blinder = { path = "../oaxaca_blinder" }
 polars = { version = "0.44", default-features = false, features = ["lazy", "csv", "serde", "diff", "dtype-categorical", "dtype-struct", "strings", "polars-ops", "polars-io"] }
 wasm-bindgen = { version = "0.2", optional = true }
 serde = { version = "1.0", features = ["derive"] }
+# csv_data must deserialize from a JS Uint8Array through a #[serde(flatten)] wrapper. Plain
+# Vec<u8> cannot: flatten buffers every value via deserialize_any, serde-wasm-bindgen reports a
+# typed array as Content::Bytes, and replaying that into Vec<u8> calls deserialize_seq — "invalid
+# type: byte array, expected a sequence". serde_bytes' visitor implements visit_bytes AND
+# visit_seq, so it accepts both the typed array and a plain JS Array. See types.rs csv_data.
+serde_bytes = "0.11"
 serde-wasm-bindgen = { version = "0.6", optional = true }
 anyhow = "1.0"
 getrandom = { version = "0.3", optional = true }
