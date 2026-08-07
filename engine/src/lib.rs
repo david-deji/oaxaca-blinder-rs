@@ -5,6 +5,20 @@ pub mod row_key;
 pub mod types;
 mod verification_test;
 
+// 0018-MERIDIAN phase 4 — the week-over-week field-level diff.
+//
+// The wasm wrapper lives in its own file rather than beside `decompose`/`optimize` below because
+// `snapshot_diff_stamp.rs` hashes it: hashing `lib.rs` would move the freshness digest on every
+// unrelated engine edit and the stamp would stop meaning "the diff changed".
+pub mod snapshot_diff;
+pub mod snapshot_diff_stamp;
+#[cfg(feature = "wasm")]
+pub mod snapshot_diff_wasm;
+// The corpus lives outside `snapshot_diff.rs` on purpose: the stamp hashes that file, and a test
+// edit is not an engine change.
+#[cfg(test)]
+mod snapshot_diff_tests;
+
 #[cfg(feature = "wasm")]
 use crate::analysis::{decompose_inner, optimize_inner};
 #[cfg(feature = "wasm")]
