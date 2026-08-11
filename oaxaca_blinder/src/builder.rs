@@ -1231,6 +1231,7 @@ impl OaxacaBuilder {
     where
         F: Fn(&'a RepEstimates) -> &'a Vec<DetailedComponent> + Sync,
     {
+        let num_bootstraps = bootstrap_results.len();
         let mut bootstrap_map: HashMap<String, Vec<f64>> = HashMap::new();
         for r in bootstrap_results.iter() {
             for comp in extract_fn(r) {
@@ -1244,10 +1245,16 @@ impl OaxacaBuilder {
         point_components
             .iter()
             .map(|comp| {
-                let estimates = bootstrap_map
+                let mut estimates = bootstrap_map
                     .get(&comp.variable_name)
                     .cloned()
-                    .unwrap_or_else(Vec::new);
+                    .unwrap_or_default();
+
+                // If a component was missing from some bootstrap samples, pad with zeros
+                if estimates.len() < num_bootstraps {
+                    estimates.resize(num_bootstraps, 0.0);
+                }
+
                 process_component(&comp.variable_name, comp.contribution, estimates)
             })
             .collect()
@@ -1258,6 +1265,139 @@ impl OaxacaResults {}
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    #[test]
+    fn test_process_detailed_components_with_missing_estimates() {
+        let df = df!(
+            "y" => &[1.0, 2.0],
+            "x" => &[1.0, 2.0],
+            "group" => &["A", "B"]
+        )
+        .unwrap();
+        let builder = OaxacaBuilder::new(df, "y", "group", "B");
+
+        let point_components = vec![
+            DetailedComponent {
+                variable_name: "var1".to_string(),
+                contribution: 10.0,
+            },
+            DetailedComponent {
+                variable_name: "var2".to_string(),
+                contribution: 5.0,
+            },
+        ];
+
+        // Three bootstrap results, but "var2" is missing from the second one
+        let bootstrap_results = vec![
+            SinglePassResult {
+                three_fold: ThreeFoldDecomposition {
+                    endowments: 0.0,
+                    coefficients: 0.0,
+                    interaction: 0.0,
+                },
+                two_fold: TwoFoldDecomposition {
+                    explained: 0.0,
+                    unexplained: 0.0,
+                },
+                detailed_explained: vec![
+                    DetailedComponent {
+                        variable_name: "var1".to_string(),
+                        contribution: 11.0,
+                    },
+                    DetailedComponent {
+                        variable_name: "var2".to_string(),
+                        contribution: 6.0,
+                    },
+                ],
+                detailed_unexplained: Vec::new(),
+                total_gap: 0.0,
+                residuals_a: DVector::zeros(0),
+                residuals_b: DVector::zeros(0),
+                xa_mean: DVector::zeros(0),
+                xb_mean: DVector::zeros(0),
+                beta_star: DVector::zeros(0),
+                detailed_selection: Vec::new(),
+            },
+            SinglePassResult {
+                three_fold: ThreeFoldDecomposition {
+                    endowments: 0.0,
+                    coefficients: 0.0,
+                    interaction: 0.0,
+                },
+                two_fold: TwoFoldDecomposition {
+                    explained: 0.0,
+                    unexplained: 0.0,
+                },
+                detailed_explained: vec![DetailedComponent {
+                    variable_name: "var1".to_string(),
+                    contribution: 9.0,
+                }],
+                detailed_unexplained: Vec::new(),
+                total_gap: 0.0,
+                residuals_a: DVector::zeros(0),
+                residuals_b: DVector::zeros(0),
+                xa_mean: DVector::zeros(0),
+                xb_mean: DVector::zeros(0),
+                beta_star: DVector::zeros(0),
+                detailed_selection: Vec::new(),
+            },
+            SinglePassResult {
+                three_fold: ThreeFoldDecomposition {
+                    endowments: 0.0,
+                    coefficients: 0.0,
+                    interaction: 0.0,
+                },
+                two_fold: TwoFoldDecomposition {
+                    explained: 0.0,
+                    unexplained: 0.0,
+                },
+                detailed_explained: vec![
+                    DetailedComponent {
+                        variable_name: "var1".to_string(),
+                        contribution: 10.0,
+                    },
+                    DetailedComponent {
+                        variable_name: "var2".to_string(),
+                        contribution: 4.0,
+                    },
+                ],
+                detailed_unexplained: Vec::new(),
+                total_gap: 0.0,
+                residuals_a: DVector::zeros(0),
+                residuals_b: DVector::zeros(0),
+                xa_mean: DVector::zeros(0),
+                xb_mean: DVector::zeros(0),
+                beta_star: DVector::zeros(0),
+                detailed_selection: Vec::new(),
+            },
+        ];
+
+        let process_fn = |name: &str, point: f64, estimates: Vec<f64>| ComponentResult {
+            name: name.to_string(),
+            estimate: point,
+            std_err: estimates.len() as f64, // Hack to verify number of estimates
+            t_stat: 0.0,
+            p_value: 0.0,
+            ci_lower: 0.0,
+            ci_upper: 0.0,
+        };
+
+        let results = builder.process_detailed_components(
+            &point_components,
+            &bootstrap_results,
+            |r| &r.detailed_explained,
+            &process_fn,
+        );
+
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0].name, "var1");
+        assert_eq!(results[0].std_err, 3.0); // 3 estimates
+
+        assert_eq!(results[1].name, "var2");
+        assert_eq!(results[1].std_err, 3.0); // Should be 3 estimates (padded with 0.0)
+    }
+
     #[test]
     fn it_works() {
         let result = 2 + 2;

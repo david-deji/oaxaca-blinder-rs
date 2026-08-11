@@ -46,7 +46,7 @@ pub fn ols(
     x: &DMatrix<f64>,
     weights: Option<&DVector<f64>>,
 ) -> Result<OlsResult, OaxacaError> {
-    let (xtx, xty, n_obs) = if let Some(w) = weights {
+    let (mut xtx, xty, n_obs) = if let Some(w) = weights {
         // Weighted Least Squares
         // We want to minimize (y - Xβ)'W(y - Xβ)
         // Normal equations: (X'WX)β = X'Wy
@@ -94,6 +94,12 @@ pub fn ols(
     // Attempt Cholesky decomposition on X'X (or X'WX).
     // This is more numerically stable than explicit inversion and acts as a check for positive-definiteness.
     // X'X should be positive definite if there is no perfect multicollinearity.
+
+    // Add small regularization to diagonal to ensure invertibility even if some columns are zero
+    // (e.g. rare categories not appearing in a bootstrap sample).
+    for i in 0..x.ncols() {
+        xtx[(i, i)] += 1e-10;
+    }
 
     let k = x.ncols() as f64;
     let n_obs_f = n_obs;
@@ -163,21 +169,27 @@ mod tests {
 
     #[test]
     fn test_ols_handles_singular_matrix() {
+        // Singular matrix: column 2 is 2 * column 1
         let x = DMatrix::from_vec(3, 2, vec![1.0, 1.0, 1.0, 2.0, 2.0, 2.0]);
         let y = DVector::from_vec(vec![1.0, 2.0, 3.0]);
 
+        // With regularization, this should now be solvable instead of returning an error
         let result = ols(&y, &x, None);
+        assert!(result.is_ok());
+    }
 
-        assert!(result.is_err());
-        match result {
-            Err(OaxacaError::NalgebraError(msg)) => {
-                assert!(msg.contains("Failed to perform Cholesky decomposition"));
-            }
-            Err(_) => {
-                panic!("Expected a NalgebraError for a singular matrix, but got something else.")
-            }
-            Ok(_) => panic!("Expected an error, but got Ok"),
-        }
+    #[test]
+    fn test_ols_with_all_zero_column() {
+        // One column is all zeros (common when a rare category is missing from a bootstrap sample)
+        let x = DMatrix::from_vec(3, 2, vec![1.0, 1.0, 1.0, 0.0, 0.0, 0.0]);
+        let y = DVector::from_vec(vec![1.0, 2.0, 3.0]);
+
+        // With regularization, this should now be solvable
+        let result = ols(&y, &x, None);
+        assert!(result.is_ok());
+        let coeffs = result.unwrap().coefficients;
+        assert!((coeffs[0] - 2.0).abs() < 1e-7); // Intercept should be mean(y)
+        assert!(coeffs[1].abs() < 1e-7); // Zero-column coefficient should be near zero
     }
 
     #[test]

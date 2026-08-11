@@ -55,7 +55,6 @@ fn run_and_check(builder: OaxacaBuilder, expected_gap: f64) {
 }
 
 #[test]
-#[ignore]
 fn test_detailed_components_with_rare_category() {
     let df = df!(
         "wage" => &[10.0, 12.0, 11.0, 13.0, 15.0, 20.0, 22.0, 21.0, 23.0, 25.0, 10.0, 12.0, 11.0, 13.0, 15.0, 20.0, 22.0, 21.0, 23.0, 25.0],
