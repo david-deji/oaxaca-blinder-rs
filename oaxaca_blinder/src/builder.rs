@@ -142,6 +142,105 @@ impl OaxacaBuilder {
             group_b_name,
         })
     }
+
+    /// D1 (0014-close round-1) pre-flight refusal: a categorical predictor level
+    /// present in the full dataset but entirely absent from one comparison group
+    /// collapses that group's own design matrix to a singular `X'X` (either as an
+    /// exact-zero dummy column for an absent non-reference level, or as an exact
+    /// intercept/dummy-sum collinearity when the absent level is the reference
+    /// itself) — `math/ols.rs`'s Cholesky check already rejects both shapes, just
+    /// without naming the column/level/group. This runs on the RAW categorical
+    /// columns (present in `df_a`/`df_b` regardless of dummy encoding), so it
+    /// only ever refuses a case that already fails today; data that estimates
+    /// today has every level in both groups and passes through untouched.
+    ///
+    /// Scan order is deterministic: `self.categorical_predictors` column order,
+    /// then ascending level order within a column (same sort as
+    /// `create_dummies_manual`) — so the same data always names the same
+    /// offender first, and group A is checked before group B for a given level.
+    ///
+    /// The candidate level set comes from `df_full` (the unsplit frame the dummy
+    /// columns were encoded from), NOT from the union of the two groups. With a
+    /// 3+-valued group column the compared pair excludes a third value's rows, so
+    /// a level living only there is absent from both `df_a` and `df_b` — yet
+    /// `create_dummies_manual` still materialized a column for it, constant-zero
+    /// inside each group's own design matrix, which is the same singular `X'X`.
+    /// Scanning only the pair's union would miss exactly that case.
+    ///
+    /// A level is "present" in a group only if it carries positive total weight
+    /// there. Unweighted requests reduce to row presence; a weighted request
+    /// whose rows for a level all carry `weight == 0` contributes an
+    /// effectively-zero column to `X'WX` (`math/ols.rs` scales rows by
+    /// `sqrt(weight)` before forming the Gram matrix), which is the same
+    /// singularity under a different mechanism.
+    fn check_level_confinement(
+        &self,
+        df_full: &DataFrame,
+        df_a: &DataFrame,
+        df_b: &DataFrame,
+        group_a_name: &str,
+        group_b_name: &str,
+    ) -> Result<(), OaxacaError> {
+        for cat_pred in &self.categorical_predictors {
+            let levels_in_a = self.weighted_levels_present(df_a, cat_pred)?;
+            let levels_in_b = self.weighted_levels_present(df_b, cat_pred)?;
+
+            let mut full_levels: Vec<&str> = df_full
+                .column(cat_pred)?
+                .as_materialized_series()
+                .str()?
+                .into_iter()
+                .flatten()
+                .collect();
+            full_levels.sort_unstable();
+            full_levels.dedup();
+
+            for level in full_levels {
+                if !levels_in_a.contains(level) {
+                    return Err(OaxacaError::EmptyLevelInGroup {
+                        column: cat_pred.clone(),
+                        level: level.to_string(),
+                        missing_from_group: group_a_name.to_string(),
+                    });
+                }
+                if !levels_in_b.contains(level) {
+                    return Err(OaxacaError::EmptyLevelInGroup {
+                        column: cat_pred.clone(),
+                        level: level.to_string(),
+                        missing_from_group: group_b_name.to_string(),
+                    });
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Levels of `cat_pred` carrying positive total weight in `df`. Without a
+    /// weights column this is plain row presence; with one, a level whose rows
+    /// all carry zero weight is absent for estimation purposes even though its
+    /// rows exist. Nulls are already dropped by `clean_dataframe` upstream.
+    fn weighted_levels_present(
+        &self,
+        df: &DataFrame,
+        cat_pred: &str,
+    ) -> Result<std::collections::HashSet<String>, OaxacaError> {
+        let levels = df.column(cat_pred)?.as_materialized_series().str()?.clone();
+
+        let Some(w_col) = &self.weights_col else {
+            return Ok(levels.into_iter().flatten().map(String::from).collect());
+        };
+
+        let weights = df.column(w_col)?.f64()?.clone();
+        let mut present = std::collections::HashSet::new();
+        for (level, weight) in levels.into_iter().zip(weights.into_iter()) {
+            if let (Some(level), Some(weight)) = (level, weight) {
+                if weight > 0.0 {
+                    present.insert(level.to_string());
+                }
+            }
+        }
+        Ok(present)
+    }
 }
 
 impl OaxacaBuilder {
@@ -829,6 +928,15 @@ impl OaxacaBuilder {
         let df_a_global = groups.df_a;
         let df_b_global = groups.df_b;
 
+        // D1 (0014-close round-1): named refusal before estimation reaches Cholesky.
+        self.check_level_confinement(
+            &df,
+            &df_a_global,
+            &df_b_global,
+            &groups.group_a_name,
+            &groups.group_b_name,
+        )?;
+
         // Point estimate: RIF computed once on the FULL sample of each group.
         let point_df = self
             .rif_replace_outcome(&df_a_global, quantile)?
@@ -981,6 +1089,15 @@ impl OaxacaBuilder {
         crate::mem_profile::checkpoint_a();
 
         let groups = self.split_groups(&df)?;
+
+        // D1 (0014-close round-1): named refusal before estimation reaches Cholesky.
+        self.check_level_confinement(
+            &df,
+            &groups.df_a,
+            &groups.df_b,
+            &groups.group_a_name,
+            &groups.group_b_name,
+        )?;
 
         let point_estimates =
             self.run_single_pass(&df, &all_dummy_names, &category_counts, &base_categories)?;

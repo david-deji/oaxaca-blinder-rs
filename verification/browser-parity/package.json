@@ -5,6 +5,7 @@
   "type": "module",
   "description": "COI browser byte-parity harness for the threaded WASM pay-equity engine (0014-MERIDIAN verification-benchmark D-6).",
   "scripts": {
+    "pretest": "cargo run -p pay-equity-engine --example native_baseline --manifest-path ../../Cargo.toml > native-baseline.json",
     "test": "playwright test",
     "serve": "node coi-server.mjs"
   },

@@ -1,6 +1,8 @@
 #![allow(deprecated)] // QuantileDecompositionBuilder (MM sim) is deprecated but kept as a
                       // self-consistency guard per 0014-MERIDIAN follow-up (Item B).
-use oaxaca_blinder::{OaxacaBuilder, QuantileDecompositionBuilder, ReferenceCoefficients};
+use oaxaca_blinder::{
+    OaxacaBuilder, OaxacaError, QuantileDecompositionBuilder, ReferenceCoefficients,
+};
 use polars::prelude::*;
 
 fn create_sample_dataframe() -> DataFrame {
@@ -55,8 +57,13 @@ fn run_and_check(builder: OaxacaBuilder, expected_gap: f64) {
 }
 
 #[test]
-#[ignore]
 fn test_detailed_components_with_rare_category() {
+    // "sector=B" occurs exactly once, and that row is in the reference group
+    // ("F"), so sector "B" is entirely absent from group "M" in the FULL data —
+    // not merely rare in a resample. This is the level-confinement case (0014-close
+    // round-1, D1/A4), not a per-replicate bootstrap discard: it fails at the point
+    // estimate, before any bootstrap rep runs, so `run()` returns the named
+    // `EmptyLevelInGroup` refusal rather than reaching Cholesky.
     let df = df!(
         "wage" => &[10.0, 12.0, 11.0, 13.0, 15.0, 20.0, 22.0, 21.0, 23.0, 25.0, 10.0, 12.0, 11.0, 13.0, 15.0, 20.0, 22.0, 21.0, 23.0, 25.0],
         "education" => &[12.0, 16.0, 14.0, 16.0, 18.0, 12.0, 16.0, 14.0, 16.0, 18.0, 12.0, 16.0, 14.0, 16.0, 18.0, 12.0, 16.0, 14.0, 16.0, 18.0],
@@ -65,43 +72,102 @@ fn test_detailed_components_with_rare_category() {
     ).unwrap();
 
     let mut builder = OaxacaBuilder::new(df, "wage", "gender", "F");
-    let results = builder
+    let result = builder
         .predictors(vec!["education"])
         .categorical_predictors(vec!["sector"])
         .bootstrap_reps(5)
-        .run()
-        .expect("Oaxaca run failed");
+        .run();
 
-    // This is the crucial part. We check if the components are present and if their CIs are valid.
-    // The bug would cause a panic here when trying to calculate stats for a component that
-    // disappeared in some bootstrap samples, or would produce nonsensical results (e.g. NaN).
-    let detailed_unexplained = results.two_fold().detailed_unexplained();
+    match result {
+        Err(OaxacaError::EmptyLevelInGroup {
+            column,
+            level,
+            missing_from_group,
+        }) => {
+            assert_eq!(column, "sector");
+            assert_eq!(level, "B");
+            assert_eq!(missing_from_group, "M");
+        }
+        Err(e) => panic!("Expected EmptyLevelInGroup, got a different error: {e}"),
+        Ok(_) => panic!("Expected EmptyLevelInGroup refusal for a level confined to one group"),
+    }
+}
 
-    let intercept = detailed_unexplained
-        .iter()
-        .find(|c| c.name() == "intercept")
-        .unwrap();
-    assert!(intercept.ci_lower().is_finite());
-    assert!(intercept.ci_upper().is_finite());
+#[test]
+fn test_level_confined_to_an_excluded_third_group() {
+    // Adversary-A MINOR-1 (0014-close round-1): with a 3-valued group column the
+    // comparison is F vs M, so X's rows never enter either group frame — but the
+    // dummy columns are encoded from the UNSPLIT frame, so sector "C" still gets a
+    // column that is constant-zero inside both design matrices. Scanning only
+    // df_a ∪ df_b would never see "C" and would fall through to the opaque
+    // Cholesky message. The refusal names it because the scan reads the full frame.
+    let df = df!(
+        "wage" => &[10.0, 12.0, 11.0, 13.0, 15.0, 20.0, 22.0, 21.0, 23.0, 25.0, 30.0, 31.0],
+        "education" => &[12.0, 16.0, 14.0, 16.0, 18.0, 12.0, 16.0, 14.0, 16.0, 18.0, 14.0, 15.0],
+        "gender" => &["F", "F", "F", "F", "F", "M", "M", "M", "M", "M", "X", "X"],
+        "sector" => &["A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "C", "C"]
+    )
+    .unwrap();
 
-    let education = detailed_unexplained
-        .iter()
-        .find(|c| c.name() == "education")
-        .unwrap();
-    assert!(education.ci_lower().is_finite());
-    assert!(education.ci_upper().is_finite());
+    let mut builder = OaxacaBuilder::new(df, "wage", "gender", "F");
+    let result = builder
+        .predictors(vec!["education"])
+        .categorical_predictors(vec!["sector"])
+        .bootstrap_reps(5)
+        .run();
 
-    // With the bug, the "sector_B" component might have issues if it's not present in all bootstrap samples.
-    // We expect it to be present in the final results, and its stats should be valid numbers.
-    let sector_b = detailed_unexplained.iter().find(|c| c.name() == "sector_B");
-    assert!(
-        sector_b.is_some(),
-        "Detailed component for rare category 'sector_B' should be present"
-    );
-    assert!(sector_b.unwrap().ci_lower().is_finite());
-    assert!(sector_b.unwrap().ci_upper().is_finite());
+    match result {
+        Err(OaxacaError::EmptyLevelInGroup {
+            column,
+            level,
+            missing_from_group,
+        }) => {
+            assert_eq!(column, "sector");
+            assert_eq!(level, "C");
+            // "C" is missing from BOTH compared groups; group A is named first.
+            assert_eq!(missing_from_group, "M");
+        }
+        Err(e) => panic!("Expected EmptyLevelInGroup, got a different error: {e}"),
+        Ok(_) => panic!("Expected EmptyLevelInGroup refusal for a level confined to the excluded group"),
+    }
+}
 
-    results.summary();
+#[test]
+fn test_zero_weight_level_is_absent_for_estimation() {
+    // Adversary-A MINOR-2: sector "B" has rows in group M, but every one carries
+    // weight 0. `math/ols.rs` scales rows by sqrt(weight) before forming X'WX, so
+    // that level contributes an effectively-zero column — the same singularity a
+    // row-count-only check would wave through.
+    let df = df!(
+        "wage" => &[10.0, 12.0, 11.0, 13.0, 15.0, 20.0, 22.0, 21.0, 23.0, 25.0],
+        "education" => &[12.0, 16.0, 14.0, 16.0, 18.0, 12.0, 16.0, 14.0, 16.0, 18.0],
+        "gender" => &["F", "F", "F", "F", "F", "M", "M", "M", "M", "M"],
+        "sector" => &["A", "A", "A", "B", "B", "A", "A", "A", "B", "B"],
+        "w" => &[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0]
+    )
+    .unwrap();
+
+    let mut builder = OaxacaBuilder::new(df, "wage", "gender", "F");
+    let result = builder
+        .predictors(vec!["education"])
+        .categorical_predictors(vec!["sector"])
+        .weights("w")
+        .bootstrap_reps(5)
+        .run();
+
+    match result {
+        Err(OaxacaError::EmptyLevelInGroup {
+            column,
+            level,
+            missing_from_group,
+        }) => {
+            assert_eq!(column, "sector");
+            assert_eq!(level, "B");
+            assert_eq!(missing_from_group, "M");
+        }
+        Err(e) => panic!("Expected EmptyLevelInGroup, got a different error: {e}"),
+        Ok(_) => panic!("Expected EmptyLevelInGroup refusal for an all-zero-weight level"),
+    }
 }
 
 #[test]

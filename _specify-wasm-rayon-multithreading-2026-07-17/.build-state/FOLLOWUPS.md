@@ -64,10 +64,19 @@ plan called this branch "latent-unreachable"; the investigation proved it **REAC
 row minimum**, so a group with one row after null-cleaning reaches `calculate_rif` with n=1
 and was silently handed back its own raw series mislabeled as its RIF (agentic failure mode
 #6). Replaced the silent `Ok(series.clone())` with a descriptive `PolarsError::ComputeError`.
-No fixture has a group with <2 rows (all ≥80/group verified), so no golden changes. On the
-bootstrap path a stray singleton resample degrades to one discarded replicate; on the
-point-estimate path a genuinely-degenerate group now errors loudly instead of producing a
-bogus number — the correct fail-safe direction for a pay-equity engine.
+No fixture has a group with <2 rows (all ≥80/group verified), so no golden changes.
+**Corrected (0014-close round-1, anchor A9):** the guard does not protect against a
+"stray singleton resample" — both bootstrap loops resample each group at a **fixed size
+equal to that group's own original row count** (`builder.rs:828-830,863-866`), so a
+resample can never shrink a group below its original size; there is no dynamic
+per-replicate path that degrades to "one discarded replicate." The guard fires only when
+the **original, unresampled** group already has fewer than 2 rows, and because the
+point-estimate call runs outside any discard-catching closure (a bare `?`), that failure
+aborts the entire `.run()`/`.decompose_quantile()` call before a single bootstrap
+replicate executes — never a per-replicate discard. What the guard actually protects is
+whole-group-too-small **density estimation** (sample variance and the KDE bandwidth are
+both undefined for n<2), a full-data precondition, not a bootstrap-resampling edge case —
+the correct fail-safe direction for a pay-equity engine either way.
 
 **F — AC-13 CLI↔library/WASM numeric parity test.** AC-13 (CLI shares the WASM/MCP
 `decompose_quantile` path) was asserted only by a code comment. Two changes:

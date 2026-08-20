@@ -173,6 +173,12 @@ jobs:
           components: rust-src
           targets: wasm32-unknown-unknown
 
+      # D3 (0014-close round-1): the native baseline step below is a bare `cargo run` (no
+      # `+toolchain` prefix), same as wasm-verify's sequential pass — needs stable actually
+      # provisioned so rust-toolchain.toml's pin resolves, per that job's own precedent.
+      - name: Setup stable (reads rust-toolchain.toml for the native baseline build)
+        uses: dtolnay/rust-toolchain@stable
+
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
@@ -193,6 +199,13 @@ jobs:
           wasm-bindgen target/wasm32-unknown-unknown/release/pay_equity_engine.wasm \
             --out-dir engine/pkg-threaded --target web \
             --remove-name-section --remove-producers-section
+
+      # D3 (0014-close round-1) / INV-02 cross-platform leg: native decompose_inner() baseline for the
+      # SAME fixture/request/seed the threaded-WASM run above uses, so parity.spec.mjs can diff native
+      # vs wasm(threads=1) at a per-numeric-field <=1e-6 tolerance. Native (host-target) build, so this
+      # runs on stable, not the pinned wasm nightly.
+      - name: Generate native baseline JSON (D3, INV-02 native<->wasm leg)
+        run: cargo run -p pay-equity-engine --example native_baseline > verification/browser-parity/native-baseline.json
 
       - name: Setup Node
         uses: actions/setup-node@v4

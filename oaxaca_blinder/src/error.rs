@@ -16,6 +16,17 @@ pub enum OaxacaError {
     DiagnosticError(String),
     /// Occurs when there is not enough data for an operation.
     InsufficientData(String),
+    /// Occurs when a categorical predictor level is present in the full dataset
+    /// but entirely absent from one of the two comparison groups (0014-close
+    /// round-1, D1). Left undetected this collapses that group's design matrix
+    /// to a singular `X'X` and reaches `math/ols.rs`'s Cholesky check as an
+    /// opaque "multicollinearity" message naming neither column, level, nor
+    /// group; this variant names all three before estimation is attempted.
+    EmptyLevelInGroup {
+        column: String,
+        level: String,
+        missing_from_group: String,
+    },
 }
 
 impl From<PolarsError> for OaxacaError {
@@ -33,6 +44,15 @@ impl fmt::Display for OaxacaError {
             OaxacaError::NalgebraError(s) => write!(f, "Nalgebra error: {}", s),
             OaxacaError::DiagnosticError(s) => write!(f, "Diagnostic error: {}", s),
             OaxacaError::InsufficientData(s) => write!(f, "Insufficient data: {}", s),
+            OaxacaError::EmptyLevelInGroup {
+                column,
+                level,
+                missing_from_group,
+            } => write!(
+                f,
+                "EMPTY_LEVEL_IN_GROUP: column={}, level={}, missing_from_group={}",
+                column, level, missing_from_group
+            ),
         }
     }
 }
