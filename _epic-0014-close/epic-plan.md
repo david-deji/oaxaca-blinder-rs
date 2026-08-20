@@ -2,9 +2,9 @@
 
 ```yaml
 # Workflow State
-phase: executing
+phase: completed
 completed: []
-current: map (2 sonnet scouts — spec-vs-shipped audit; reference-absent edge + publish freshness)
+current: done — round 1 built + 3 adversary MINORs fixed with mutation-verified tests; round-2 walk proved the trust line, browser-observed determinism (834/834 byte-identical), and the localized named refusal against republished blobs. Issue 0014 RESOLVED 2026-08-19. Engine 59e6be9, app d4fc063a.
 issue: 0014-MERIDIAN (pay-equity-app/issues/) — already open, stages 1-4 landed; this epic closes it honestly
 started_at: 2026-08-19
 ```
