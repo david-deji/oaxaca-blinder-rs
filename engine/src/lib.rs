@@ -10,6 +10,21 @@ mod verification_test;
 // The wasm wrapper lives in its own file rather than beside `decompose`/`optimize` below because
 // `snapshot_diff_stamp.rs` hashes it: hashing `lib.rs` would move the freshness digest on every
 // unrelated engine edit and the stamp would stop meaning "the diff changed".
+//
+// 0037-MERIDIAN: `decode_val` in this module trips clippy's `too_many_arguments` (8/7). Every
+// parameter is a distinct typed cursor into the wire buffers — tag, the three payload slices and
+// their independent read offsets — so bundling them into a struct would either copy the slices or
+// introduce a borrow that fights the `&mut self` receiver, on the hot decode path.
+//
+// The allow lives HERE rather than on the function because `snapshot_diff.rs` is byte-hashed by
+// the shipped-blob freshness gate (`wasmDiffParity.spec.js` P4-AC-8 — "the shipped blob carries
+// the diff source it claims"). Editing that file, even to add an attribute with no effect on
+// generated code, invalidates the digest and would demand a full dual-artifact rebuild whose
+// threaded baseline this repo's own build script calls non-authoritative off-CI. Keeping the
+// hashed file byte-identical leaves the gate's claim TRUE rather than re-stamping it. This is
+// the same convention the two notes above already state: a non-engine edit stays out of the
+// hashed files, because "a test edit is not an engine change".
+#[allow(clippy::too_many_arguments)]
 pub mod snapshot_diff;
 pub mod snapshot_diff_stamp;
 #[cfg(feature = "wasm")]

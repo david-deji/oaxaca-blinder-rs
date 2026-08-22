@@ -32,6 +32,11 @@ struct Harness {
     s: Session,
 }
 
+// 0037-MERIDIAN: named rather than repeated inline at the two sites clippy's type_complexity
+// flagged. The shape is the wire format's own — a subject key plus its cells, each carrying its
+// value kind — so it deserves a name more than it deserves an `#[allow]`.
+type SeedSubject<'a> = (&'a str, Vec<(&'a str, &'a str, JsVal)>);
+
 impl Harness {
     fn new(subject_target_key: &str, value_kinds: &[(&str, &str)]) -> Self {
         let mut s = Session::new(subject_target_key.to_string());
@@ -44,7 +49,7 @@ impl Harness {
     }
 
     /// `(subject_key, [(target_key, value_kind, value)])` — the kind travels WITH THE CELL.
-    fn seed(&mut self, subjects: &[(&str, Vec<(&str, &str, JsVal)>)]) {
+    fn seed(&mut self, subjects: &[SeedSubject<'_>]) {
         let mut b = WireBuilder::new();
         for (key, cells) in subjects {
             b.push_subject(key);
@@ -348,8 +353,19 @@ fn case_08_negative_zero_equals_zero_and_emits_nothing() {
         .unwrap();
     assert!(changes.is_empty());
     assert_eq!(stats[STAT_CELLS_CHANGED], 0);
-    assert!((-0.0f64) == 0.0f64);
-    assert!((-0.0f64).to_bits() != 0.0f64.to_bits());
+    // 0037-MERIDIAN: these two lines are executable documentation of the trap named at the top of
+    // this test, not assertions about the code under test (that is the two asserts above). The
+    // first was written as `assert!((-0.0f64) == 0.0f64)`, a constant expression the compiler
+    // folds away — clippy's assertions_on_constants, correct and the third vacuous assertion this
+    // sweep found. `black_box` keeps both as real runtime checks so the contrast they exist to
+    // draw actually runs, instead of deleting the half that documents the wrong optimisation.
+    let neg = std::hint::black_box(-0.0f64);
+    let pos = std::hint::black_box(0.0f64);
+    assert!(neg == pos, "`==` must read -0.0 and 0.0 as equal — the JS `===` behaviour");
+    assert!(
+        neg.to_bits() != pos.to_bits(),
+        "`to_bits()` separates them — the wrong optimisation this test exists to forbid"
+    );
 }
 
 #[test]
@@ -580,7 +596,7 @@ fn ac11_memory_shape_survives_the_port() {
         ],
     );
     let keys: Vec<String> = (0..SUBJECTS).map(|i| format!("E{}", i)).collect();
-    let seed: Vec<(&str, Vec<(&str, &str, JsVal)>)> = keys
+    let seed: Vec<SeedSubject<'_>> = keys
         .iter()
         .enumerate()
         .map(|(i, k)| {

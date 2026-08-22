@@ -373,9 +373,14 @@ fn solve_akm(
 
     let mut r = y.clone();
     if n_controls > 0 {
-        for i in 0..n_obs {
+        // 0037-MERIDIAN: was `for i in 0..n_obs`, which clippy denies as needless_range_loop
+        // under the CI quality job's `-D warnings`. `r` is the only collection indexed by `i`
+        // that is also written, so it becomes the iterator; `x_vectors[j]` and `beta[j]` are
+        // indexed by the INNER variable and are unaffected. `.take(n_obs)` preserves the original
+        // bound exactly rather than relying on `r.len() == n_obs`.
+        for (i, ri) in r.iter_mut().enumerate().take(n_obs) {
             for j in 0..n_controls {
-                r[i] -= x_vectors[j][i] * beta[j];
+                *ri -= x_vectors[j][i] * beta[j];
             }
         }
     }

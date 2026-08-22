@@ -177,9 +177,31 @@ fn a_row_inserted_at_the_top_shifts_every_index_and_moves_no_key() {
                 i + 1
             );
         }
+        // 0037-MERIDIAN: this read `assert!(A && B || true, "sanity")`. `||` binds looser than
+        // `&&`, so the predicate was unconditionally true and the assertion could never fail —
+        // clippy's deny-level `overly_complex_bool_expr` flags exactly that, and nobody saw it
+        // because the quality gate was itself held red by a lint in oaxaca_blinder.
+        //
+        // Dropping the `|| true` made the test FAIL, which is the interesting part: the neutered
+        // claim was not merely vacuous, it was FALSE. `before_idx` is {0..n-1} and after a
+        // top-insert `after_idx` is {0..n} — every prior index VALUE still exists, because the new
+        // row takes 0 and the rest shift up into the remaining slots. What the insert changes is
+        // the key→index MAPPING, not the index SET, and the loop directly above already asserts
+        // that mapping ("every original row's index moved by exactly one"). The original line
+        // tested set membership where it meant the mapping, so it could never have held.
+        //
+        // Kept, because it is load-bearing: without it an empty `before.adjustments` would make
+        // the loop above iterate zero times and assert nothing — the same vacuity, one level up.
         assert!(
-            !before_idx.is_empty() && before_idx.iter().any(|i| !after_idx.contains(i)) || true,
-            "sanity"
+            !before_idx.is_empty(),
+            "no pre-existing rows to shift — the loop above would pass vacuously"
+        );
+        // Replaced with the structural claim that IS true: the prepended row adds exactly one
+        // index, so the insert provably happened rather than being silently dropped.
+        assert_eq!(
+            after_idx.len(),
+            before_idx.len() + 1,
+            "the prepended row must add exactly one index"
         );
 
         // Stable identity: every original key survives unchanged.

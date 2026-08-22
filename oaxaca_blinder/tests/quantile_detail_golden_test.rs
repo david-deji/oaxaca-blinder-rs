@@ -16,9 +16,10 @@
 //!     per tau. This is the headline "which effect drives the tail gap" number and the primary,
 //!     best-conditioned oracle gate at the well-estimated quantiles.
 //!  3. Per-predictor vs ddecompose — every covariate, TAU-DEPENDENT tolerance (see below).
-//!  Plus self-consistency (1e-9): engine per-predictor detail sums to the engine's OWN aggregate
-//!  (RIF-algebra regression guard; NON-diagnostic of statistical correctness by itself — both sides
-//!  consume the same inputs — hence layers 1-3 carry the correctness burden).
+//!
+//! Plus self-consistency (1e-9): engine per-predictor detail sums to the engine's OWN aggregate
+//! (RIF-algebra regression guard; NON-diagnostic of statistical correctness by itself — both sides
+//! consume the same inputs — hence layers 1-3 carry the correctness burden).
 //!
 //! TAU-DEPENDENT tolerance (council MJ-3, measured-then-pinned). The engine's inline density
 //! (`rif.rs`: bw.nrd0 bandwidth, nearest-rank IQR, exact single-point Gaussian kernel) and
