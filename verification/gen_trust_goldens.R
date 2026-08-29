@@ -52,7 +52,12 @@ REPO_ROOT <- normalizePath(file.path(dirname(sub("--file=", "",
   grep("--file=", commandArgs(FALSE), value = TRUE)[1])), ".."), mustWork = FALSE)
 if (is.na(REPO_ROOT) || REPO_ROOT == "") REPO_ROOT <- normalizePath("..", mustWork = FALSE)
 
-RAW_CSV  <- "/home/deji/Downloads/Employers_data.csv"
+# 0097: was a bare hardcoded personal path, which made this generator unrunnable for anyone but
+# its author — and a golden generator nobody else can run is a golden nobody re-verifies. Override
+# with TRUST_RAW_CSV. When the raw file is absent but the committed fixture is present, the
+# PII-strip step below is skipped and the committed fixture is used directly: the oracle reads the
+# fixture either way (`fxr <- read.csv(FIXTURE)`), so the goldens are identical.
+RAW_CSV  <- Sys.getenv("TRUST_RAW_CSV", "/home/deji/Downloads/Employers_data.csv")
 FIX_DIR  <- file.path(REPO_ROOT, "oaxaca_blinder/tests/fixtures")
 FIXTURE  <- file.path(FIX_DIR, "employers_trust_fixture.csv")
 INDICES  <- file.path(FIX_DIR, "resample_indices.csv")
@@ -74,6 +79,13 @@ g17 <- function(x) if (is.numeric(x)) trimws(formatC(x, digits = 17, format = "g
 # =============================================================================
 # 1. PII strip + fixture (In-Scope 13; AC-2)
 # =============================================================================
+USE_COMMITTED_FIXTURE <- !file.exists(RAW_CSV) && file.exists(FIXTURE)
+if (USE_COMMITTED_FIXTURE) {
+  message("raw CSV absent at ", RAW_CSV, " — using the committed fixture unchanged")
+} else if (!file.exists(RAW_CSV)) {
+  stop("neither TRUST_RAW_CSV (", RAW_CSV, ") nor the committed fixture (", FIXTURE, ") is readable")
+}
+if (!USE_COMMITTED_FIXTURE) {
 raw <- read.csv(RAW_CSV, stringsAsFactors = FALSE, check.names = FALSE)
 stopifnot("Salary must be strictly positive for log()" = all(raw$Salary > 0))
 fx <- raw[, KEEP_COLS, drop = FALSE]                       # drops Employee_ID, Name
@@ -88,6 +100,7 @@ dir.create(FIX_DIR, recursive = TRUE, showWarnings = FALSE)
 # `#` line as the header row, and AC-2's `head -1` check must see only column names.
 # PII-strip provenance lives in _meta.pii_stripped instead.
 suppressWarnings(write.table(fx_out, FIXTURE, sep = ",", row.names = FALSE, quote = FALSE))
+}
 
 # round-trip: oracle sees exactly the committed bytes
 fxr <- read.csv(FIXTURE, stringsAsFactors = FALSE)

@@ -15,7 +15,7 @@ use crate::formula::Formula;
 use crate::inference::bootstrap_stats;
 use crate::math::normalization::normalize_categorical_coefficients;
 use crate::math::ols::ols;
-use crate::math::rif::calculate_rif;
+use crate::math::rif::{calculate_rif, calculate_rif_weighted};
 use crate::rng::{resample_indices, unit_rng, RepOutcome, RngPurpose, RunMetadata, DEFAULT_SEED};
 use crate::types::{ComponentResult, DecompositionDetail, OaxacaResults, TwoFoldResults};
 
@@ -1026,8 +1026,31 @@ impl OaxacaBuilder {
     /// estimate and once per group PER bootstrap replicate (ruling 4). `clone()` is an
     /// Arc/COW refcount bump (stage-2 Finding 1), so it adds no meaningful per-rep memory.
     fn rif_replace_outcome(&self, g: &DataFrame, quantile: f64) -> Result<DataFrame, OaxacaError> {
-        let rif = calculate_rif(g.column(&self.outcome)?.as_materialized_series(), quantile)
-            .map_err(OaxacaError::PolarsError)?;
+        // 0097 — the seam this issue exists to close. `weights_col` was honoured in
+        // `clean_dataframe`, `weighted_levels_present` and `ols()`, but never here, so a weighted
+        // quantile run built an UNWEIGHTED RIF transform and then regressed on it WITH weights.
+        // Nothing threw; the number was simply wrong. The weights come from this group's own rows,
+        // in the same order as the outcome, because `clean_dataframe` has already dropped any row
+        // with a null in either column.
+        let weights: Option<Vec<f64>> = match &self.weights_col {
+            Some(col) => Some(
+                g.column(col)?
+                    .cast(&DataType::Float64)?
+                    .f64()?
+                    .into_no_null_iter()
+                    .collect(),
+            ),
+            None => None,
+        };
+        let series = g.column(&self.outcome)?.as_materialized_series();
+        // Branch rather than always calling the weighted form with `None`: the unweighted path
+        // stays literally the original function, so "did the unweighted answer move?" is answered
+        // by reading this line rather than by trusting a delegation.
+        let rif = match weights.as_deref() {
+            Some(w) => calculate_rif_weighted(series, quantile, Some(w)),
+            None => calculate_rif(series, quantile),
+        }
+        .map_err(OaxacaError::PolarsError)?;
         let mut out = g.clone();
         out.with_column(rif)?;
         Ok(out)
@@ -1375,6 +1398,53 @@ impl OaxacaResults {}
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    // 0097 — isolates the RIF wire itself. The end-to-end quantile test cannot do this:
+    // `weights_col` also weights the OLS, so `total_gap` moves whether or not the RIF ever sees
+    // the weights. A first draft asserted on `total_gap` and passed with the wire deliberately
+    // cut — vacuous. This calls `rif_replace_outcome` directly, so the only thing that can move
+    // the transformed column is the weights reaching `calculate_rif_weighted`.
+    #[test]
+    fn rif_replace_outcome_honours_weights_col() {
+        use polars::prelude::*;
+        let df = df![
+            "wage" => [10.0f64, 12.0, 14.0, 16.0, 18.0, 40.0],
+            "educ" => [1.0f64, 2.0, 3.0, 4.0, 5.0, 6.0],
+            "group" => ["A", "A", "A", "A", "A", "A"],
+            "hc"   => [1.0f64, 1.0, 1.0, 1.0, 1.0, 30.0],
+        ]
+        .unwrap();
+
+        let rif_of = |weighted: bool| -> Vec<f64> {
+            let mut b = OaxacaBuilder::new(df.clone(), "wage", "group", "A");
+            b.predictors(vec!["educ"]);
+            if weighted {
+                b.weights("hc");
+            }
+            let out = b
+                .rif_replace_outcome(&df, 0.5)
+                .expect("rif_replace_outcome");
+            out.column("wage")
+                .unwrap()
+                .f64()
+                .unwrap()
+                .into_no_null_iter()
+                .collect()
+        };
+
+        let bare = rif_of(false);
+        let weighted = rif_of(true);
+        assert_eq!(bare.len(), weighted.len());
+        assert!(
+            bare.iter()
+                .zip(weighted.iter())
+                .any(|(a, b)| (a - b).abs() > 1e-9),
+            "the RIF column is identical with and without weights_col — the weights are being \
+             dropped inside rif_replace_outcome again (bare={bare:?}, weighted={weighted:?})"
+        );
+    }
+
     #[test]
     fn it_works() {
         let result = 2 + 2;

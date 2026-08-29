@@ -60,7 +60,7 @@ fn cli_quantile_output_matches_direct_library_call() {
         .arg("--quantiles")
         .arg("0.5")
         .arg("--bootstrap-reps")
-        .arg("2")
+        .arg("50")
         .arg("--ref-coeffs")
         .arg("group-b")
         .arg("--output-json")
@@ -84,7 +84,7 @@ fn cli_quantile_output_matches_direct_library_call() {
     let mut builder = OaxacaBuilder::new(df, "wage", "gender", "F");
     builder
         .predictors(["education"])
-        .bootstrap_reps(2)
+        .bootstrap_reps(50)
         .reference_coefficients(ReferenceCoefficients::GroupB);
     let lib_results = builder
         .decompose_quantile(0.5)
@@ -122,13 +122,65 @@ fn cli_quantile_output_matches_direct_library_call() {
             "component name mismatch"
         );
         for field in ["estimate", "std_err", "p_value", "ci_lower", "ci_upper"] {
-            let cli_v = c[field]
-                .as_f64()
-                .unwrap_or_else(|| panic!("cli component '{}' missing field {}", name, field));
-            let lib_v = l[field]
-                .as_f64()
-                .unwrap_or_else(|| panic!("lib component '{}' missing field {}", name, field));
-            assert_close(&format!("{}.{}", name, field), cli_v, lib_v);
+            // A refused statistic serialises as JSON null (serde_json maps NaN -> null), e.g. the
+            // percentile CI below MIN_PERCENTILE_CI_REPS. Null on both sides IS parity -- the two
+            // surfaces agree the statistic is unavailable. Null on one side only is a real
+            // divergence and must fail. `bootstrap_reps` is 50 (> the 41-rep percentile-CI floor)
+            // so ci_lower/ci_upper carry real numbers here and this loop is not vacuous.
+            match (c[field].as_f64(), l[field].as_f64()) {
+                (Some(cli_v), Some(lib_v)) => {
+                    assert_close(&format!("{}.{}", name, field), cli_v, lib_v)
+                }
+                (None, None) => {}
+                (cli_v, lib_v) => panic!(
+                    "{}.{} availability mismatch: cli={:?} lib={:?}",
+                    name, field, cli_v, lib_v
+                ),
+            }
         }
+    }
+}
+
+/// The percentile-CI refusal (below `inference::MIN_PERCENTILE_CI_REPS`) must reach the JSON
+/// surface as `null`, not as a fabricated number and not by dropping the key. serde_json maps a
+/// non-finite f64 to `null`, so a consumer sees "this statistic is unavailable" rather than a
+/// (min, max) span mislabelled as a 95% interval. The standard error and p-value stay finite:
+/// they remain meaningful at low replication counts, only the percentile interval does not.
+#[test]
+fn a_refused_percentile_ci_serialises_as_json_null_while_se_survives() {
+    let df = LazyCsvReader::new("tests/data/wage.csv")
+        .with_has_header(true)
+        .finish()
+        .unwrap()
+        .collect()
+        .unwrap();
+    let mut builder = OaxacaBuilder::new(df, "wage", "gender", "F");
+    builder
+        .predictors(["education"])
+        .bootstrap_reps(2) // deliberately below the 41-rep floor
+        .reference_coefficients(ReferenceCoefficients::GroupB);
+    let results = builder.decompose_quantile(0.5).expect("decompose failed");
+    let value: serde_json::Value =
+        serde_json::from_str(&results.to_json().expect("to_json failed")).expect("JSON parse");
+
+    let components = value["two_fold"]["aggregate"]
+        .as_array()
+        .expect("two_fold.aggregate missing");
+    assert!(!components.is_empty(), "no components to assert on");
+    for c in components {
+        let name = c["name"].as_str().unwrap_or("<unnamed>");
+        assert!(
+            c["ci_lower"].is_null() && c["ci_upper"].is_null(),
+            "{}: expected null CI below the rep floor, got [{}, {}]",
+            name,
+            c["ci_lower"],
+            c["ci_upper"]
+        );
+        assert!(
+            c["std_err"].as_f64().is_some_and(f64::is_finite),
+            "{}: std_err must stay finite when the CI is refused, got {}",
+            name,
+            c["std_err"]
+        );
     }
 }
