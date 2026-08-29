@@ -55,6 +55,21 @@ engine**, so nothing on either side fails when the shipped blob is stale. Before
 was manual and undocumented, and the app's blobs sat hours behind engine source with every suite
 green. Do not reintroduce a manual step between an engine change and the binary that ships.
 
+## Repo location and `target/` growth
+
+Real bytes live at `~/hr-apps/oaxaca-blinder-rs` (NVMe). `apps/hr-apps/oaxaca-blinder-rs` in the
+telos-machina monorepo is a **symlink** to it — kept there because `scripts/repo-sync.sh:169`
+requires every `repos.yaml` `local_path` to be relative and inside the monorepo. Do not "fix" the
+symlink. `pay-equity-app` is relocated the same way and **must stay a sibling**: `build-wasm.sh`
+publishes to `$PWD/../pay-equity-app/frontend/src`, and the app's `wasmFreshnessScope.spec.js`
+resolves `../../oaxaca-blinder-rs`.
+
+**Watch `target/`.** On 2026-08-28 it had reached **214 GB** — 99.97% of the checkout — from
+accumulated native + `wasm32-unknown-unknown` + threaded-nightly (`-Zbuild-std`) + `--all-features`
+variants. It was cleaned during the relocation and regenerates on first build. Nothing warns when it
+grows; `du -sh target` before a long session is cheap, and `cargo clean` is safe (cargo writes its
+own `CACHEDIR.TAG` there marking the directory disposable).
+
 ## Workspace Architecture
 
 This is a Rust workspace with three crates:
