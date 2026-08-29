@@ -16,7 +16,10 @@ use polars::prelude::*;
 use serde_json::{json, Map, Value};
 
 fn fixture_path() -> String {
-    format!("{}/tests/fixtures/parity_fixture.csv", env!("CARGO_MANIFEST_DIR"))
+    format!(
+        "{}/tests/fixtures/parity_fixture.csv",
+        env!("CARGO_MANIFEST_DIR")
+    )
 }
 
 fn baseline_path() -> String {

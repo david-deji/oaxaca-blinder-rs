@@ -52,8 +52,15 @@ fn run_quantile(seed: u64, q: f64, reps: usize) -> OaxacaResults {
 fn ac4_default_determinism_and_seed_sensitivity() {
     let a = run_mean(None, 16);
     let b = run_mean(None, 16);
-    assert_eq!(serialize(&a), serialize(&b), "default (no-seed) runs must be byte-identical");
-    assert_eq!(a.run_metadata.seed, DEFAULT_SEED, "no-seed run must resolve to DEFAULT_SEED");
+    assert_eq!(
+        serialize(&a),
+        serialize(&b),
+        "default (no-seed) runs must be byte-identical"
+    );
+    assert_eq!(
+        a.run_metadata.seed, DEFAULT_SEED,
+        "no-seed run must resolve to DEFAULT_SEED"
+    );
 
     let s1 = run_mean(Some(1), 16);
     let s2 = run_mean(Some(2), 16);
@@ -63,7 +70,10 @@ fn ac4_default_determinism_and_seed_sensitivity() {
         "different seeds must produce different bootstrap distributions"
     );
     // Same explicit seed reproduces byte-identically.
-    assert_eq!(serialize(&run_mean(Some(7), 16)), serialize(&run_mean(Some(7), 16)));
+    assert_eq!(
+        serialize(&run_mean(Some(7), 16)),
+        serialize(&run_mean(Some(7), 16))
+    );
 }
 
 /// AC-5: entropy seeding records a non-default seed and stays reproducible after the fact.
@@ -77,7 +87,10 @@ fn ac5_entropy_round_trip() {
         .seed_from_entropy();
     let entropy_run = b.run().expect("entropy run");
     let drawn = entropy_run.run_metadata.seed;
-    assert_ne!(drawn, DEFAULT_SEED, "entropy seed must (essentially never) equal DEFAULT_SEED");
+    assert_ne!(
+        drawn, DEFAULT_SEED,
+        "entropy seed must (essentially never) equal DEFAULT_SEED"
+    );
 
     // Re-running with the recorded seed reproduces the entropy run byte-identically.
     let replay = run_mean(Some(drawn), 16);
@@ -103,8 +116,14 @@ fn ac7_discard_invariant_and_reproducible() {
     );
     // The full metadata (incl. the discard count) is reproducible for a fixed seed.
     let r2 = run_mean(Some(123), 20);
-    assert_eq!(r.run_metadata.bootstrap_reps_discarded, r2.run_metadata.bootstrap_reps_discarded);
-    assert_eq!(r.run_metadata.bootstrap_reps_succeeded, r2.run_metadata.bootstrap_reps_succeeded);
+    assert_eq!(
+        r.run_metadata.bootstrap_reps_discarded,
+        r2.run_metadata.bootstrap_reps_discarded
+    );
+    assert_eq!(
+        r.run_metadata.bootstrap_reps_succeeded,
+        r2.run_metadata.bootstrap_reps_succeeded
+    );
 }
 
 /// AC-8: RunMetadata is present with all six fields and is embedded in serialized output.
@@ -129,7 +148,10 @@ fn ac8_metadata_presence() {
     ] {
         assert!(json.contains(field), "serialized output missing {field}");
     }
-    assert!(json.contains("ChaCha8"), "serialized output must carry the algorithm string");
+    assert!(
+        json.contains("ChaCha8"),
+        "serialized output must carry the algorithm string"
+    );
 }
 
 /// AC-11: the RIF quantile path (`decompose_quantile`) forwards the seed (council CV-1).
@@ -146,6 +168,13 @@ fn ac11_quantile_seed_round_trip() {
 
     let x1 = run_quantile(7, 0.5, 8);
     let x2 = run_quantile(7, 0.5, 8);
-    assert_eq!(serialize(&x1), serialize(&x2), "same seed reproduces byte-identically");
-    assert_eq!(x1.run_metadata.seed, 7, "forwarded seed must land in RunMetadata (CV-1)");
+    assert_eq!(
+        serialize(&x1),
+        serialize(&x2),
+        "same seed reproduces byte-identically"
+    );
+    assert_eq!(
+        x1.run_metadata.seed, 7,
+        "forwarded seed must land in RunMetadata (CV-1)"
+    );
 }

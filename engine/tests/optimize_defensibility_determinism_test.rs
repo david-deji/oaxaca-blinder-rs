@@ -194,18 +194,12 @@ fn check_defensibility_inner_is_byte_identical_across_thread_counts() {
 
 #[test]
 fn calculate_efficient_frontier_inner_is_byte_identical_across_repeat_runs() {
-    assert_repeat_identity(
-        "calculate_efficient_frontier_inner",
-        frontier_canonical,
-    );
+    assert_repeat_identity("calculate_efficient_frontier_inner", frontier_canonical);
 }
 
 #[test]
 fn calculate_efficient_frontier_inner_is_byte_identical_across_thread_counts() {
-    assert_thread_invariance(
-        "calculate_efficient_frontier_inner",
-        frontier_canonical,
-    );
+    assert_thread_invariance("calculate_efficient_frontier_inner", frontier_canonical);
 }
 
 /// D14 regression, stated at the bit level on the three scalars 0017-P1 persists as aggregates.

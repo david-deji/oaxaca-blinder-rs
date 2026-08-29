@@ -34,8 +34,8 @@ fn load_fixture() -> DataFrame {
 }
 
 fn load_golden() -> Value {
-    let text =
-        std::fs::read_to_string(GOLDEN_PATH).expect("parity_golden.json must be committed and readable");
+    let text = std::fs::read_to_string(GOLDEN_PATH)
+        .expect("parity_golden.json must be committed and readable");
     serde_json::from_str(&text).expect("parity_golden.json must parse")
 }
 
@@ -78,8 +78,16 @@ fn test_parity_two_fold_decomposition() {
     // ---- Primary scheme: GroupB (== statsmodels self_submitted weight=0.0, swap=True) ----
     let r = run(ReferenceCoefficients::GroupB);
 
-    assert_eq!(r.n_a, golden["n_a"].as_u64().unwrap() as usize, "n_a mismatch");
-    assert_eq!(r.n_b, golden["n_b"].as_u64().unwrap() as usize, "n_b mismatch");
+    assert_eq!(
+        r.n_a,
+        golden["n_a"].as_u64().unwrap() as usize,
+        "n_a mismatch"
+    );
+    assert_eq!(
+        r.n_b,
+        golden["n_b"].as_u64().unwrap() as usize,
+        "n_b mismatch"
+    );
     assert_close(
         "total_gap",
         r.total_gap,
@@ -141,14 +149,24 @@ fn test_parity_two_fold_decomposition() {
         r.total_gap,
         INTERNAL_TOL,
     );
-    let sum_exp: f64 = r.two_fold.detailed_explained.iter().map(|c| c.estimate).sum();
+    let sum_exp: f64 = r
+        .two_fold
+        .detailed_explained
+        .iter()
+        .map(|c| c.estimate)
+        .sum();
     let sum_unexp: f64 = r
         .two_fold
         .detailed_unexplained
         .iter()
         .map(|c| c.estimate)
         .sum();
-    assert_close("internal sum(detailed_explained)==explained", sum_exp, explained, INTERNAL_TOL);
+    assert_close(
+        "internal sum(detailed_explained)==explained",
+        sum_exp,
+        explained,
+        INTERNAL_TOL,
+    );
     assert_close(
         "internal sum(detailed_unexplained)==unexplained",
         sum_unexp,
@@ -162,9 +180,24 @@ fn test_parity_two_fold_decomposition() {
     let cc = &golden["cross_check_pooled"];
     let p_exp = rp.explained().unwrap().estimate;
     let p_unexp = rp.unexplained().unwrap().estimate;
-    assert_close("pooled.explained", p_exp, cc["explained"].as_f64().unwrap(), TOLERANCE);
-    assert_close("pooled.unexplained", p_unexp, cc["unexplained"].as_f64().unwrap(), TOLERANCE);
-    assert_close("pooled internal", p_exp + p_unexp, rp.total_gap, INTERNAL_TOL);
+    assert_close(
+        "pooled.explained",
+        p_exp,
+        cc["explained"].as_f64().unwrap(),
+        TOLERANCE,
+    );
+    assert_close(
+        "pooled.unexplained",
+        p_unexp,
+        cc["unexplained"].as_f64().unwrap(),
+        TOLERANCE,
+    );
+    assert_close(
+        "pooled internal",
+        p_exp + p_unexp,
+        rp.total_gap,
+        INTERNAL_TOL,
+    );
 }
 
 // ---- AC-9: mean-path point estimates byte-identical to the pre-refactor baseline ----

@@ -128,7 +128,9 @@ fn test_level_confined_to_an_excluded_third_group() {
             assert_eq!(missing_from_group, "M");
         }
         Err(e) => panic!("Expected EmptyLevelInGroup, got a different error: {e}"),
-        Ok(_) => panic!("Expected EmptyLevelInGroup refusal for a level confined to the excluded group"),
+        Ok(_) => {
+            panic!("Expected EmptyLevelInGroup refusal for a level confined to the excluded group")
+        }
     }
 }
 

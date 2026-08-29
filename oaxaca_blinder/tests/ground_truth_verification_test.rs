@@ -133,7 +133,17 @@ fn test_quantile_decomposition_location_shift_ground_truth() {
             key
         );
         assert!((gap - 5.0).abs() < 1.0, "{}: gap {} not ~5", key, gap);
-        assert!(chars.abs() < 0.75, "{}: characteristics {} not ~0", key, chars);
-        assert!((coeffs - 5.0).abs() < 1.0, "{}: coefficients {} not ~5", key, coeffs);
+        assert!(
+            chars.abs() < 0.75,
+            "{}: characteristics {} not ~0",
+            key,
+            chars
+        );
+        assert!(
+            (coeffs - 5.0).abs() < 1.0,
+            "{}: coefficients {} not ~5",
+            key,
+            coeffs
+        );
     }
 }

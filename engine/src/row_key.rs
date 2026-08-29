@@ -507,7 +507,8 @@ mod tests {
     #[test]
     fn a_non_sequential_numeric_id_column_is_still_accepted() {
         // The refusal must be narrow: real employee numbers are numeric but not row-positional.
-        let df = parse("No. Employe,wage,gender\n4102,50000,Male\n4110,40000,Female\n4137,60000,Male\n");
+        let df =
+            parse("No. Employe,wage,gender\n4102,50000,Male\n4110,40000,Female\n4137,60000,Male\n");
         let t = RowKeyTable::build(&df).unwrap();
         assert_eq!(t.source(), RowKeySource::Column);
         assert_eq!(t.key_at(0).unwrap(), "c:4102");
@@ -522,8 +523,16 @@ mod tests {
         let after = parse("employee_id,wage,gender\n1,99000,Other\n2,50000,Male\n3,40000,Female\n");
         let tb = RowKeyTable::build(&before).unwrap();
         let ta = RowKeyTable::build(&after).unwrap();
-        assert_eq!(tb.key_at(0), ta.key_at(1), "the 50000/Male row keeps its key");
-        assert_eq!(tb.key_at(1), ta.key_at(2), "the 40000/Female row keeps its key");
+        assert_eq!(
+            tb.key_at(0),
+            ta.key_at(1),
+            "the 50000/Male row keeps its key"
+        );
+        assert_eq!(
+            tb.key_at(1),
+            ta.key_at(2),
+            "the 40000/Female row keeps its key"
+        );
     }
 
     #[test]
@@ -725,7 +734,10 @@ mod tests {
         );
         let t = RowKeyTable::build(&df).unwrap();
         let keyed: BTreeSet<usize> = (0..t.len())
-            .filter_map(|i| t.key_at(i).map(|k| t.resolve(usize::MAX, Some(&k)).unwrap()))
+            .filter_map(|i| {
+                t.key_at(i)
+                    .map(|k| t.resolve(usize::MAX, Some(&k)).unwrap())
+            })
             .collect();
         assert_eq!(keyed, BTreeSet::from([2]));
         // The legacy no-key path still returns the caller's index untouched for those rows.

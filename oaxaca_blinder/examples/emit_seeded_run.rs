@@ -9,7 +9,10 @@ use oaxaca_blinder::{OaxacaBuilder, ReferenceCoefficients};
 use polars::prelude::*;
 
 fn main() {
-    let path = format!("{}/tests/fixtures/parity_fixture.csv", env!("CARGO_MANIFEST_DIR"));
+    let path = format!(
+        "{}/tests/fixtures/parity_fixture.csv",
+        env!("CARGO_MANIFEST_DIR")
+    );
     let df = LazyCsvReader::new(path)
         .with_has_header(true)
         .finish()

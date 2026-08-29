@@ -83,7 +83,10 @@ impl Harness {
     }
 
     fn vanished(&mut self) -> (Vec<DecodedChange>, [u32; 8]) {
-        let out = self.s.diff_vanished().expect("vanished must not throw here");
+        let out = self
+            .s
+            .diff_vanished()
+            .expect("vanished must not throw here");
         let changes = decode_changes(&self.s, &out);
         (changes, out.stats)
     }
@@ -207,18 +210,10 @@ fn case_03_removed_cell() {
     let mut h = Harness::new("employee_id", KINDS);
     h.seed(&[(
         "E1",
-        vec![
-            ("employee_id", "text", t("E1")),
-            ("sex", "text", t("F")),
-        ],
+        vec![("employee_id", "text", t("E1")), ("sex", "text", t("F"))],
     )]);
-    let (changes, stats) = h
-        .diff(&[("E1", vec![("employee_id", t("E1"))])])
-        .unwrap();
-    assert_eq!(
-        changes,
-        vec![removed("E1", "sex", "text", Some("F"), None)]
-    );
+    let (changes, stats) = h.diff(&[("E1", vec![("employee_id", t("E1"))])]).unwrap();
+    assert_eq!(changes, vec![removed("E1", "sex", "text", Some("F"), None)]);
     assert_eq!(stats[STAT_CELLS_REMOVED], 1);
 }
 
@@ -361,7 +356,10 @@ fn case_08_negative_zero_equals_zero_and_emits_nothing() {
     // draw actually runs, instead of deleting the half that documents the wrong optimisation.
     let neg = std::hint::black_box(-0.0f64);
     let pos = std::hint::black_box(0.0f64);
-    assert!(neg == pos, "`==` must read -0.0 and 0.0 as equal — the JS `===` behaviour");
+    assert!(
+        neg == pos,
+        "`==` must read -0.0 and 0.0 as equal — the JS `===` behaviour"
+    );
     assert!(
         neg.to_bits() != pos.to_bits(),
         "`to_bits()` separates them — the wrong optimisation this test exists to forbid"
@@ -390,7 +388,15 @@ fn case_09_duplicate_subject_key_diffs_as_all_added() {
     assert_eq!(
         changes,
         vec![
-            changed("E1", "salary", "money", None, Some(52000.0), None, Some(53000.0)),
+            changed(
+                "E1",
+                "salary",
+                "money",
+                None,
+                Some(52000.0),
+                None,
+                Some(53000.0)
+            ),
             added("E1", "employee_id", "text", Some("E1"), None),
             added("E1", "salary", "money", None, Some(54000.0)),
         ]
@@ -403,7 +409,10 @@ fn case_09_duplicate_subject_key_diffs_as_all_added() {
 fn case_10_prior_kind_differs_from_pinned_and_types_mismatch() {
     // pinned salary = text; the prior CELL says money. The kind travels with the cell, so the
     // changed path splits with `money` and the incoming string fails the numeric guard.
-    let mut h = Harness::new("employee_id", &[("employee_id", "text"), ("salary", "text")]);
+    let mut h = Harness::new(
+        "employee_id",
+        &[("employee_id", "text"), ("salary", "text")],
+    );
     h.seed(&[(
         "E1",
         vec![
@@ -558,10 +567,7 @@ fn case_16_unpinned_target_changed_uses_the_prior_cells_kind() {
 fn case_17_unchanged_value_with_mismatched_pinned_kind_emits_nothing() {
     // pinned note = money; the prior CELL says text and holds a string. The value is unchanged,
     // so `:322` fires before any `splitValue` and nothing is raised.
-    let mut h = Harness::new(
-        "employee_id",
-        &[("employee_id", "text"), ("note", "money")],
-    );
+    let mut h = Harness::new("employee_id", &[("employee_id", "text"), ("note", "money")]);
     h.seed(&[(
         "E1",
         vec![
@@ -645,7 +651,10 @@ fn ac11_memory_shape_survives_the_port() {
         peak = peak.max(resident);
         last = resident;
     }
-    assert_eq!(peak, initial, "never both weeks — the peak IS the prior week");
+    assert_eq!(
+        peak, initial,
+        "never both weeks — the peak IS the prior week"
+    );
     assert_eq!(h.s.resident_cell_count(), 0);
     assert_eq!(total_changed, SUBJECTS as u32);
     let (tail, _) = h.vanished();
@@ -660,7 +669,10 @@ fn no_rayon_reaches_the_diff() {
     // parity argument rests on.
     for (name, src) in [
         ("snapshot_diff.rs", include_str!("snapshot_diff.rs")),
-        ("snapshot_diff_wasm.rs", include_str!("snapshot_diff_wasm.rs")),
+        (
+            "snapshot_diff_wasm.rs",
+            include_str!("snapshot_diff_wasm.rs"),
+        ),
     ] {
         // Strip `//` comment lines: the prose above explains WHY there is no rayon and names it.
         let code: String = src
@@ -695,7 +707,11 @@ fn the_stamp_moves_when_the_diff_source_moves() {
     hasher.update(core.as_bytes());
     hasher.update((wasm.len() as u64).to_le_bytes());
     hasher.update(wasm.as_bytes());
-    let expect: String = hasher.finalize().iter().map(|b| format!("{:02x}", b)).collect();
+    let expect: String = hasher
+        .finalize()
+        .iter()
+        .map(|b| format!("{:02x}", b))
+        .collect();
     assert_eq!(hex, expect);
 
     // Length-prefixing is what makes moving a line between the two files change the digest.
@@ -704,6 +720,10 @@ fn the_stamp_moves_when_the_diff_source_moves() {
     swapped.update(wasm.as_bytes());
     swapped.update((core.len() as u64).to_le_bytes());
     swapped.update(core.as_bytes());
-    let other: String = swapped.finalize().iter().map(|b| format!("{:02x}", b)).collect();
+    let other: String = swapped
+        .finalize()
+        .iter()
+        .map(|b| format!("{:02x}", b))
+        .collect();
     assert_ne!(hex, other);
 }

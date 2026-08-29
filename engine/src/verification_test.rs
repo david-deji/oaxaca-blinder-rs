@@ -673,14 +673,22 @@ mod tests {
 
         // Nothing is dropped: the emitted delta is the sum, and the wage it implies is the wage
         // the aggregates below are computed from.
-        assert!((only.adjustment - 6000.0).abs() < 1e-9, "got {}", only.adjustment);
+        assert!(
+            (only.adjustment - 6000.0).abs() < 1e-9,
+            "got {}",
+            only.adjustment
+        );
         assert!(
             (only.new_wage - (only.current_wage + 6000.0)).abs() < 1e-9,
             "new_wage {} should be current {} + 6000",
             only.new_wage,
             only.current_wage
         );
-        assert!((res.total_cost - 6000.0).abs() < 1e-9, "got {}", res.total_cost);
+        assert!(
+            (res.total_cost - 6000.0).abs() < 1e-9,
+            "got {}",
+            res.total_cost
+        );
 
         // The headline the per-row array is presented beside must agree with it: row 555 is
         // Female (non-reference), and there are 500 such rows, so 6000/500 = 12.0. Before the

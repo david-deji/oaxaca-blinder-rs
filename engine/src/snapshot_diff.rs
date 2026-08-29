@@ -83,11 +83,17 @@ pub const ABSENT_LEN: u32 = u32::MAX;
 pub enum Val {
     Num(f64),
     /// Byte range into the arena that owns this value.
-    Text { start: u32, len: u32 },
+    Text {
+        start: u32,
+        len: u32,
+    },
     Undefined,
     Null,
     Bool(bool),
-    Opaque { tag: u8, id: u32 },
+    Opaque {
+        tag: u8,
+        id: u32,
+    },
 }
 
 impl Val {
@@ -625,8 +631,7 @@ impl Session {
 
         for s in 0..batch.subject_cell_counts.len() {
             let (kb, kl) = sk_cursor.next(batch.subject_key_lens[s]);
-            let subject_key =
-                batch.subject_keys[kb as usize..(kb + kl) as usize].to_string();
+            let subject_key = batch.subject_keys[kb as usize..(kb + kl) as usize].to_string();
 
             let existing = self.subject_ids.get(&subject_key).copied();
             let slot = match existing {
@@ -797,8 +802,7 @@ impl Session {
                                 })
                             }
                         };
-                        let side =
-                            split_value(&self.kinds, kind_id, &val, batch.cell_texts)?;
+                        let side = split_value(&self.kinds, kind_id, &val, batch.cell_texts)?;
                         let sidx = *subject_idx.get_or_insert_with(|| {
                             let i = out.subject_lens.len() as u32;
                             out.subject_lens.push(utf16_len(subject_key));

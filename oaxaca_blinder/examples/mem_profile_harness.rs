@@ -159,12 +159,8 @@ fn resample_before_after(n: usize) -> (usize, usize) {
     {
         let da = df_a.clone();
         let db = df_b.clone();
-        let sa = da
-            .sample_n_literal(da.height(), true, false, None)
-            .unwrap();
-        let sb = db
-            .sample_n_literal(db.height(), true, false, None)
-            .unwrap();
+        let sa = da.sample_n_literal(da.height(), true, false, None).unwrap();
+        let sb = db.sample_n_literal(db.height(), true, false, None).unwrap();
         let s = sa.vstack(&sb).unwrap();
         std::hint::black_box(&s);
     }
@@ -236,8 +232,16 @@ fn main() {
         );
     }
     println!("\n### AC-M10 resample reduction @ 50k (resampling isolated)\n");
-    println!("Sc_before (clone-pair + sample_n_literal): {} bytes ({:.3} MiB)", sc_before, mib(sc_before));
-    println!("Sc_after  (shared-base take):              {} bytes ({:.3} MiB)", sc_after, mib(sc_after));
+    println!(
+        "Sc_before (clone-pair + sample_n_literal): {} bytes ({:.3} MiB)",
+        sc_before,
+        mib(sc_before)
+    );
+    println!(
+        "Sc_after  (shared-base take):              {} bytes ({:.3} MiB)",
+        sc_after,
+        mib(sc_after)
+    );
     if sc_after < sc_before {
         println!(
             "REDUCTION CONFIRMED: Sc_after < Sc_before by {} bytes ({:.1}%)",

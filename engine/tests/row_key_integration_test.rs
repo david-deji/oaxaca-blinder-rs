@@ -38,8 +38,18 @@ fn csv_without_id() -> String {
 fn csv_with_id() -> String {
     let mut s = String::from("employee_id,wage,gender,education\n");
     for i in 0..12 {
-        s.push_str(&format!("M-{:03},{},Male,{}\n", i, 50_000 + i * 700, 10 + i));
-        s.push_str(&format!("F-{:03},{},Female,{}\n", i, 41_000 + i * 700, 10 + i));
+        s.push_str(&format!(
+            "M-{:03},{},Male,{}\n",
+            i,
+            50_000 + i * 700,
+            10 + i
+        ));
+        s.push_str(&format!(
+            "F-{:03},{},Female,{}\n",
+            i,
+            41_000 + i * 700,
+            10 + i
+        ));
     }
     s
 }
@@ -268,7 +278,11 @@ fn keys_do_not_depend_on_the_predictor_selection() {
             .iter()
             .find(|x| x.index == adj.index)
             .expect("same index present under both models");
-        assert_eq!(adj.row_key, mate.row_key, "key moved at index {}", adj.index);
+        assert_eq!(
+            adj.row_key, mate.row_key,
+            "key moved at index {}",
+            adj.index
+        );
     }
 }
 
@@ -303,7 +317,11 @@ fn optimize_and_defensibility_mint_the_same_key_for_the_same_row() {
     assert_eq!(def.adjustments.len(), opt.adjustments.len());
     for (o, d) in opt.adjustments.iter().zip(def.adjustments.iter()) {
         assert_eq!(o.index, d.index);
-        assert_eq!(o.row_key, d.row_key, "key disagreement at index {}", o.index);
+        assert_eq!(
+            o.row_key, d.row_key,
+            "key disagreement at index {}",
+            o.index
+        );
     }
 }
 

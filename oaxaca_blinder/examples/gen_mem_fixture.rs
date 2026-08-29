@@ -83,7 +83,11 @@ fn main() {
         let mut rng = ChaCha8Rng::seed_from_u64(MEM_FIXTURE_SEED ^ k.wrapping_mul(PHI));
         for line in &rows {
             let f: Vec<&str> = line.split(',').collect();
-            assert_eq!(f.len(), 10, "malformed source row (embedded comma?): {line}");
+            assert_eq!(
+                f.len(),
+                10,
+                "malformed source row (embedded comma?): {line}"
+            );
             let id: i64 = f[0].parse().expect("Employee_ID int");
             let name = f[1];
             let age: i64 = f[2].parse().expect("Age int");
