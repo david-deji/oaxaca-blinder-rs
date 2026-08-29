@@ -251,10 +251,44 @@ struct Session {
     _created_at: Instant,
 }
 
+/// A constant-time byte slice comparison to prevent timing attacks.
+fn constant_time_compare(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut result = 0u8;
+    for (x, y) in a.iter().zip(b.iter()) {
+        result |= x ^ y;
+    }
+    result == 0
+}
+
 struct AppState {
     sessions: Arc<RwLock<HashMap<String, Session>>>,
     api_key: String,
     rate_limiter: Arc<governor::DefaultDirectRateLimiter>,
+}
+
+impl AppState {
+    /// Constant-time authentication check for the API key.
+    /// Supports both direct key matches and "Bearer <key>" format.
+    fn is_authorized(&self, auth_header: Option<&str>) -> bool {
+        let h = match auth_header {
+            Some(h) => h,
+            None => return false,
+        };
+
+        let direct_match = constant_time_compare(h.as_bytes(), self.api_key.as_bytes());
+
+        let bearer_prefix = "Bearer ";
+        let bearer_match = if let Some(stripped) = h.strip_prefix(bearer_prefix) {
+            constant_time_compare(stripped.as_bytes(), self.api_key.as_bytes())
+        } else {
+            false
+        };
+
+        direct_match || bearer_match
+    }
 }
 
 async fn run_sse_server(port: u16, api_key: String) -> Result<()> {
@@ -375,12 +409,7 @@ async fn handle_sse_post(
         .or_else(|| headers.get("authorization"))
         .and_then(|h| h.to_str().ok());
 
-    let authorized = match auth_header {
-        Some(h) => h == state.api_key || h == format!("Bearer {}", state.api_key),
-        None => false,
-    };
-
-    if !authorized {
+    if !state.is_authorized(auth_header) {
         return (StatusCode::UNAUTHORIZED, "Invalid API Key").into_response();
     }
 
@@ -422,12 +451,7 @@ async fn handle_sse_get(
         .or_else(|| headers.get("authorization"))
         .and_then(|h| h.to_str().ok());
 
-    let authorized = match auth_header {
-        Some(h) => h == state.api_key || h == format!("Bearer {}", state.api_key),
-        None => false,
-    };
-
-    if !authorized {
+    if !state.is_authorized(auth_header) {
         return (StatusCode::UNAUTHORIZED, "Invalid API Key").into_response();
     }
 
@@ -488,12 +512,7 @@ async fn handle_sse_delete(
         .or_else(|| headers.get("authorization"))
         .and_then(|h| h.to_str().ok());
 
-    let authorized = match auth_header {
-        Some(h) => h == state.api_key || h == format!("Bearer {}", state.api_key),
-        None => false,
-    };
-
-    if !authorized {
+    if !state.is_authorized(auth_header) {
         return (StatusCode::UNAUTHORIZED, "Invalid API Key").into_response();
     }
 
