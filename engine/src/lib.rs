@@ -61,7 +61,10 @@ pub fn decompose(val: JsValue) -> Result<JsValue, JsValue> {
     // seed 0x5EED_0A11_CA8A_0002 ≈ 6.84e18 always exceeds it). String is the correct lossless
     // provenance encoding across the JS boundary; counts stay plain JS Numbers. 0014-MERIDIAN
     // stage-4 browser-parity finding (latent: the native serde_json path handled u64 fine).
-    Ok(serde_wasm_bindgen::to_value(&res)?)
+    use serde::Serialize;
+    let serializer = serde_wasm_bindgen::Serializer::json_compatible();
+    res.serialize(&serializer)
+        .map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
 #[cfg(feature = "wasm")]
