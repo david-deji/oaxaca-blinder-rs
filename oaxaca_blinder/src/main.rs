@@ -221,12 +221,12 @@ fn run_mean_analysis(args: &RunArgs, df: DataFrame) -> Result<(), Box<dyn std::e
         let json = results
             .to_json()
             .map_err(|e| format!("Failed to serialize to JSON: {}", e))?;
-        std::fs::write(path, json)?;
+        safe_write_file(path, json)?;
     }
 
     if let Some(path) = &args.output_markdown {
         let md = results.to_markdown();
-        std::fs::write(path, md)?;
+        safe_write_file(path, md)?;
     }
     Ok(())
 }
@@ -293,7 +293,7 @@ fn run_quantile_analysis(args: &RunArgs, df: DataFrame) -> Result<(), Box<dyn Er
             let json = results
                 .to_json()
                 .map_err(|e| format!("Failed to serialize to JSON: {}", e))?;
-            std::fs::write(&out_path, json)?;
+            safe_write_file(&out_path, json)?;
         }
     }
     Ok(())
@@ -348,7 +348,7 @@ fn run_matching_analysis(args: &RunArgs, df: DataFrame) -> Result<(), Box<dyn Er
 
     if let Some(path) = &args.output_json {
         let json = serde_json::to_string(&weights)?;
-        std::fs::write(path, json)?;
+        safe_write_file(path, json)?;
     } else {
         println!("Matching completed. Generated {} weights.", weights.len());
         println!(
@@ -371,6 +371,56 @@ struct ReportTemplate {
     two_fold: Vec<ComponentResult>,
     explained: Vec<ComponentResult>,
     unexplained: Vec<ComponentResult>,
+}
+
+fn safe_write_file(
+    path: &std::path::Path,
+    content: impl AsRef<[u8]>,
+) -> Result<(), Box<dyn Error>> {
+    for component in path.components() {
+        if component == std::path::Component::ParentDir {
+            return Err(format!(
+                "Security error: Path traversal is not allowed in output path '{}'",
+                path.display()
+            )
+            .into());
+        }
+    }
+
+    let cwd = std::env::current_dir()?;
+    let temp_dir = std::env::temp_dir();
+    let canonical_cwd = cwd.canonicalize().unwrap_or(cwd.clone());
+    let canonical_temp = temp_dir.canonicalize().unwrap_or(temp_dir.clone());
+
+    let abs_path = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        cwd.join(path)
+    };
+
+    let mut ancestor = abs_path.parent().unwrap_or(&abs_path).to_path_buf();
+    while !ancestor.exists() {
+        if let Some(parent) = ancestor.parent() {
+            ancestor = parent.to_path_buf();
+        } else {
+            break;
+        }
+    }
+
+    let canonical_ancestor = ancestor.canonicalize()?;
+
+    if !canonical_ancestor.starts_with(&canonical_cwd)
+        && !canonical_ancestor.starts_with(&canonical_temp)
+    {
+        return Err(format!(
+            "Security error: Output path '{}' is outside allowed directories",
+            path.display()
+        )
+        .into());
+    }
+
+    std::fs::write(path, content)?;
+    Ok(())
 }
 
 fn run_report(args: ReportArgs) -> Result<(), Box<dyn Error>> {
@@ -403,7 +453,7 @@ fn run_report(args: ReportArgs) -> Result<(), Box<dyn Error>> {
     };
 
     let html = template.render()?;
-    std::fs::write(&args.output, html)?;
+    safe_write_file(&args.output, html)?;
     println!(
         "Report successfully generated at: {}",
         args.output.display()
@@ -423,5 +473,46 @@ fn main() {
         let mut cmd = Cli::command();
         let _ = cmd.print_help();
         std::process::exit(1);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn test_safe_write_file_valid_path() {
+        let temp_dir = std::env::temp_dir();
+        let file_path = temp_dir.join("test_safe_write_valid.txt");
+        let content = "test content";
+
+        let result = safe_write_file(&file_path, content);
+        assert!(result.is_ok());
+
+        let read_content = std::fs::read_to_string(&file_path).unwrap();
+        assert_eq!(read_content, content);
+
+        let _ = std::fs::remove_file(file_path);
+    }
+
+    #[test]
+    fn test_safe_write_file_path_traversal() {
+        let path_traversal = PathBuf::from("../test_traversal.txt");
+        let result = safe_write_file(&path_traversal, "test content");
+
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("Security error: Path traversal is not allowed"));
+    }
+
+    #[test]
+    fn test_safe_write_file_absolute_path_outside_allowed() {
+        let abs_path = PathBuf::from("/etc/passwd_test_mock");
+        let result = safe_write_file(&abs_path, "test content");
+
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("Security error: Output path"));
     }
 }
