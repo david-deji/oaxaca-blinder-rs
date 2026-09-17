@@ -201,9 +201,9 @@ async fn run_stdio_server(rate_limit_per_min: u32) -> Result<()> {
     let mut reader = BufReader::new(stdin).lines();
 
     // Configure Rate Limiter
-    let quota = Quota::per_minute(
-        NonZeroU32::new(rate_limit_per_min).unwrap_or(NonZeroU32::new(60).unwrap()),
-    );
+    let rate_limit = NonZeroU32::new(rate_limit_per_min)
+        .ok_or_else(|| anyhow!("Rate limit must be greater than 0"))?;
+    let quota = Quota::per_minute(rate_limit);
     let limiter = RateLimiter::direct(quota);
 
     while let Some(line) = reader.next_line().await? {
@@ -258,7 +258,9 @@ struct AppState {
 }
 
 async fn run_sse_server(port: u16, api_key: String) -> Result<()> {
-    let quota = Quota::per_minute(NonZeroU32::new(60).unwrap());
+    let quota = Quota::per_minute(
+        NonZeroU32::new(60).expect("60 is non-zero"),
+    );
     let rate_limiter = Arc::new(RateLimiter::direct(quota));
 
     let state = AppState {
@@ -795,5 +797,20 @@ async fn handle_tool_call(params: Option<Value>) -> Result<Value> {
             Ok(json!({ "content": [{ "type": "text", "text": serde_json::to_string(&res)? }] }))
         }
         _ => Err(anyhow!("Unknown tool: {}", name)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_run_stdio_server_invalid_rate_limit() {
+        let result = run_stdio_server(0).await;
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Rate limit must be greater than 0"
+        );
     }
 }
