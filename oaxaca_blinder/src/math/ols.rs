@@ -148,10 +148,18 @@ mod tests {
     use super::*;
     use nalgebra::{DMatrix, DVector};
 
+    fn matrix(rows: usize, cols: usize, data: &[f64]) -> DMatrix<f64> {
+        DMatrix::from_vec(rows, cols, data.to_vec())
+    }
+
+    fn vector(data: &[f64]) -> DVector<f64> {
+        DVector::from_vec(data.to_vec())
+    }
+
     #[test]
     fn test_ols_simple_regression() {
-        let x = DMatrix::from_vec(5, 2, vec![1.0, 1.0, 1.0, 1.0, 1.0, 0.0, 1.0, 2.0, 3.0, 4.0]);
-        let y = DVector::from_vec(vec![1.0, 3.0, 5.0, 7.0, 9.0]);
+        let x = matrix(5, 2, &[1.0, 1.0, 1.0, 1.0, 1.0, 0.0, 1.0, 2.0, 3.0, 4.0]);
+        let y = vector(&[1.0, 3.0, 5.0, 7.0, 9.0]);
 
         let result = ols(&y, &x, None).expect("OLS calculation failed on valid data");
         let coeffs = result.coefficients;
@@ -163,8 +171,8 @@ mod tests {
 
     #[test]
     fn test_ols_handles_singular_matrix() {
-        let x = DMatrix::from_vec(3, 2, vec![1.0, 1.0, 1.0, 2.0, 2.0, 2.0]);
-        let y = DVector::from_vec(vec![1.0, 2.0, 3.0]);
+        let x = matrix(3, 2, &[1.0, 1.0, 1.0, 2.0, 2.0, 2.0]);
+        let y = vector(&[1.0, 2.0, 3.0]);
 
         let result = ols(&y, &x, None);
 
@@ -183,10 +191,10 @@ mod tests {
     #[test]
     fn test_ols_insufficient_data() {
         // Test OLS with 2 observations and 5 predictors
-        let x = DMatrix::from_vec(
+        let x = matrix(
             2,
             5,
-            vec![
+            &[
                 1.0, 1.0, // Column 1
                 2.0, 3.0, // Column 2
                 4.0, 5.0, // Column 3
@@ -194,7 +202,7 @@ mod tests {
                 8.0, 9.0, // Column 5
             ],
         );
-        let y = DVector::from_vec(vec![1.0, 2.0]);
+        let y = vector(&[1.0, 2.0]);
 
         let result = ols(&y, &x, None);
 
