@@ -19,13 +19,28 @@ fn validate_output_path(path: &Path) -> Result<(), Box<dyn Error>> {
     }
 
     let forbidden_prefixes = [
-        "/etc", "/sys", "/proc", "/dev", "/boot", "/bin", "/sbin", "/usr", "/var/lib", "/root",
-        "C:\\Windows", "C:\\Program Files", "C:\\System32",
+        "/etc",
+        "/sys",
+        "/proc",
+        "/dev",
+        "/boot",
+        "/bin",
+        "/sbin",
+        "/usr",
+        "/var/lib",
+        "/root",
+        "C:\\Windows",
+        "C:\\Program Files",
+        "C:\\System32",
     ];
     let path_str = path.to_string_lossy();
     for prefix in forbidden_prefixes {
         if path_str.starts_with(prefix) {
-            return Err(format!("Invalid output path: writing to system directory '{}' is prohibited", prefix).into());
+            return Err(format!(
+                "Invalid output path: writing to system directory '{}' is prohibited",
+                prefix
+            )
+            .into());
         }
     }
 
