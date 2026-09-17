@@ -146,9 +146,7 @@ jobs:
         run: cargo install cargo-audit --locked
 
       - name: Run cargo-audit
-        uses: rustsec/audit-check@v1.4.1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+        run: cargo audit
 
   memory-ceiling:
     name: Memory Ceiling (50k @ N=8 < 326 MiB)
