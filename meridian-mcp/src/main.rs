@@ -202,7 +202,8 @@ async fn run_stdio_server(rate_limit_per_min: u32) -> Result<()> {
 
     // Configure Rate Limiter
     let quota = Quota::per_minute(
-        NonZeroU32::new(rate_limit_per_min).unwrap_or(NonZeroU32::new(60).unwrap()),
+        NonZeroU32::new(rate_limit_per_min)
+            .unwrap_or_else(|| NonZeroU32::new(60).expect("60 is a non-zero integer")),
     );
     let limiter = RateLimiter::direct(quota);
 
@@ -258,7 +259,7 @@ struct AppState {
 }
 
 async fn run_sse_server(port: u16, api_key: String) -> Result<()> {
-    let quota = Quota::per_minute(NonZeroU32::new(60).unwrap());
+    let quota = Quota::per_minute(NonZeroU32::new(60).expect("60 is a non-zero integer"));
     let rate_limiter = Arc::new(RateLimiter::direct(quota));
 
     let state = AppState {
@@ -795,5 +796,28 @@ async fn handle_tool_call(params: Option<Value>) -> Result<Value> {
             Ok(json!({ "content": [{ "type": "text", "text": serde_json::to_string(&res)? }] }))
         }
         _ => Err(anyhow!("Unknown tool: {}", name)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_rate_limit_quota_creation() {
+        let quota_val = NonZeroU32::new(60).expect("60 is a non-zero integer");
+        assert_eq!(quota_val.get(), 60);
+
+        let quota = Quota::per_minute(quota_val);
+        let limiter = RateLimiter::direct(quota);
+        assert!(limiter.check().is_ok());
+    }
+
+    #[test]
+    fn test_rate_limit_fallback_zero_input() {
+        let rate_limit_per_min = 0;
+        let quota_val = NonZeroU32::new(rate_limit_per_min)
+            .unwrap_or_else(|| NonZeroU32::new(60).expect("60 is a non-zero integer"));
+        assert_eq!(quota_val.get(), 60);
     }
 }
