@@ -66,8 +66,10 @@ jobs:
           # CARGO_TARGET_DIRs (target-repro-a / -b), which this action never restores, so both
           # repro builds recompile std from source under -Zbuild-std — no cache masking (W8).
 
-      - name: Install wasm-bindgen-cli (pinned)
-        run: cargo install wasm-bindgen-cli --version 0.2.106 --locked
+      - name: Install prebuilt wasm-bindgen-cli (pinned)
+        uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen-cli@0.2.106
 
       - name: Build + verify SEQUENTIAL artifact (stable, --target web)
         run: |
@@ -106,6 +108,12 @@ jobs:
             exit 1
           fi
           echo "Threaded raw WASM sha256 verified: $ACTUAL"
+
+      - name: Upload threaded WASM pkg artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasm-pkg-threaded
+          path: engine/pkg-threaded/
 
       - name: Threaded reproducibility double-build (two non-default target dirs — no cache masking, W8)
         run: |
@@ -161,21 +169,12 @@ jobs:
 
   browser-parity:
     name: Browser Byte-Parity (COI, threaded WASM, seq/t2/t4)
+    needs: [wasm-verify]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      # Threaded pass needs pinned nightly (build-std + atomics); INV-01 keeps native/seq on stable.
-      - name: Setup pinned nightly (rust-src + wasm target)
-        uses: dtolnay/rust-toolchain@nightly
-        with:
-          toolchain: nightly-2025-06-27
-          components: rust-src
-          targets: wasm32-unknown-unknown
-
-      # D3 (0014-close round-1): the native baseline step below is a bare `cargo run` (no
-      # `+toolchain` prefix), same as wasm-verify's sequential pass — needs stable actually
-      # provisioned so rust-toolchain.toml's pin resolves, per that job's own precedent.
+      # Setup stable for native baseline build
       - name: Setup stable (reads rust-toolchain.toml for the native baseline build)
         uses: dtolnay/rust-toolchain@stable
 
@@ -184,21 +183,11 @@ jobs:
         with:
           shared-key: "rust-wasm-threaded"
 
-      - name: Install wasm-bindgen-cli (pinned)
-        run: cargo install wasm-bindgen-cli --version 0.2.106 --locked
-
-      # Build the THREADED artifact fresh and bindgen it into engine/pkg-threaded (a gitignored build
-      # output), so the browser test runs against a from-source build, not a stale committed pkg.
-      - name: Build threaded WASM + wasm-bindgen (--target web)
-        run: |
-          RUSTFLAGS="-C target-feature=+atomics,+bulk-memory,+mutable-globals \
-            -C link-arg=--max-memory=342228992 -C link-arg=-zstack-size=1048576" \
-            cargo +nightly-2025-06-27 build -p pay-equity-engine \
-              --features wasm-threads --target wasm32-unknown-unknown --release \
-              -Zbuild-std=panic_abort,std --locked
-          wasm-bindgen target/wasm32-unknown-unknown/release/pay_equity_engine.wasm \
-            --out-dir engine/pkg-threaded --target web \
-            --remove-name-section --remove-producers-section
+      - name: Download threaded WASM pkg artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: wasm-pkg-threaded
+          path: engine/pkg-threaded/
 
       # D3 (0014-close round-1) / INV-02 cross-platform leg: native decompose_inner() baseline for the
       # SAME fixture/request/seed the threaded-WASM run above uses, so parity.spec.mjs can diff native
@@ -211,6 +200,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+
+      - name: Cache Playwright Browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('verification/browser-parity/package-lock.json') }}
 
       - name: Install Playwright + Chromium
         working-directory: verification/browser-parity
