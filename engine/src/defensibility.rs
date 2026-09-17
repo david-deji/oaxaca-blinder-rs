@@ -153,6 +153,36 @@ pub fn check_defensibility_inner(req: VerificationRequest) -> Result<Optimizatio
         }
     }
 
+    // Extract group mapping and outcome wage array prior to moving `df` into `OaxacaBuilder`.
+    // Mapping Original Index -> Matrix Row
+    let group_col = df
+        .column(&req.decomposition_params.group_variable)
+        .map_err(|e| e.to_string())?;
+    let groups_iter = group_col.str().map_err(|e| e.to_string())?.into_iter();
+
+    // Orig -> (MatrixRow, IsGroupA). BTreeMap, not HashMap: the three f64 accumulations below
+    // iterate this map, so its order is the float reduction order (D14).
+    let mut map_orig_to_matrix: BTreeMap<usize, (usize, bool)> = BTreeMap::new();
+    let mut idx_a = 0;
+    let mut idx_b = 0;
+
+    for (idx, val_opt) in groups_iter.enumerate() {
+        if let Some(val) = val_opt {
+            if val == req.decomposition_params.reference_group {
+                map_orig_to_matrix.insert(idx, (idx_a, true));
+                idx_a += 1;
+            } else {
+                map_orig_to_matrix.insert(idx, (idx_b, false));
+                idx_b += 1;
+            }
+        }
+    }
+
+    let wage_series = df
+        .column(&req.decomposition_params.outcome_variable)
+        .map_err(|e| e.to_string())?;
+    let wage_array = wage_series.f64().map_err(|e| e.to_string())?.clone();
+
     // Initialize Pay Equity Problem
     let predictors: Vec<&str> = req
         .decomposition_params
@@ -167,7 +197,7 @@ pub fn check_defensibility_inner(req: VerificationRequest) -> Result<Optimizatio
         .map(|c| c.iter().map(|s| s.as_str()).collect());
 
     let mut problem_builder = OaxacaBuilder::new(
-        df.clone(),
+        df,
         &req.decomposition_params.outcome_variable,
         &req.decomposition_params.group_variable,
         &req.decomposition_params.reference_group,
@@ -251,35 +281,6 @@ pub fn check_defensibility_inner(req: VerificationRequest) -> Result<Optimizatio
 
     // Process Specific Adjustments
     let mut results = Vec::new();
-
-    // Mapping Original Index -> Matrix Row
-    let group_col = df
-        .column(&req.decomposition_params.group_variable)
-        .map_err(|e| e.to_string())?;
-    let groups_iter = group_col.str().map_err(|e| e.to_string())?.into_iter();
-
-    // Orig -> (MatrixRow, IsGroupA). BTreeMap, not HashMap: the three f64 accumulations below
-    // iterate this map, so its order is the float reduction order (D14).
-    let mut map_orig_to_matrix: BTreeMap<usize, (usize, bool)> = BTreeMap::new();
-    let mut idx_a = 0;
-    let mut idx_b = 0;
-
-    for (idx, val_opt) in groups_iter.enumerate() {
-        if let Some(val) = val_opt {
-            if val == req.decomposition_params.reference_group {
-                map_orig_to_matrix.insert(idx, (idx_a, true));
-                idx_a += 1;
-            } else {
-                map_orig_to_matrix.insert(idx, (idx_b, false));
-                idx_b += 1;
-            }
-        }
-    }
-
-    let wage_series = df
-        .column(&req.decomposition_params.outcome_variable)
-        .map_err(|e| e.to_string())?;
-    let wage_array = wage_series.f64().map_err(|e| e.to_string())?;
 
     let feature_names_ref = &feature_names;
 
