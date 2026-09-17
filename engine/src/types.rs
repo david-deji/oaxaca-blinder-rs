@@ -62,12 +62,14 @@ pub struct DecompositionResult {
     pub detailed_explained: Vec<DetailedComponent>,
     pub detailed_unexplained: Vec<DetailedComponent>,
     pub data_summary: Option<DataSummary>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub unexplained_standard_error: Option<f64>,
     /// Provenance of the underlying decomposition run (seed, RNG algorithm, rep accounting).
     pub run_metadata: RunMetadata,
     /// How many inbound `ProposedAdjustment.row_key` values did not resolve and were skipped.
     /// `Some(0)` from `verify_adjustments` when every key resolved; `None` from `decompose`,
     /// which consumes no proposed adjustments. See `crate::row_key`.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub unresolved_row_keys: Option<usize>,
 }
 
