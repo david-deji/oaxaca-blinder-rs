@@ -67,10 +67,7 @@ mod tests {
     #[test]
     fn test_oaxaca_error_display() {
         let polars_err = OaxacaError::PolarsError(PolarsError::ColumnNotFound("col".into()));
-        assert_eq!(
-            polars_err.to_string(),
-            "Polars error: not found: col"
-        );
+        assert_eq!(polars_err.to_string(), "Polars error: not found: col");
 
         let col_err = OaxacaError::ColumnNotFound("gender".to_string());
         assert_eq!(col_err.to_string(), "Column not found: gender");
@@ -103,9 +100,6 @@ mod tests {
         let polars_err = PolarsError::ColumnNotFound("missing".into());
         let oaxaca_err: OaxacaError = polars_err.into();
         assert!(matches!(oaxaca_err, OaxacaError::PolarsError(_)));
-        assert_eq!(
-            oaxaca_err.to_string(),
-            "Polars error: not found: missing"
-        );
+        assert_eq!(oaxaca_err.to_string(), "Polars error: not found: missing");
     }
 }
