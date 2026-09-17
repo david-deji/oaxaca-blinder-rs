@@ -7,12 +7,20 @@ use crate::types::OaxacaResults;
 impl OaxacaResults {
     /// Prints a formatted summary of the decomposition results to the console.
     pub fn summary(&self) {
-        println!("Oaxaca-Blinder Decomposition Results");
-        println!("========================================");
-        println!("Group A (Advantaged): {} observations", self.n_a);
-        println!("Group B (Reference):  {} observations", self.n_b);
-        println!("Total Gap: {:.4}", self.total_gap);
-        println!();
+        print!("{}", self.format_summary());
+    }
+
+    /// Formats a summary of the decomposition results into a String.
+    pub fn format_summary(&self) -> String {
+        use std::fmt::Write;
+        let mut out = String::new();
+
+        let _ = writeln!(out, "Oaxaca-Blinder Decomposition Results");
+        let _ = writeln!(out, "========================================");
+        let _ = writeln!(out, "Group A (Advantaged): {} observations", self.n_a);
+        let _ = writeln!(out, "Group B (Reference):  {} observations", self.n_b);
+        let _ = writeln!(out, "Total Gap: {:.4}", self.total_gap);
+        let _ = writeln!(out);
 
         let mut two_fold_table = Table::new();
         two_fold_table.set_header(vec![
@@ -32,8 +40,8 @@ impl OaxacaResults {
                 Cell::new(ci),
             ]);
         }
-        println!("Two-Fold Decomposition");
-        println!("{}", two_fold_table);
+        let _ = writeln!(out, "Two-Fold Decomposition");
+        let _ = writeln!(out, "{}", two_fold_table);
 
         let mut explained_table = Table::new();
         explained_table.set_header(vec![
@@ -53,8 +61,8 @@ impl OaxacaResults {
                 Cell::new(ci),
             ]);
         }
-        println!("\nDetailed Decomposition (Explained)");
-        println!("{}", explained_table);
+        let _ = writeln!(out, "\nDetailed Decomposition (Explained)");
+        let _ = writeln!(out, "{}", explained_table);
 
         let mut unexplained_table = Table::new();
         unexplained_table.set_header(vec![
@@ -74,8 +82,10 @@ impl OaxacaResults {
                 Cell::new(ci),
             ]);
         }
-        println!("\nDetailed Decomposition (Unexplained)");
-        println!("{}", unexplained_table);
+        let _ = writeln!(out, "\nDetailed Decomposition (Unexplained)");
+        let _ = writeln!(out, "{}", unexplained_table);
+
+        out
     }
 }
 
@@ -134,5 +144,93 @@ impl OaxacaResults {
     /// Exports the results to a JSON string.
     pub fn to_json(&self) -> Result<String, serde_json::Error> {
         serde_json::to_string_pretty(self)
+    }
+}
+
+#[cfg(all(test, feature = "display"))]
+mod tests {
+    use super::*;
+    use crate::rng::RunMetadata;
+    use crate::types::{ComponentResult, DecompositionDetail, TwoFoldResults};
+    use nalgebra::DVector;
+
+    fn mock_results() -> OaxacaResults {
+        let comp = |name: &str, est: f64, se: f64, p: f64| ComponentResult {
+            name: name.to_string(),
+            estimate: est,
+            std_err: se,
+            t_stat: if se.abs() > 1e-9 { est / se } else { 0.0 },
+            p_value: p,
+            ci_lower: est - 1.96 * se,
+            ci_upper: est + 1.96 * se,
+        };
+
+        OaxacaResults {
+            total_gap: 0.5,
+            two_fold: TwoFoldResults {
+                aggregate: vec![
+                    comp("explained", 0.3, 0.05, 0.001),
+                    comp("unexplained", 0.2, 0.04, 0.01),
+                ],
+                detailed_explained: vec![
+                    comp("education", 0.2, 0.03, 0.005),
+                    comp("experience", 0.1, 0.02, 0.02),
+                ],
+                detailed_unexplained: vec![
+                    comp("education", 0.05, 0.01, 0.05),
+                    comp("intercept", 0.15, 0.03, 0.01),
+                ],
+                detailed_selection: vec![],
+            },
+            three_fold: DecompositionDetail {
+                aggregate: vec![],
+                detailed: vec![],
+            },
+            n_a: 100,
+            n_b: 150,
+            residuals: vec![],
+            xa_mean: DVector::zeros(0),
+            xb_mean: DVector::zeros(0),
+            beta_star: DVector::zeros(0),
+            run_metadata: RunMetadata::new(42, 100, 100, 0),
+        }
+    }
+
+    #[test]
+    fn test_format_summary_output() {
+        let results = mock_results();
+        let summary = results.format_summary();
+
+        // Check headers & observation counts
+        assert!(summary.contains("Oaxaca-Blinder Decomposition Results"));
+        assert!(summary.contains("========================================"));
+        assert!(summary.contains("Group A (Advantaged): 100 observations"));
+        assert!(summary.contains("Group B (Reference):  150 observations"));
+        assert!(summary.contains("Total Gap: 0.5000"));
+
+        // Check section titles
+        assert!(summary.contains("Two-Fold Decomposition"));
+        assert!(summary.contains("Detailed Decomposition (Explained)"));
+        assert!(summary.contains("Detailed Decomposition (Unexplained)"));
+
+        // Check component values and formatting
+        assert!(summary.contains("explained"));
+        assert!(summary.contains("0.3000"));
+        assert!(summary.contains("0.0500"));
+        assert!(summary.contains("0.0010"));
+        assert!(summary.contains("[0.202, 0.398]"));
+
+        assert!(summary.contains("unexplained"));
+        assert!(summary.contains("0.2000"));
+
+        assert!(summary.contains("education"));
+        assert!(summary.contains("experience"));
+        assert!(summary.contains("intercept"));
+    }
+
+    #[test]
+    fn test_summary_executes_without_panic() {
+        let results = mock_results();
+        results.summary();
     }
 }
