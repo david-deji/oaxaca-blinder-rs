@@ -73,7 +73,7 @@ pub fn check_defensibility_inner(req: VerificationRequest) -> Result<Optimizatio
     // Row ordinal -> slot in `merged`. BTreeMap, not HashMap (D14).
     let mut slot_by_row: BTreeMap<usize, usize> = BTreeMap::new();
 
-    for adj in &req.adjustments {
+    for adj in req.adjustments {
         let Some(row_idx) = row_keys.resolve(adj.index, adj.row_key.as_deref()) else {
             unresolved_row_keys += 1;
             continue;
@@ -93,13 +93,13 @@ pub fn check_defensibility_inner(req: VerificationRequest) -> Result<Optimizatio
         };
         let entry = &mut merged[slot];
         entry.value += adj.value;
-        if let Some(ovr) = &adj.predictor_overrides {
+        if let Some(ovr) = adj.predictor_overrides {
             // `ovr` is the inbound `HashMap`, so this iterates in hash order — harmless, because
             // a key appears at most once in a single map and the destination is keyed by name.
             // Cross-adjustment precedence is fixed by the request-order loop above, not by this.
             for (k, v) in ovr {
                 if let Ok(val) = v.parse::<f64>() {
-                    entry.predictor_overrides.insert(k.clone(), val);
+                    entry.predictor_overrides.insert(k, val);
                 }
             }
         }
