@@ -3,7 +3,45 @@ use oaxaca_blinder::{OaxacaBuilder, ReferenceCoefficients};
 use polars::prelude::*;
 
 use std::error::Error;
-use std::path::PathBuf;
+use std::path::{Component, Path, PathBuf};
+
+/// Validates an output path to prevent directory traversal, writing to symlinks,
+/// or overwriting critical system files.
+fn validate_output_path(path: &Path) -> Result<(), Box<dyn Error>> {
+    if path.components().any(|c| matches!(c, Component::ParentDir)) {
+        return Err("Invalid output path: directory traversal ('..') is prohibited".into());
+    }
+
+    if let Ok(metadata) = std::fs::symlink_metadata(path) {
+        if metadata.file_type().is_symlink() {
+            return Err("Invalid output path: target is a symbolic link".into());
+        }
+    }
+
+    let forbidden_prefixes = [
+        "/etc", "/sys", "/proc", "/dev", "/boot", "/bin", "/sbin", "/usr", "/var/lib", "/root",
+        "C:\\Windows", "C:\\Program Files", "C:\\System32",
+    ];
+    let path_str = path.to_string_lossy();
+    for prefix in forbidden_prefixes {
+        if path_str.starts_with(prefix) {
+            return Err(format!("Invalid output path: writing to system directory '{}' is prohibited", prefix).into());
+        }
+    }
+
+    if path.is_dir() {
+        return Err("Invalid output path: target path is a directory".into());
+    }
+
+    Ok(())
+}
+
+/// Safely writes content to a path after validating the output path against security risks.
+fn safe_write(path: &Path, contents: impl AsRef<[u8]>) -> Result<(), Box<dyn Error>> {
+    validate_output_path(path)?;
+    std::fs::write(path, contents)?;
+    Ok(())
+}
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -221,12 +259,12 @@ fn run_mean_analysis(args: &RunArgs, df: DataFrame) -> Result<(), Box<dyn std::e
         let json = results
             .to_json()
             .map_err(|e| format!("Failed to serialize to JSON: {}", e))?;
-        std::fs::write(path, json)?;
+        safe_write(path, json)?;
     }
 
     if let Some(path) = &args.output_markdown {
         let md = results.to_markdown();
-        std::fs::write(path, md)?;
+        safe_write(path, md)?;
     }
     Ok(())
 }
@@ -293,7 +331,7 @@ fn run_quantile_analysis(args: &RunArgs, df: DataFrame) -> Result<(), Box<dyn Er
             let json = results
                 .to_json()
                 .map_err(|e| format!("Failed to serialize to JSON: {}", e))?;
-            std::fs::write(&out_path, json)?;
+            safe_write(&out_path, json)?;
         }
     }
     Ok(())
@@ -348,7 +386,7 @@ fn run_matching_analysis(args: &RunArgs, df: DataFrame) -> Result<(), Box<dyn Er
 
     if let Some(path) = &args.output_json {
         let json = serde_json::to_string(&weights)?;
-        std::fs::write(path, json)?;
+        safe_write(path, json)?;
     } else {
         println!("Matching completed. Generated {} weights.", weights.len());
         println!(
@@ -403,7 +441,7 @@ fn run_report(args: ReportArgs) -> Result<(), Box<dyn Error>> {
     };
 
     let html = template.render()?;
-    std::fs::write(&args.output, html)?;
+    safe_write(&args.output, html)?;
     println!(
         "Report successfully generated at: {}",
         args.output.display()
@@ -423,5 +461,63 @@ fn main() {
         let mut cmd = Cli::command();
         let _ = cmd.print_help();
         std::process::exit(1);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_validate_output_path_valid() {
+        let path = Path::new("test_output.json");
+        assert!(validate_output_path(path).is_ok());
+
+        let temp_path = std::env::temp_dir().join("test_temp_output.json");
+        assert!(validate_output_path(&temp_path).is_ok());
+    }
+
+    #[test]
+    fn test_validate_output_path_parent_dir_traversal() {
+        let path = Path::new("../test_output.json");
+        assert!(validate_output_path(path).is_err());
+
+        let path2 = Path::new("subdir/../../test_output.json");
+        assert!(validate_output_path(path2).is_err());
+    }
+
+    #[test]
+    fn test_validate_output_path_system_dir() {
+        let path = Path::new("/etc/passwd");
+        assert!(validate_output_path(path).is_err());
+
+        let path_win = Path::new("C:\\Windows\\system.ini");
+        assert!(validate_output_path(path_win).is_err());
+    }
+
+    #[test]
+    fn test_validate_output_path_directory() {
+        let dir = std::env::temp_dir();
+        assert!(validate_output_path(&dir).is_err());
+    }
+
+    #[test]
+    fn test_validate_output_path_symlink() {
+        let temp_dir = std::env::temp_dir();
+        let target_file = temp_dir.join("real_file.txt");
+        let symlink_file = temp_dir.join("symlink_file.txt");
+
+        let _ = std::fs::write(&target_file, "content");
+        let _ = std::fs::remove_file(&symlink_file);
+
+        #[cfg(unix)]
+        {
+            if std::os::unix::fs::symlink(&target_file, &symlink_file).is_ok() {
+                assert!(validate_output_path(&symlink_file).is_err());
+                let _ = std::fs::remove_file(&symlink_file);
+            }
+        }
+
+        let _ = std::fs::remove_file(&target_file);
     }
 }
