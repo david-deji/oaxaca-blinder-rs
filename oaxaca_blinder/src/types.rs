@@ -249,6 +249,9 @@ mod tests {
             assert_eq!(table.len(), n_vars);
         }
         let elapsed = start.elapsed();
-        println!("get_detailed_table {iterations} iterations time: {:?}", elapsed);
+        println!(
+            "get_detailed_table {iterations} iterations time: {:?}",
+            elapsed
+        );
     }
 }
