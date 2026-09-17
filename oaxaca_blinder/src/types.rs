@@ -74,14 +74,20 @@ impl OaxacaResults {
     }
 
     pub fn get_detailed_table(&self) -> Vec<(String, f64, f64)> {
-        let mut map = std::collections::HashMap::new();
+        let n_explained = self.two_fold.detailed_explained().len();
+        let n_unexplained = self.two_fold.detailed_unexplained().len();
+        let cap = n_explained.max(n_unexplained);
+
+        let mut map = std::collections::HashMap::<&str, (f64, f64)>::with_capacity(cap);
         for comp in self.two_fold.detailed_explained() {
-            map.entry(comp.name().clone()).or_insert((0.0, 0.0)).0 = *comp.estimate();
+            map.entry(comp.name().as_str()).or_insert((0.0, 0.0)).0 = *comp.estimate();
         }
         for comp in self.two_fold.detailed_unexplained() {
-            map.entry(comp.name().clone()).or_insert((0.0, 0.0)).1 = *comp.estimate();
+            map.entry(comp.name().as_str()).or_insert((0.0, 0.0)).1 = *comp.estimate();
         }
-        map.into_iter().map(|(k, (v1, v2))| (k, v1, v2)).collect()
+        let mut table = Vec::with_capacity(map.len());
+        table.extend(map.into_iter().map(|(k, (v1, v2))| (k.to_string(), v1, v2)));
+        table
     }
 
     /// Optimizes the allocation of a remediation budget to reduce the pay gap.
@@ -181,4 +187,68 @@ pub struct ComponentResult {
     pub p_value: f64,
     pub ci_lower: f64,
     pub ci_upper: f64,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bench_get_detailed_table_performance() {
+        let n_vars = 1000;
+        let mut explained = Vec::with_capacity(n_vars);
+        let mut unexplained = Vec::with_capacity(n_vars);
+
+        for i in 0..n_vars {
+            let name = format!("variable_name_long_enough_to_allocate_{i}");
+            explained.push(ComponentResult {
+                name: name.clone(),
+                estimate: i as f64 * 1.5,
+                std_err: 0.1,
+                t_stat: 1.0,
+                p_value: 0.05,
+                ci_lower: 0.0,
+                ci_upper: 2.0,
+            });
+            unexplained.push(ComponentResult {
+                name: name.clone(),
+                estimate: i as f64 * 2.5,
+                std_err: 0.1,
+                t_stat: 1.0,
+                p_value: 0.05,
+                ci_lower: 0.0,
+                ci_upper: 2.0,
+            });
+        }
+
+        let results = OaxacaResults {
+            total_gap: 0.0,
+            two_fold: TwoFoldResults {
+                aggregate: vec![],
+                detailed_explained: explained,
+                detailed_unexplained: unexplained,
+                detailed_selection: vec![],
+            },
+            three_fold: DecompositionDetail {
+                aggregate: vec![],
+                detailed: vec![],
+            },
+            n_a: 100,
+            n_b: 100,
+            residuals: vec![],
+            xa_mean: DVector::zeros(0),
+            xb_mean: DVector::zeros(0),
+            beta_star: DVector::zeros(0),
+            run_metadata: crate::rng::RunMetadata::new(0, 0, 0, 0),
+        };
+
+        let start = std::time::Instant::now();
+        let iterations = 500;
+        for _ in 0..iterations {
+            let table = results.get_detailed_table();
+            assert_eq!(table.len(), n_vars);
+        }
+        let elapsed = start.elapsed();
+        println!("get_detailed_table {iterations} iterations time: {:?}", elapsed);
+    }
 }
