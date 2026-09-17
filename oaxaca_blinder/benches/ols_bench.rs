@@ -10,7 +10,11 @@ fn bench_ols_weighted(c: &mut Criterion) {
     let mut x_data = Vec::with_capacity(n * k);
     for j in 0..k {
         for i in 0..n {
-            x_data.push(if j == 0 { 1.0 } else { ((i + j) % 100) as f64 * 0.1 });
+            x_data.push(if j == 0 {
+                1.0
+            } else {
+                ((i + j) % 100) as f64 * 0.1
+            });
         }
     }
     let x = DMatrix::from_vec(n, k, x_data);
@@ -23,12 +27,8 @@ fn bench_ols_weighted(c: &mut Criterion) {
 
     c.bench_function("ols_weighted_100k_x_20", |b| {
         b.iter(|| {
-            black_box(ols(
-                black_box(&y),
-                black_box(&x),
-                Some(black_box(&weights)),
-            ))
-            .expect("ols failed")
+            black_box(ols(black_box(&y), black_box(&x), Some(black_box(&weights))))
+                .expect("ols failed")
         });
     });
 }

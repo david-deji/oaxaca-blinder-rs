@@ -184,7 +184,8 @@ mod tests {
         let y = DVector::from_vec(vec![1.0, 3.0, 5.0, 7.0, 9.0]);
         let weights = DVector::from_vec(vec![1.0, 2.0, 1.5, 0.5, 2.0]);
 
-        let result = ols(&y, &x, Some(&weights)).expect("Weighted OLS calculation failed on valid data");
+        let result =
+            ols(&y, &x, Some(&weights)).expect("Weighted OLS calculation failed on valid data");
         let coeffs = result.coefficients;
 
         assert_eq!(coeffs.len(), 2);
