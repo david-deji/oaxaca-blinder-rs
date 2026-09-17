@@ -429,6 +429,21 @@ fn run_report(args: ReportArgs) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+fn main() {
+    let cli = Cli::parse();
+    let result = match cli.command {
+        Some(Commands::Run(args)) => run_analysis(*args),
+        Some(Commands::Report(args)) => run_report(args),
+        None => run_analysis(cli.run_args),
+    };
+    if let Err(e) = result {
+        eprintln!("Error: {}", e);
+        let mut cmd = Cli::command();
+        let _ = cmd.print_help();
+        std::process::exit(1);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -446,20 +461,5 @@ mod tests {
         assert!(validate_output_path(Path::new("../output.json")).is_err());
         assert!(validate_output_path(Path::new("reports/../output.html")).is_err());
         assert!(validate_output_path(Path::new("foo/bar/../../secret.txt")).is_err());
-    }
-}
-
-fn main() {
-    let cli = Cli::parse();
-    let result = match cli.command {
-        Some(Commands::Run(args)) => run_analysis(*args),
-        Some(Commands::Report(args)) => run_report(args),
-        None => run_analysis(cli.run_args),
-    };
-    if let Err(e) = result {
-        eprintln!("Error: {}", e);
-        let mut cmd = Cli::command();
-        let _ = cmd.print_help();
-        std::process::exit(1);
     }
 }
