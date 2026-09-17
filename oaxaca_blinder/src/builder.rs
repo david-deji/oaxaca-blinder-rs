@@ -1371,23 +1371,37 @@ impl OaxacaBuilder {
     where
         F: Fn(&'a RepEstimates) -> &'a Vec<DetailedComponent> + Sync,
     {
-        let mut bootstrap_map: HashMap<String, Vec<f64>> = HashMap::new();
+        let mut estimates_map: HashMap<String, Vec<f64>> = point_components
+            .iter()
+            .map(|comp| {
+                (
+                    comp.variable_name.clone(),
+                    Vec::with_capacity(bootstrap_results.len()),
+                )
+            })
+            .collect();
+
         for r in bootstrap_results.iter() {
-            for comp in extract_fn(r) {
-                bootstrap_map
-                    .entry(comp.variable_name.clone())
-                    .or_default()
-                    .push(comp.contribution);
+            let rep_components: HashMap<&str, f64> = extract_fn(r)
+                .iter()
+                .map(|comp| (comp.variable_name.as_str(), comp.contribution))
+                .collect();
+
+            for (var_name, vec) in estimates_map.iter_mut() {
+                let contribution = rep_components
+                    .get(var_name.as_str())
+                    .copied()
+                    .unwrap_or(0.0);
+                vec.push(contribution);
             }
         }
 
         point_components
             .iter()
             .map(|comp| {
-                let estimates = bootstrap_map
-                    .get(&comp.variable_name)
-                    .cloned()
-                    .unwrap_or_else(Vec::new);
+                let estimates = estimates_map
+                    .remove(&comp.variable_name)
+                    .unwrap_or_default();
                 process_component(&comp.variable_name, comp.contribution, estimates)
             })
             .collect()
@@ -1443,6 +1457,97 @@ mod tests {
             "the RIF column is identical with and without weights_col — the weights are being \
              dropped inside rif_replace_outcome again (bare={bare:?}, weighted={weighted:?})"
         );
+    }
+
+    #[test]
+    fn test_process_detailed_components_missing_category() {
+        let df = df![
+            "wage" => [10.0f64],
+            "group" => ["A"]
+        ]
+        .unwrap();
+        let builder = OaxacaBuilder::new(df, "wage", "group", "A");
+
+        let point_components = vec![
+            DetailedComponent {
+                variable_name: "sector_A".to_string(),
+                contribution: 1.5,
+            },
+            DetailedComponent {
+                variable_name: "sector_B".to_string(),
+                contribution: 0.5,
+            },
+        ];
+
+        // 50 reps so MIN_PERCENTILE_CI_REPS (41) is satisfied
+        let mut bootstrap_results = Vec::new();
+        for i in 0..50 {
+            let mut detailed = vec![DetailedComponent {
+                variable_name: "sector_A".to_string(),
+                contribution: 1.0 + (i as f64) * 0.01,
+            }];
+            // sector_B is only present in even-numbered reps
+            if i % 2 == 0 {
+                detailed.push(DetailedComponent {
+                    variable_name: "sector_B".to_string(),
+                    contribution: 0.4 + (i as f64) * 0.01,
+                });
+            }
+
+            let pass = SinglePassResult {
+                three_fold: ThreeFoldDecomposition {
+                    endowments: 0.0,
+                    coefficients: 0.0,
+                    interaction: 0.0,
+                },
+                two_fold: TwoFoldDecomposition {
+                    explained: 0.0,
+                    unexplained: 0.0,
+                },
+                detailed_explained: detailed,
+                detailed_unexplained: Vec::new(),
+                total_gap: 0.0,
+                residuals_a: DVector::from_vec(vec![]),
+                residuals_b: DVector::from_vec(vec![]),
+                xa_mean: DVector::from_vec(vec![]),
+                xb_mean: DVector::from_vec(vec![]),
+                beta_star: DVector::from_vec(vec![]),
+                detailed_selection: Vec::new(),
+            };
+            bootstrap_results.push(RepEstimates::from_pass(&pass));
+        }
+
+        let process_component = |name: &str, point: f64, estimates: Vec<f64>| {
+            assert_eq!(
+                estimates.len(),
+                50,
+                "estimates vector must contain 50 reps for variable {}",
+                name
+            );
+            let (std_err, p_value, (ci_lower, ci_upper)) = bootstrap_stats(&estimates, point);
+            ComponentResult {
+                name: name.to_string(),
+                estimate: point,
+                std_err,
+                t_stat: point / std_err,
+                p_value,
+                ci_lower,
+                ci_upper,
+            }
+        };
+
+        let results = builder.process_detailed_components(
+            &point_components,
+            &bootstrap_results,
+            |r| &r.detailed_explained,
+            &process_component,
+        );
+
+        assert_eq!(results.len(), 2);
+        let sector_b = results.iter().find(|c| c.name == "sector_B").unwrap();
+        assert!(sector_b.ci_lower.is_finite());
+        assert!(sector_b.ci_upper.is_finite());
+        assert!(sector_b.std_err.is_finite());
     }
 
     #[test]
