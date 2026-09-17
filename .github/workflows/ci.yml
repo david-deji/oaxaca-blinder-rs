@@ -142,6 +142,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
       - name: Run cargo-audit
         uses: rustsec/audit-check@v1.4.1
         with:
