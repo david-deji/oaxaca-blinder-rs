@@ -102,9 +102,9 @@ fn test_path_traversal_rejection() {
         .arg("--output-json")
         .arg("../malicious.json");
 
-    cmd.assert()
-        .failure()
-        .stderr(predicate::str::contains("contains parent directory traversal"));
+    cmd.assert().failure().stderr(predicate::str::contains(
+        "contains parent directory traversal",
+    ));
 }
 
 #[test]
