@@ -63,5 +63,8 @@ fn benchmark_check_defensibility_large_dataset() {
     }
     let elapsed = start.elapsed();
     let avg_ms = elapsed.as_secs_f64() * 1000.0 / (iterations as f64);
-    println!("PERF_BENCHMARK: check_defensibility_inner (10,000 rows): avg {:.3} ms across {} runs", avg_ms, iterations);
+    println!(
+        "PERF_BENCHMARK: check_defensibility_inner (10,000 rows): avg {:.3} ms across {} runs",
+        avg_ms, iterations
+    );
 }
