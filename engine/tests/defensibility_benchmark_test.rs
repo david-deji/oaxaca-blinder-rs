@@ -68,6 +68,10 @@ fn bench_defensibility_large_dataset() {
         durations.push(duration);
     }
 
-    let avg_millis = durations.iter().map(|d| d.as_secs_f64() * 1000.0).sum::<f64>() / durations.len() as f64;
+    let avg_millis = durations
+        .iter()
+        .map(|d| d.as_secs_f64() * 1000.0)
+        .sum::<f64>()
+        / durations.len() as f64;
     println!("PERF_METRIC: check_defensibility_inner (50k rows, 5k adjustments) average execution time: {:.2} ms", avg_millis);
 }
