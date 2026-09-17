@@ -4,4 +4,8 @@ ignore = [
     "RUSTSEC-2025-0020", # pyo3: Buffer overflow. Upstream in Polars 0.44.
     "RUSTSEC-2024-0379", # fast-float: Multiple soundness issues.
     "RUSTSEC-2024-0436", # paste: Unmaintained warning.
+    "RUSTSEC-2026-0177", # pyo3: Missing Sync bound on PyCFunction::new_closure.
+    "RUSTSEC-2026-0194", # quick-xml: Quadratic run time when checking duplicate attribute names.
+    "RUSTSEC-2026-0195", # quick-xml: Unbounded namespace-declaration allocation in NsReader.
+    "RUSTSEC-2026-0186", # memmap2: Unchecked pointer offset.
 ]
