@@ -15,6 +15,15 @@ fn test_export_methods() -> Result<(), Box<dyn std::error::Error>> {
         .bootstrap_reps(10) // Low reps for speed
         .run()?;
 
+    // Test summary formatting
+    let summary = results.format_summary();
+    assert!(summary.contains("Oaxaca-Blinder Decomposition Results"));
+    assert!(summary.contains("Group A (Advantaged): 5 observations"));
+    assert!(summary.contains("Group B (Reference):  5 observations"));
+    assert!(summary.contains("Two-Fold Decomposition"));
+    assert!(summary.contains("Detailed Decomposition (Explained)"));
+    assert!(summary.contains("Detailed Decomposition (Unexplained)"));
+
     // Test LaTeX
     let latex = results.to_latex();
     assert!(latex.contains("\\begin{table}"));
