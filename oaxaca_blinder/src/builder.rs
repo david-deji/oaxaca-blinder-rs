@@ -1373,7 +1373,12 @@ impl OaxacaBuilder {
     {
         let mut estimates_map: HashMap<String, Vec<f64>> = point_components
             .iter()
-            .map(|comp| (comp.variable_name.clone(), Vec::with_capacity(bootstrap_results.len())))
+            .map(|comp| {
+                (
+                    comp.variable_name.clone(),
+                    Vec::with_capacity(bootstrap_results.len()),
+                )
+            })
             .collect();
 
         for r in bootstrap_results.iter() {
@@ -1383,7 +1388,10 @@ impl OaxacaBuilder {
                 .collect();
 
             for (var_name, vec) in estimates_map.iter_mut() {
-                let contribution = rep_components.get(var_name.as_str()).copied().unwrap_or(0.0);
+                let contribution = rep_components
+                    .get(var_name.as_str())
+                    .copied()
+                    .unwrap_or(0.0);
                 vec.push(contribution);
             }
         }
@@ -1487,8 +1495,15 @@ mod tests {
             }
 
             let pass = SinglePassResult {
-                three_fold: ThreeFoldDecomposition { endowments: 0.0, coefficients: 0.0, interaction: 0.0 },
-                two_fold: TwoFoldDecomposition { explained: 0.0, unexplained: 0.0 },
+                three_fold: ThreeFoldDecomposition {
+                    endowments: 0.0,
+                    coefficients: 0.0,
+                    interaction: 0.0,
+                },
+                two_fold: TwoFoldDecomposition {
+                    explained: 0.0,
+                    unexplained: 0.0,
+                },
                 detailed_explained: detailed,
                 detailed_unexplained: Vec::new(),
                 total_gap: 0.0,
@@ -1503,7 +1518,12 @@ mod tests {
         }
 
         let process_component = |name: &str, point: f64, estimates: Vec<f64>| {
-            assert_eq!(estimates.len(), 50, "estimates vector must contain 50 reps for variable {}", name);
+            assert_eq!(
+                estimates.len(),
+                50,
+                "estimates vector must contain 50 reps for variable {}",
+                name
+            );
             let (std_err, p_value, (ci_lower, ci_upper)) = bootstrap_stats(&estimates, point);
             ComponentResult {
                 name: name.to_string(),
