@@ -72,3 +72,7 @@ version = "0.5"
 [[bench]]
 name = "distance_bench"
 harness = false
+
+[[bench]]
+name = "logistic_bench"
+harness = false
