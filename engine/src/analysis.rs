@@ -529,12 +529,13 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
     // Strategy for Intercept:
     // If the matrices don't have an intercept (column of 1s), we add it.
     let (x_a, x_b) = if cols_a > predictors_count {
-        (raw_x_a.clone(), raw_x_b.clone())
+        (raw_x_a, raw_x_b)
     } else {
         feature_names.push("Base Rate (Intercept)".to_string());
+        let cols_b = raw_x_b.ncols();
         (
-            raw_x_a.clone().insert_column(cols_a, 1.0),
-            raw_x_b.clone().insert_column(raw_x_b.ncols(), 1.0),
+            raw_x_a.insert_column(cols_a, 1.0),
+            raw_x_b.insert_column(cols_b, 1.0),
         )
     };
 
