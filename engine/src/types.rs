@@ -35,9 +35,13 @@ pub struct DecompositionRequest {
 pub struct DetailedComponent {
     pub name: String,
     pub estimate: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub std_err: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub p_value: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub ci_lower: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub ci_upper: Option<f64>,
 }
 
@@ -55,19 +59,24 @@ pub struct DecompositionResult {
     pub total_gap: f64,
     pub explained_gap: f64,
     pub unexplained_gap: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub interaction_gap: Option<f64>, // For 3-fold
     pub explained_percentage: f64,
     pub unexplained_percentage: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub interaction_percentage: Option<f64>,
     pub detailed_explained: Vec<DetailedComponent>,
     pub detailed_unexplained: Vec<DetailedComponent>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub data_summary: Option<DataSummary>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub unexplained_standard_error: Option<f64>,
     /// Provenance of the underlying decomposition run (seed, RNG algorithm, rep accounting).
     pub run_metadata: RunMetadata,
     /// How many inbound `ProposedAdjustment.row_key` values did not resolve and were skipped.
     /// `Some(0)` from `verify_adjustments` when every key resolved; `None` from `decompose`,
     /// which consumes no proposed adjustments. See `crate::row_key`.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub unresolved_row_keys: Option<usize>,
 }
 
