@@ -373,7 +373,10 @@ struct ReportTemplate {
     unexplained: Vec<ComponentResult>,
 }
 
-fn safe_write_file(path: &std::path::Path, content: impl AsRef<[u8]>) -> Result<(), Box<dyn Error>> {
+fn safe_write_file(
+    path: &std::path::Path,
+    content: impl AsRef<[u8]>,
+) -> Result<(), Box<dyn Error>> {
     for component in path.components() {
         if component == std::path::Component::ParentDir {
             return Err(format!(
@@ -406,7 +409,9 @@ fn safe_write_file(path: &std::path::Path, content: impl AsRef<[u8]>) -> Result<
 
     let canonical_ancestor = ancestor.canonicalize()?;
 
-    if !canonical_ancestor.starts_with(&canonical_cwd) && !canonical_ancestor.starts_with(&canonical_temp) {
+    if !canonical_ancestor.starts_with(&canonical_cwd)
+        && !canonical_ancestor.starts_with(&canonical_temp)
+    {
         return Err(format!(
             "Security error: Output path '{}' is outside allowed directories",
             path.display()
