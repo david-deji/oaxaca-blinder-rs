@@ -61,7 +61,7 @@ pub fn decompose(val: JsValue) -> Result<JsValue, JsValue> {
     // seed 0x5EED_0A11_CA8A_0002 ≈ 6.84e18 always exceeds it). String is the correct lossless
     // provenance encoding across the JS boundary; counts stay plain JS Numbers. 0014-MERIDIAN
     // stage-4 browser-parity finding (latent: the native serde_json path handled u64 fine).
-    Ok(serde_wasm_bindgen::to_value(&res)?)
+    serde_wasm_bindgen::to_value(&res).map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
 #[cfg(feature = "wasm")]
@@ -69,7 +69,7 @@ pub fn decompose(val: JsValue) -> Result<JsValue, JsValue> {
 pub fn optimize(val: JsValue) -> Result<JsValue, JsValue> {
     let req: OptimizationRequest = serde_wasm_bindgen::from_value(val)?;
     let res = optimize_inner(req).map_err(|e| JsValue::from_str(&e))?;
-    Ok(serde_wasm_bindgen::to_value(&res)?)
+    serde_wasm_bindgen::to_value(&res).map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
 #[cfg(feature = "wasm")]
@@ -77,7 +77,7 @@ pub fn optimize(val: JsValue) -> Result<JsValue, JsValue> {
 pub fn verify_adjustments(val: JsValue) -> Result<JsValue, JsValue> {
     let req: VerificationRequest = serde_wasm_bindgen::from_value(val)?;
     let res = crate::analysis::verify_inner(req).map_err(|e| JsValue::from_str(&e))?;
-    Ok(serde_wasm_bindgen::to_value(&res)?)
+    serde_wasm_bindgen::to_value(&res).map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
 #[cfg(feature = "wasm")]
@@ -86,7 +86,7 @@ pub fn calculate_efficient_frontier(val: JsValue) -> Result<JsValue, JsValue> {
     let req: EfficientFrontierRequest = serde_wasm_bindgen::from_value(val)?;
     let res = crate::analysis::calculate_efficient_frontier_inner(req)
         .map_err(|e| JsValue::from_str(e.as_str()))?;
-    Ok(serde_wasm_bindgen::to_value(&res)?)
+    serde_wasm_bindgen::to_value(&res).map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
 #[cfg(feature = "wasm")]
@@ -95,7 +95,7 @@ pub fn check_defensibility(val: JsValue) -> Result<JsValue, JsValue> {
     let req: VerificationRequest = serde_wasm_bindgen::from_value(val)?;
     let res = crate::defensibility::check_defensibility_inner(req)
         .map_err(|e| JsValue::from_str(e.as_str()))?;
-    Ok(serde_wasm_bindgen::to_value(&res)?)
+    serde_wasm_bindgen::to_value(&res).map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
 // --- Threaded WASM: rayon thread-pool initializer (0014-MERIDIAN, engine-parallel-surface D2) ---
@@ -132,7 +132,7 @@ mod tests {
     wasm_bindgen_test_configure!(run_in_browser);
 
     #[wasm_bindgen_test]
-    fn test_calculate_efficient_frontier_valid_structure() {
+    fn test_calculate_efficient_frontier_valid_structure() -> Result<(), JsValue> {
         let csv_data = b"wage,gender,education\n50000,Male,12\n40000,Female,12\n60000,Male,14\n45000,Female,14\n70000,Male,16\n55000,Female,16\n50000,Male,12\n40000,Female,12\n60000,Male,14\n45000,Female,14\n70000,Male,16\n55000,Female,16\n50000,Male,12\n40000,Female,12\n60000,Male,14\n45000,Female,14\n70000,Male,16\n55000,Female,16\n50000,Male,12\n40000,Female,12\n60000,Male,14\n45000,Female,14\n70000,Male,16\n55000,Female,16".to_vec();
         let req = EfficientFrontierRequest {
             decomposition_params: DecompositionRequest {
@@ -151,13 +151,15 @@ mod tests {
             max_budget: Some(10000.0),
         };
 
-        let js_val = serde_wasm_bindgen::to_value(&req).unwrap();
+        let js_val =
+            serde_wasm_bindgen::to_value(&req).map_err(|e| JsValue::from_str(&e.to_string()))?;
 
         let result = calculate_efficient_frontier(js_val);
 
         match result {
             Ok(val) => {
                 assert!(val.is_object());
+                Ok(())
             }
             Err(e) => panic!("Expected Ok, got Err: {:?}", e),
         }
