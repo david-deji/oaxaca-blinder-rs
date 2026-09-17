@@ -66,7 +66,8 @@ mod tests {
 
     #[test]
     fn test_parse_simple() {
-        let f = Formula::parse("wage ~ education + experience").unwrap();
+        let f = Formula::parse("wage ~ education + experience")
+            .expect("Failed to parse simple formula");
         assert_eq!(f.outcome, "wage");
         assert_eq!(f.predictors, vec!["education", "experience"]);
         assert!(f.categorical_predictors.is_empty());
@@ -74,7 +75,8 @@ mod tests {
 
     #[test]
     fn test_parse_categorical() {
-        let f = Formula::parse("wage ~ education + C(sector) + factor(gender)").unwrap();
+        let f = Formula::parse("wage ~ education + C(sector) + factor(gender)")
+            .expect("Failed to parse categorical formula");
         assert_eq!(f.outcome, "wage");
         assert_eq!(f.predictors, vec!["education"]);
         assert_eq!(f.categorical_predictors, vec!["sector", "gender"]);
@@ -82,7 +84,8 @@ mod tests {
 
     #[test]
     fn test_parse_whitespace() {
-        let f = Formula::parse("  wage   ~   education  +  experience  ").unwrap();
+        let f = Formula::parse("  wage   ~   education  +  experience  ")
+            .expect("Failed to parse formula with extra whitespace");
         assert_eq!(f.outcome, "wage");
         assert_eq!(f.predictors, vec!["education", "experience"]);
     }
