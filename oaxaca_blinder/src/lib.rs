@@ -68,7 +68,7 @@ mod display;
 mod error;
 mod estimation;
 mod inference;
-mod math;
+pub mod math;
 mod rng;
 mod types;
 

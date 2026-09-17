@@ -65,22 +65,39 @@ pub fn ols(
             }
         }
 
-        let w_sqrt = w.map(|v| v.sqrt());
+        let n_rows = x.nrows();
+        let k_cols = x.ncols();
 
-        // Scale X by sqrt(weights) row-wise
-        let mut x_w = x.clone();
-        for j in 0..x.ncols() {
-            let mut col = x_w.column_mut(j);
-            col.component_mul_assign(&w_sqrt);
+        let w_slice = w.as_slice();
+        let y_slice = y.as_slice();
+
+        let x_slice = x.as_slice();
+        let mut xtx = DMatrix::zeros(k_cols, k_cols);
+        let mut xty = DVector::zeros(k_cols);
+
+        for j in 0..k_cols {
+            let col_j = &x_slice[j * n_rows..(j + 1) * n_rows];
+
+            // Compute xty[j] = sum_i col_j[i] * w[i] * y[i]
+            let mut sum_y = 0.0;
+            for i in 0..n_rows {
+                sum_y += col_j[i] * w_slice[i] * y_slice[i];
+            }
+            xty[j] = sum_y;
+
+            // Compute xtx[(j, m)] = sum_i col_j[i] * col_m[i] * w[i] for m >= j
+            for m in j..k_cols {
+                let col_m = &x_slice[m * n_rows..(m + 1) * n_rows];
+                let mut sum_x = 0.0;
+                for i in 0..n_rows {
+                    sum_x += col_j[i] * col_m[i] * w_slice[i];
+                }
+                xtx[(j, m)] = sum_x;
+                xtx[(m, j)] = sum_x;
+            }
         }
 
-        // Scale y by sqrt(weights)
-        let y_w = y.component_mul(&w_sqrt);
-
-        let xtx = x_w.transpose() * &x_w;
-        let xty = x_w.transpose() * &y_w;
-
-        let n = x.nrows() as f64;
+        let n = n_rows as f64;
 
         (xtx, xty, n)
     } else {
@@ -154,6 +171,20 @@ mod tests {
         let y = DVector::from_vec(vec![1.0, 3.0, 5.0, 7.0, 9.0]);
 
         let result = ols(&y, &x, None).expect("OLS calculation failed on valid data");
+        let coeffs = result.coefficients;
+
+        assert_eq!(coeffs.len(), 2);
+        assert!((coeffs[0] - 1.0).abs() < 1e-9, "Intercept is incorrect");
+        assert!((coeffs[1] - 2.0).abs() < 1e-9, "Slope is incorrect");
+    }
+
+    #[test]
+    fn test_ols_weighted_regression() {
+        let x = DMatrix::from_vec(5, 2, vec![1.0, 1.0, 1.0, 1.0, 1.0, 0.0, 1.0, 2.0, 3.0, 4.0]);
+        let y = DVector::from_vec(vec![1.0, 3.0, 5.0, 7.0, 9.0]);
+        let weights = DVector::from_vec(vec![1.0, 2.0, 1.5, 0.5, 2.0]);
+
+        let result = ols(&y, &x, Some(&weights)).expect("Weighted OLS calculation failed on valid data");
         let coeffs = result.coefficients;
 
         assert_eq!(coeffs.len(), 2);
