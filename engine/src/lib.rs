@@ -39,6 +39,8 @@ use crate::analysis::{decompose_inner, optimize_inner};
 #[cfg(feature = "wasm")]
 use crate::types::*;
 #[cfg(feature = "wasm")]
+use serde::Serialize;
+#[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
 // --- Wasm Wrappers ---
@@ -61,7 +63,10 @@ pub fn decompose(val: JsValue) -> Result<JsValue, JsValue> {
     // seed 0x5EED_0A11_CA8A_0002 ≈ 6.84e18 always exceeds it). String is the correct lossless
     // provenance encoding across the JS boundary; counts stay plain JS Numbers. 0014-MERIDIAN
     // stage-4 browser-parity finding (latent: the native serde_json path handled u64 fine).
-    Ok(serde_wasm_bindgen::to_value(&res)?)
+    // `json_compatible()` ensures Option::None serializes as null rather than undefined.
+    let serializer = serde_wasm_bindgen::Serializer::json_compatible();
+    res.serialize(&serializer)
+        .map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
 #[cfg(feature = "wasm")]
@@ -69,7 +74,9 @@ pub fn decompose(val: JsValue) -> Result<JsValue, JsValue> {
 pub fn optimize(val: JsValue) -> Result<JsValue, JsValue> {
     let req: OptimizationRequest = serde_wasm_bindgen::from_value(val)?;
     let res = optimize_inner(req).map_err(|e| JsValue::from_str(&e))?;
-    Ok(serde_wasm_bindgen::to_value(&res)?)
+    let serializer = serde_wasm_bindgen::Serializer::json_compatible();
+    res.serialize(&serializer)
+        .map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
 #[cfg(feature = "wasm")]
@@ -77,7 +84,9 @@ pub fn optimize(val: JsValue) -> Result<JsValue, JsValue> {
 pub fn verify_adjustments(val: JsValue) -> Result<JsValue, JsValue> {
     let req: VerificationRequest = serde_wasm_bindgen::from_value(val)?;
     let res = crate::analysis::verify_inner(req).map_err(|e| JsValue::from_str(&e))?;
-    Ok(serde_wasm_bindgen::to_value(&res)?)
+    let serializer = serde_wasm_bindgen::Serializer::json_compatible();
+    res.serialize(&serializer)
+        .map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
 #[cfg(feature = "wasm")]
@@ -86,7 +95,9 @@ pub fn calculate_efficient_frontier(val: JsValue) -> Result<JsValue, JsValue> {
     let req: EfficientFrontierRequest = serde_wasm_bindgen::from_value(val)?;
     let res = crate::analysis::calculate_efficient_frontier_inner(req)
         .map_err(|e| JsValue::from_str(e.as_str()))?;
-    Ok(serde_wasm_bindgen::to_value(&res)?)
+    let serializer = serde_wasm_bindgen::Serializer::json_compatible();
+    res.serialize(&serializer)
+        .map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
 #[cfg(feature = "wasm")]
@@ -95,7 +106,9 @@ pub fn check_defensibility(val: JsValue) -> Result<JsValue, JsValue> {
     let req: VerificationRequest = serde_wasm_bindgen::from_value(val)?;
     let res = crate::defensibility::check_defensibility_inner(req)
         .map_err(|e| JsValue::from_str(e.as_str()))?;
-    Ok(serde_wasm_bindgen::to_value(&res)?)
+    let serializer = serde_wasm_bindgen::Serializer::json_compatible();
+    res.serialize(&serializer)
+        .map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
 // --- Threaded WASM: rayon thread-pool initializer (0014-MERIDIAN, engine-parallel-surface D2) ---
