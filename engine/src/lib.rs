@@ -151,7 +151,8 @@ mod tests {
             max_budget: Some(10000.0),
         };
 
-        let js_val = serde_wasm_bindgen::to_value(&req).map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let js_val =
+            serde_wasm_bindgen::to_value(&req).map_err(|e| JsValue::from_str(&e.to_string()))?;
 
         let result = calculate_efficient_frontier(js_val);
 
