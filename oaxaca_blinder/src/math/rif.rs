@@ -312,4 +312,81 @@ mod tests {
             "non-finite"
         );
     }
+
+    #[test]
+    fn test_rif_insufficient_data_returns_error() {
+        let empty = s(&[]);
+        assert!(calculate_rif(&empty, 0.5).is_err());
+
+        let single = s(&[42.0]);
+        assert!(calculate_rif(&single, 0.5).is_err());
+    }
+
+    #[test]
+    fn test_rif_non_float_series_returns_error() {
+        let int_series = Series::new("y".into(), vec![1i32, 2, 3, 4]);
+        assert!(calculate_rif(&int_series, 0.5).is_err());
+
+        let str_series = Series::new("y".into(), vec!["a", "b", "c"]);
+        assert!(calculate_rif(&str_series, 0.5).is_err());
+    }
+
+    #[test]
+    fn test_rif_constant_series_fallback() {
+        let y = s(&[5.0, 5.0, 5.0, 5.0, 5.0]);
+        let res = calculate_rif(&y, 0.5);
+        assert!(res.is_ok());
+        let rif = res.unwrap();
+        let values = vals(&rif);
+        assert_eq!(values.len(), 5);
+        for v in values {
+            assert!(v.is_finite());
+            assert!(!v.is_nan());
+        }
+    }
+
+    #[test]
+    fn test_rif_boundary_and_clamped_quantiles() {
+        let y = s(&[10.0, 20.0, 30.0, 40.0, 50.0]);
+
+        let rif_0 = calculate_rif(&y, 0.0).unwrap();
+        assert_eq!(vals(&rif_0).len(), 5);
+
+        let rif_1 = calculate_rif(&y, 1.0).unwrap();
+        assert_eq!(vals(&rif_1).len(), 5);
+
+        // Clamped / Out-of-bound quantiles
+        let rif_neg = calculate_rif(&y, -0.5).unwrap();
+        let rif_over = calculate_rif(&y, 1.5).unwrap();
+        assert_eq!(vals(&rif_neg).len(), 5);
+        assert_eq!(vals(&rif_over).len(), 5);
+    }
+
+    #[test]
+    fn test_rif_mathematical_properties() {
+        let y_vals = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0];
+        let series_name = "wage_gap_outcome";
+        let y = Series::new(series_name.into(), y_vals.clone());
+
+        let tau = 0.5;
+        let rif = calculate_rif(&y, tau).unwrap();
+
+        assert_eq!(rif.name().as_str(), series_name);
+
+        let values = vals(&rif);
+        assert_eq!(values.len(), y_vals.len());
+
+        for v in &values {
+            assert!(v.is_finite(), "RIF value must be finite");
+            assert!(!v.is_nan(), "RIF value must not be NaN");
+        }
+
+        // Expected property of RIF(y; Q_tau): E[RIF(y; Q_tau)] = Q_tau
+        let mean_rif: f64 = values.iter().sum::<f64>() / (values.len() as f64);
+        let q_tau = 5.5; // For 1..10, type-7 median at 0.5 is 1 + 9*0.5 = 5.5
+        assert!(
+            (mean_rif - q_tau).abs() < 1.0,
+            "Mean of RIF ({mean_rif}) should approximate sample quantile ({q_tau})"
+        );
+    }
 }
