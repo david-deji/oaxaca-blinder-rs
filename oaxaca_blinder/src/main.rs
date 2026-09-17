@@ -3,7 +3,20 @@ use oaxaca_blinder::{OaxacaBuilder, ReferenceCoefficients};
 use polars::prelude::*;
 
 use std::error::Error;
-use std::path::PathBuf;
+use std::path::{Component, Path, PathBuf};
+
+fn validate_output_path(path: &Path) -> Result<(), Box<dyn Error>> {
+    for component in path.components() {
+        if matches!(component, Component::ParentDir) {
+            return Err(format!(
+                "Invalid output path: '{}' contains parent directory traversal ('..')",
+                path.display()
+            )
+            .into());
+        }
+    }
+    Ok(())
+}
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -218,6 +231,7 @@ fn run_mean_analysis(args: &RunArgs, df: DataFrame) -> Result<(), Box<dyn std::e
     results.summary();
 
     if let Some(path) = &args.output_json {
+        validate_output_path(path)?;
         let json = results
             .to_json()
             .map_err(|e| format!("Failed to serialize to JSON: {}", e))?;
@@ -225,6 +239,7 @@ fn run_mean_analysis(args: &RunArgs, df: DataFrame) -> Result<(), Box<dyn std::e
     }
 
     if let Some(path) = &args.output_markdown {
+        validate_output_path(path)?;
         let md = results.to_markdown();
         std::fs::write(path, md)?;
     }
@@ -290,6 +305,7 @@ fn run_quantile_analysis(args: &RunArgs, df: DataFrame) -> Result<(), Box<dyn Er
             } else {
                 path.clone()
             };
+            validate_output_path(&out_path)?;
             let json = results
                 .to_json()
                 .map_err(|e| format!("Failed to serialize to JSON: {}", e))?;
@@ -347,6 +363,7 @@ fn run_matching_analysis(args: &RunArgs, df: DataFrame) -> Result<(), Box<dyn Er
     };
 
     if let Some(path) = &args.output_json {
+        validate_output_path(path)?;
         let json = serde_json::to_string(&weights)?;
         std::fs::write(path, json)?;
     } else {
@@ -403,12 +420,33 @@ fn run_report(args: ReportArgs) -> Result<(), Box<dyn Error>> {
     };
 
     let html = template.render()?;
+    validate_output_path(&args.output)?;
     std::fs::write(&args.output, html)?;
     println!(
         "Report successfully generated at: {}",
         args.output.display()
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_validate_output_path_valid() {
+        assert!(validate_output_path(Path::new("output.json")).is_ok());
+        assert!(validate_output_path(Path::new("reports/output.html")).is_ok());
+        assert!(validate_output_path(Path::new("./output.md")).is_ok());
+        assert!(validate_output_path(Path::new("/tmp/output.json")).is_ok());
+    }
+
+    #[test]
+    fn test_validate_output_path_traversal() {
+        assert!(validate_output_path(Path::new("../output.json")).is_err());
+        assert!(validate_output_path(Path::new("reports/../output.html")).is_err());
+        assert!(validate_output_path(Path::new("foo/bar/../../secret.txt")).is_err());
+    }
 }
 
 fn main() {

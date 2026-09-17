@@ -87,6 +87,27 @@ fn test_quantile_decomposition() {
 }
 
 #[test]
+fn test_path_traversal_rejection() {
+    let mut cmd = Command::cargo_bin("oaxaca-cli").unwrap();
+    cmd.arg("--data")
+        .arg("tests/data/wage.csv")
+        .arg("--outcome")
+        .arg("wage")
+        .arg("--group")
+        .arg("gender")
+        .arg("--reference")
+        .arg("F")
+        .arg("--predictors")
+        .arg("education")
+        .arg("--output-json")
+        .arg("../malicious.json");
+
+    cmd.assert()
+        .failure()
+        .stderr(predicate::str::contains("contains parent directory traversal"));
+}
+
+#[test]
 fn test_invalid_argument() {
     let mut cmd = Command::cargo_bin("oaxaca-cli").unwrap();
     cmd.arg("--data")
