@@ -704,7 +704,7 @@ async fn handle_tool_call(params: Option<Value>) -> Result<Value> {
         .ok_or_else(|| anyhow!("Missing tool name"))?
         .to_string();
     let arguments = match params.as_object_mut() {
-        Some(map) => map.remove("arguments").ok_or_else(|| anyhow!("Missing arguments"))?,
+        Some(map) => map.remove("arguments").unwrap_or_else(|| json!({})),
         None => return Err(anyhow!("Params must be an object")),
     };
 
@@ -842,7 +842,13 @@ mod tests {
         let mut large_csv = String::with_capacity(1_000_000);
         large_csv.push_str("id,pay,gender,tenure,department\n");
         for i in 0..100_000 {
-            large_csv.push_str(&format!("{},{},{},{},Engineering\n", i, 50000 + (i % 1000), if i % 2 == 0 { "M" } else { "F" }, i % 10));
+            large_csv.push_str(&format!(
+                "{},{},{},{},Engineering\n",
+                i,
+                50000 + (i % 1000),
+                if i % 2 == 0 { "M" } else { "F" },
+                i % 10
+            ));
         }
 
         let params = json!({
@@ -872,7 +878,10 @@ mod tests {
         let start_take = Instant::now();
         for _ in 0..iterations {
             let mut p = params.clone();
-            let args = p.get_mut("arguments").map(|v| v.take()).unwrap_or(Value::Null);
+            let args = p
+                .get_mut("arguments")
+                .map(|v| v.take())
+                .unwrap_or(Value::Null);
             let _mcp_params: McpDecompositionParams = serde_json::from_value(args).unwrap();
         }
         let elapsed_take = start_take.elapsed();
@@ -880,7 +889,9 @@ mod tests {
         println!("Baseline (with .clone()): {:?}", elapsed_cloned);
         println!("Optimized (with .take()): {:?}", elapsed_take);
         if elapsed_cloned > elapsed_take {
-            let speedup = (elapsed_cloned.as_secs_f64() - elapsed_take.as_secs_f64()) / elapsed_cloned.as_secs_f64() * 100.0;
+            let speedup = (elapsed_cloned.as_secs_f64() - elapsed_take.as_secs_f64())
+                / elapsed_cloned.as_secs_f64()
+                * 100.0;
             println!("Speedup: {:.2}%", speedup);
         }
     }
