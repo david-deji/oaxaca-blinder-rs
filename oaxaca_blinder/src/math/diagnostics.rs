@@ -152,7 +152,8 @@ mod tests {
 
         let predictor_names = vec!["x1".to_string(), "x2".to_string(), "x3".to_string()];
 
-        let vif_results = calculate_vif(&df, &predictor_names).expect("VIF calculation should handle multicollinearity");
+        let vif_results = calculate_vif(&df, &predictor_names)
+            .expect("VIF calculation should handle multicollinearity");
 
         // Perfect multicollinearity results in infinite VIF for collinear predictors
         assert_eq!(vif_results[0].variable_name, "x1");
