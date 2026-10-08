@@ -27,6 +27,7 @@ use std::io::Write;
 use std::num::NonZeroU32;
 use std::sync::{Arc, RwLock};
 use std::time::Instant;
+use subtle::ConstantTimeEq;
 use tokio::io::{self, AsyncBufReadExt, BufReader};
 use tokio::net::TcpListener;
 use tower_http::cors::CorsLayer;
@@ -376,7 +377,7 @@ async fn handle_sse_post(
         .and_then(|h| h.to_str().ok());
 
     let authorized = match auth_header {
-        Some(h) => h == state.api_key || h == format!("Bearer {}", state.api_key),
+        Some(h) => safe_compare(h, &state.api_key),
         None => false,
     };
 
@@ -423,7 +424,7 @@ async fn handle_sse_get(
         .and_then(|h| h.to_str().ok());
 
     let authorized = match auth_header {
-        Some(h) => h == state.api_key || h == format!("Bearer {}", state.api_key),
+        Some(h) => safe_compare(h, &state.api_key),
         None => false,
     };
 
@@ -489,7 +490,7 @@ async fn handle_sse_delete(
         .and_then(|h| h.to_str().ok());
 
     let authorized = match auth_header {
-        Some(h) => h == state.api_key || h == format!("Bearer {}", state.api_key),
+        Some(h) => safe_compare(h, &state.api_key),
         None => false,
     };
 
@@ -795,5 +796,48 @@ async fn handle_tool_call(params: Option<Value>) -> Result<Value> {
             Ok(json!({ "content": [{ "type": "text", "text": serde_json::to_string(&res)? }] }))
         }
         _ => Err(anyhow!("Unknown tool: {}", name)),
+    }
+}
+
+/// Constant-time comparison between a provided authorization header value and expected API key.
+/// Accepts either direct API key string or "Bearer <API key>" format.
+fn safe_compare(provided: &str, expected: &str) -> bool {
+    let provided_bytes = provided.as_bytes();
+    let expected_bytes = expected.as_bytes();
+
+    let direct_match = provided_bytes.ct_eq(expected_bytes);
+
+    let bearer_prefix = b"Bearer ";
+    let bearer_match = if provided_bytes.starts_with(bearer_prefix) {
+        let token_bytes = &provided_bytes[bearer_prefix.len()..];
+        token_bytes.ct_eq(expected_bytes)
+    } else {
+        0.into()
+    };
+
+    (direct_match | bearer_match).into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_safe_compare() {
+        let expected = "secret-api-key-12345";
+
+        // Exact match
+        assert!(safe_compare("secret-api-key-12345", expected));
+
+        // Bearer prefix match
+        assert!(safe_compare("Bearer secret-api-key-12345", expected));
+
+        // Invalid keys
+        assert!(!safe_compare("wrong-key", expected));
+        assert!(!safe_compare("Bearer wrong-key", expected));
+        assert!(!safe_compare("secret-api-key-1234", expected)); // shorter length
+        assert!(!safe_compare("secret-api-key-123456", expected)); // longer length
+        assert!(!safe_compare("", expected));
+        assert!(!safe_compare("Bearer ", expected));
     }
 }
