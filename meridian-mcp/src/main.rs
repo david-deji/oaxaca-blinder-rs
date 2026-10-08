@@ -385,7 +385,7 @@ async fn handle_sse_post(
         return (StatusCode::UNAUTHORIZED, "Invalid API Key").into_response();
     }
 
-    let response_opt = handle_protocol(req.clone()).await;
+    let response_opt = handle_protocol(req).await;
 
     if is_notification {
         return StatusCode::ACCEPTED.into_response();
@@ -698,18 +698,22 @@ async fn handle_protocol(req: JsonRpcRequest) -> Option<JsonRpcResponse> {
 }
 
 async fn handle_tool_call(params: Option<Value>) -> Result<Value> {
-    let params = params.ok_or_else(|| anyhow!("Missing params"))?;
+    let mut params = params.ok_or_else(|| anyhow!("Missing params"))?;
     let name = params
         .get("name")
         .and_then(|v| v.as_str())
-        .ok_or_else(|| anyhow!("Missing tool name"))?;
-    let arguments = params
-        .get("arguments")
-        .ok_or_else(|| anyhow!("Missing arguments"))?;
+        .ok_or_else(|| anyhow!("Missing tool name"))?
+        .to_string();
+    let arguments = match params.as_object_mut() {
+        Some(map) => map
+            .remove("arguments")
+            .ok_or_else(|| anyhow!("Missing arguments"))?,
+        None => return Err(anyhow!("Params must be an object")),
+    };
 
-    match name {
+    match name.as_str() {
         "forensic_decomposition" => {
-            let mut mcp_params: McpDecompositionParams = serde_json::from_value(arguments.clone())?;
+            let mut mcp_params: McpDecompositionParams = serde_json::from_value(arguments)?;
             if let Some(reps) = mcp_params.bootstrap_reps {
                 mcp_params.bootstrap_reps = Some(reps.min(10000));
             }
@@ -721,7 +725,7 @@ async fn handle_tool_call(params: Option<Value>) -> Result<Value> {
             Ok(json!({ "content": [{ "type": "text", "text": serde_json::to_string(&res)? }] }))
         }
         "simulate_remediation" => {
-            let p: McpOptimizationParams = serde_json::from_value(arguments.clone())?;
+            let p: McpOptimizationParams = serde_json::from_value(arguments)?;
             let req = OptimizationRequest {
                 csv_data: p.csv_content.into_bytes(),
                 outcome_variable: p.outcome_variable,
@@ -756,7 +760,7 @@ async fn handle_tool_call(params: Option<Value>) -> Result<Value> {
             Ok(json!({ "content": [{ "type": "text", "text": serde_json::to_string(&res)? }] }))
         }
         "verify_adjustments" => {
-            let mut p: McpVerificationParams = serde_json::from_value(arguments.clone())?;
+            let mut p: McpVerificationParams = serde_json::from_value(arguments)?;
             if let Some(reps) = p.decomposition_params.bootstrap_reps {
                 p.decomposition_params.bootstrap_reps = Some(reps.min(10000));
             }
@@ -768,7 +772,7 @@ async fn handle_tool_call(params: Option<Value>) -> Result<Value> {
             Ok(json!({ "content": [{ "type": "text", "text": serde_json::to_string(&res)? }] }))
         }
         "check_defensibility" => {
-            let mut p: McpVerificationParams = serde_json::from_value(arguments.clone())?;
+            let mut p: McpVerificationParams = serde_json::from_value(arguments)?;
             if let Some(reps) = p.decomposition_params.bootstrap_reps {
                 p.decomposition_params.bootstrap_reps = Some(reps.min(10000));
             }
@@ -780,7 +784,7 @@ async fn handle_tool_call(params: Option<Value>) -> Result<Value> {
             Ok(json!({ "content": [{ "type": "text", "text": serde_json::to_string(&res)? }] }))
         }
         "generate_efficient_frontier" => {
-            let mut mcp_params: McpDecompositionParams = serde_json::from_value(arguments.clone())?;
+            let mut mcp_params: McpDecompositionParams = serde_json::from_value(arguments)?;
             if let Some(reps) = mcp_params.bootstrap_reps {
                 mcp_params.bootstrap_reps = Some(reps.min(10000));
             }
@@ -839,5 +843,43 @@ mod tests {
         assert!(!safe_compare("secret-api-key-123456", expected)); // longer length
         assert!(!safe_compare("", expected));
         assert!(!safe_compare("Bearer ", expected));
+    }
+
+    #[tokio::test]
+    async fn test_handle_tool_call_missing_params() {
+        let res = handle_tool_call(None).await;
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err().to_string(), "Missing params");
+    }
+
+    #[tokio::test]
+    async fn test_handle_tool_call_unknown_tool() {
+        let params = json!({
+            "name": "unknown_tool",
+            "arguments": {}
+        });
+        let res = handle_tool_call(Some(params)).await;
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err().to_string(), "Unknown tool: unknown_tool");
+    }
+
+    #[tokio::test]
+    async fn test_handle_protocol_tools_list() {
+        let req = JsonRpcRequest {
+            _jsonrpc: "2.0".to_string(),
+            method: "tools/list".to_string(),
+            params: None,
+            id: Some(json!(1)),
+        };
+        let res = handle_protocol(req).await;
+        assert!(res.is_some());
+        let resp = res.unwrap();
+        assert!(resp.result.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_handle_tool_call_missing_arguments() {
+        let res = handle_tool_call(Some(json!({ "name": "forensic_decomposition" }))).await;
+        assert_eq!(res.unwrap_err().to_string(), "Missing arguments");
     }
 }
