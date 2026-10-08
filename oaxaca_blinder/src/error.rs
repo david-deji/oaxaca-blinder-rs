@@ -58,3 +58,48 @@ impl fmt::Display for OaxacaError {
 }
 
 impl std::error::Error for OaxacaError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use polars::prelude::PolarsError;
+
+    #[test]
+    fn test_oaxaca_error_display() {
+        let polars_err = OaxacaError::PolarsError(PolarsError::ColumnNotFound("col".into()));
+        assert_eq!(polars_err.to_string(), "Polars error: not found: col");
+
+        let col_err = OaxacaError::ColumnNotFound("gender".to_string());
+        assert_eq!(col_err.to_string(), "Column not found: gender");
+
+        let group_err = OaxacaError::InvalidGroupVariable("group".to_string());
+        assert_eq!(group_err.to_string(), "Invalid group variable: group");
+
+        let nalgebra_err = OaxacaError::NalgebraError("singular matrix".to_string());
+        assert_eq!(nalgebra_err.to_string(), "Nalgebra error: singular matrix");
+
+        let diag_err = OaxacaError::DiagnosticError("vif failed".to_string());
+        assert_eq!(diag_err.to_string(), "Diagnostic error: vif failed");
+
+        let data_err = OaxacaError::InsufficientData("not enough rows".to_string());
+        assert_eq!(data_err.to_string(), "Insufficient data: not enough rows");
+
+        let empty_level_err = OaxacaError::EmptyLevelInGroup {
+            column: "education".to_string(),
+            level: "PhD".to_string(),
+            missing_from_group: "group_b".to_string(),
+        };
+        assert_eq!(
+            empty_level_err.to_string(),
+            "EMPTY_LEVEL_IN_GROUP: column=education, level=PhD, missing_from_group=group_b"
+        );
+    }
+
+    #[test]
+    fn test_from_polars_error() {
+        let polars_err = PolarsError::ColumnNotFound("missing".into());
+        let oaxaca_err: OaxacaError = polars_err.into();
+        assert!(matches!(oaxaca_err, OaxacaError::PolarsError(_)));
+        assert_eq!(oaxaca_err.to_string(), "Polars error: not found: missing");
+    }
+}
