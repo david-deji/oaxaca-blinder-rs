@@ -34,6 +34,7 @@
 ## Proposals
 | Date | Picked | Appetite | Reason | Declined (ids) | Proposal file |
 |---|---|---|---|---|---|
+| 2026-10-08 | **A, then B, C, D** (David queued all four, in that order) | scoped | A: the only finding where money reaches the wrong person, reachable with one blank cell; B, C, D follow in order, each re-grounded before it starts | none declined | `ground/2026-10-08-proposal.md` |
 
 ## Receipts
 | Epic | verify-live receipt | Result | Commit |
