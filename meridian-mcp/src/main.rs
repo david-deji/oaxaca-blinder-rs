@@ -27,6 +27,7 @@ use std::io::Write;
 use std::num::NonZeroU32;
 use std::sync::{Arc, RwLock};
 use std::time::Instant;
+use subtle::ConstantTimeEq;
 use tokio::io::{self, AsyncBufReadExt, BufReader};
 use tokio::net::TcpListener;
 use tower_http::cors::CorsLayer;
@@ -376,7 +377,7 @@ async fn handle_sse_post(
         .and_then(|h| h.to_str().ok());
 
     let authorized = match auth_header {
-        Some(h) => h == state.api_key || h == format!("Bearer {}", state.api_key),
+        Some(h) => safe_compare(h, &state.api_key),
         None => false,
     };
 
@@ -384,7 +385,7 @@ async fn handle_sse_post(
         return (StatusCode::UNAUTHORIZED, "Invalid API Key").into_response();
     }
 
-    let response_opt = handle_protocol(req.clone()).await;
+    let response_opt = handle_protocol(req).await;
 
     if is_notification {
         return StatusCode::ACCEPTED.into_response();
@@ -423,7 +424,7 @@ async fn handle_sse_get(
         .and_then(|h| h.to_str().ok());
 
     let authorized = match auth_header {
-        Some(h) => h == state.api_key || h == format!("Bearer {}", state.api_key),
+        Some(h) => safe_compare(h, &state.api_key),
         None => false,
     };
 
@@ -489,7 +490,7 @@ async fn handle_sse_delete(
         .and_then(|h| h.to_str().ok());
 
     let authorized = match auth_header {
-        Some(h) => h == state.api_key || h == format!("Bearer {}", state.api_key),
+        Some(h) => safe_compare(h, &state.api_key),
         None => false,
     };
 
@@ -697,18 +698,22 @@ async fn handle_protocol(req: JsonRpcRequest) -> Option<JsonRpcResponse> {
 }
 
 async fn handle_tool_call(params: Option<Value>) -> Result<Value> {
-    let params = params.ok_or_else(|| anyhow!("Missing params"))?;
+    let mut params = params.ok_or_else(|| anyhow!("Missing params"))?;
     let name = params
         .get("name")
         .and_then(|v| v.as_str())
-        .ok_or_else(|| anyhow!("Missing tool name"))?;
-    let arguments = params
-        .get("arguments")
-        .ok_or_else(|| anyhow!("Missing arguments"))?;
+        .ok_or_else(|| anyhow!("Missing tool name"))?
+        .to_string();
+    let arguments = match params.as_object_mut() {
+        Some(map) => map
+            .remove("arguments")
+            .ok_or_else(|| anyhow!("Missing arguments"))?,
+        None => return Err(anyhow!("Params must be an object")),
+    };
 
-    match name {
+    match name.as_str() {
         "forensic_decomposition" => {
-            let mut mcp_params: McpDecompositionParams = serde_json::from_value(arguments.clone())?;
+            let mut mcp_params: McpDecompositionParams = serde_json::from_value(arguments)?;
             if let Some(reps) = mcp_params.bootstrap_reps {
                 mcp_params.bootstrap_reps = Some(reps.min(10000));
             }
@@ -720,7 +725,7 @@ async fn handle_tool_call(params: Option<Value>) -> Result<Value> {
             Ok(json!({ "content": [{ "type": "text", "text": serde_json::to_string(&res)? }] }))
         }
         "simulate_remediation" => {
-            let p: McpOptimizationParams = serde_json::from_value(arguments.clone())?;
+            let p: McpOptimizationParams = serde_json::from_value(arguments)?;
             let req = OptimizationRequest {
                 csv_data: p.csv_content.into_bytes(),
                 outcome_variable: p.outcome_variable,
@@ -755,7 +760,7 @@ async fn handle_tool_call(params: Option<Value>) -> Result<Value> {
             Ok(json!({ "content": [{ "type": "text", "text": serde_json::to_string(&res)? }] }))
         }
         "verify_adjustments" => {
-            let mut p: McpVerificationParams = serde_json::from_value(arguments.clone())?;
+            let mut p: McpVerificationParams = serde_json::from_value(arguments)?;
             if let Some(reps) = p.decomposition_params.bootstrap_reps {
                 p.decomposition_params.bootstrap_reps = Some(reps.min(10000));
             }
@@ -767,7 +772,7 @@ async fn handle_tool_call(params: Option<Value>) -> Result<Value> {
             Ok(json!({ "content": [{ "type": "text", "text": serde_json::to_string(&res)? }] }))
         }
         "check_defensibility" => {
-            let mut p: McpVerificationParams = serde_json::from_value(arguments.clone())?;
+            let mut p: McpVerificationParams = serde_json::from_value(arguments)?;
             if let Some(reps) = p.decomposition_params.bootstrap_reps {
                 p.decomposition_params.bootstrap_reps = Some(reps.min(10000));
             }
@@ -779,7 +784,7 @@ async fn handle_tool_call(params: Option<Value>) -> Result<Value> {
             Ok(json!({ "content": [{ "type": "text", "text": serde_json::to_string(&res)? }] }))
         }
         "generate_efficient_frontier" => {
-            let mut mcp_params: McpDecompositionParams = serde_json::from_value(arguments.clone())?;
+            let mut mcp_params: McpDecompositionParams = serde_json::from_value(arguments)?;
             if let Some(reps) = mcp_params.bootstrap_reps {
                 mcp_params.bootstrap_reps = Some(reps.min(10000));
             }
@@ -795,5 +800,86 @@ async fn handle_tool_call(params: Option<Value>) -> Result<Value> {
             Ok(json!({ "content": [{ "type": "text", "text": serde_json::to_string(&res)? }] }))
         }
         _ => Err(anyhow!("Unknown tool: {}", name)),
+    }
+}
+
+/// Constant-time comparison between a provided authorization header value and expected API key.
+/// Accepts either direct API key string or "Bearer <API key>" format.
+fn safe_compare(provided: &str, expected: &str) -> bool {
+    let provided_bytes = provided.as_bytes();
+    let expected_bytes = expected.as_bytes();
+
+    let direct_match = provided_bytes.ct_eq(expected_bytes);
+
+    let bearer_prefix = b"Bearer ";
+    let bearer_match = if provided_bytes.starts_with(bearer_prefix) {
+        let token_bytes = &provided_bytes[bearer_prefix.len()..];
+        token_bytes.ct_eq(expected_bytes)
+    } else {
+        0.into()
+    };
+
+    (direct_match | bearer_match).into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_safe_compare() {
+        let expected = "secret-api-key-12345";
+
+        // Exact match
+        assert!(safe_compare("secret-api-key-12345", expected));
+
+        // Bearer prefix match
+        assert!(safe_compare("Bearer secret-api-key-12345", expected));
+
+        // Invalid keys
+        assert!(!safe_compare("wrong-key", expected));
+        assert!(!safe_compare("Bearer wrong-key", expected));
+        assert!(!safe_compare("secret-api-key-1234", expected)); // shorter length
+        assert!(!safe_compare("secret-api-key-123456", expected)); // longer length
+        assert!(!safe_compare("", expected));
+        assert!(!safe_compare("Bearer ", expected));
+    }
+
+    #[tokio::test]
+    async fn test_handle_tool_call_missing_params() {
+        let res = handle_tool_call(None).await;
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err().to_string(), "Missing params");
+    }
+
+    #[tokio::test]
+    async fn test_handle_tool_call_unknown_tool() {
+        let params = json!({
+            "name": "unknown_tool",
+            "arguments": {}
+        });
+        let res = handle_tool_call(Some(params)).await;
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err().to_string(), "Unknown tool: unknown_tool");
+    }
+
+    #[tokio::test]
+    async fn test_handle_protocol_tools_list() {
+        let req = JsonRpcRequest {
+            _jsonrpc: "2.0".to_string(),
+            method: "tools/list".to_string(),
+            params: None,
+            id: Some(json!(1)),
+        };
+        let res = handle_protocol(req).await;
+        assert!(res.is_some());
+        let resp = res.unwrap();
+        assert!(resp.result.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_handle_tool_call_missing_arguments() {
+        let res = handle_tool_call(Some(json!({ "name": "forensic_decomposition" }))).await;
+        assert_eq!(res.unwrap_err().to_string(), "Missing arguments");
     }
 }

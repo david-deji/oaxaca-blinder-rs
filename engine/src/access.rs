@@ -76,8 +76,39 @@ mod tests {
     }
 
     #[test]
+    fn test_hash_code_known_string() {
+        let input = "hello world";
+        let expected = "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9";
+        assert_eq!(hash_code(input), expected);
+    }
+
+    #[test]
+    fn test_hash_code_unicode() {
+        let input = "🦀 Rust";
+        let expected = "b4ac1c68f49c3ea5a386adb82a04447992f218b5aeb19a001182d3722a399931";
+        assert_eq!(hash_code(input), expected);
+    }
+
+    #[test]
+    fn test_hash_code_case_sensitivity() {
+        assert_ne!(hash_code("Code123"), hash_code("code123"));
+    }
+
+    #[test]
+    fn test_hash_code_different_inputs() {
+        assert_ne!(hash_code("partner_a"), hash_code("partner_b"));
+    }
+
+    #[test]
     fn test_hash_code_consistency() {
         let input = "some_random_code_123";
         assert_eq!(hash_code(input), hash_code(input));
+    }
+
+    #[test]
+    fn test_hash_code_long_input() {
+        let input = "a".repeat(1000);
+        let expected = "41edece42d63e8d9bf515a9ba6932e1c20cbc9f5a5d134645adb5db1b9737ea3";
+        assert_eq!(hash_code(&input), expected);
     }
 }

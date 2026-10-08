@@ -66,7 +66,7 @@ pub fn calculate_vif(
 
         let ols_result = match ols(&y, &x_matrix, None) {
             Ok(res) => res,
-            Err(OaxacaError::NalgebraError(msg)) if msg.contains("Failed to invert X'X matrix") => {
+            Err(OaxacaError::NalgebraError(_)) => {
                 results.push(VifResult {
                     variable_name: p.clone(),
                     vif_score: f64::INFINITY,
@@ -152,19 +152,15 @@ mod tests {
 
         let predictor_names = vec!["x1".to_string(), "x2".to_string(), "x3".to_string()];
 
-        let vif_results = calculate_vif(&df, &predictor_names);
+        let vif_results = calculate_vif(&df, &predictor_names)
+            .expect("VIF calculation should handle multicollinearity");
 
-        // Either OLS returns an error which calculate_vif handles by returning infinity,
-        // or calculate_vif propagates the error. The test currently asserts calculate_vif
-        // unwrap()s successfully, but if NalgebraError is returned, we should catch it or handle it.
-        match vif_results {
-            Ok(results) => {
-                assert_eq!(results[0].vif_score, f64::INFINITY);
-            }
-            Err(_) => {
-                // If it propagates the error, that's also an acceptable outcome for perfect multicollinearity.
-            }
-        }
+        // Perfect multicollinearity results in infinite VIF for collinear predictors
+        assert_eq!(vif_results[0].variable_name, "x1");
+        assert_eq!(vif_results[0].vif_score, f64::INFINITY);
+
+        assert_eq!(vif_results[1].variable_name, "x2");
+        assert_eq!(vif_results[1].vif_score, f64::INFINITY);
     }
 
     #[test]
