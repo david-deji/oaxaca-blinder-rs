@@ -1,7 +1,29 @@
+# cargo-audit ignores (0119-MERIDIAN S4). Checked by scripts/validate-audit-ignores.py in CI.
+#
+# Every entry carries, on its own line:  # until YYYY-MM-DD ; lock-only|risk-accepted ; reason
+#   until         the ignore expires on that date; an expired entry turns CI red.
+#   lock-only     the crate is in Cargo.lock but NOT compiled into any shipped artifact. Evidence:
+#                 `cargo tree -i <crate>@<version> --workspace --all-features --target all -e normal`
+#                 prints nothing. The validator re-runs that command and fails if it prints a tree.
+#   risk-accepted the crate IS compiled in and has no fix we can take. The reason states the exposure.
+# An entry that matches no package in Cargo.lock also fails CI (stale ignore).
+#
+# Review date for the whole block: 2027-01-08.
+
 [advisories]
 ignore = [
-    "RUSTSEC-2025-0003", # fast-float: Segmentation fault. Upstream in Polars 0.44. No fixed version.
-    "RUSTSEC-2025-0020", # pyo3: Buffer overflow. Upstream in Polars 0.44.
-    "RUSTSEC-2024-0379", # fast-float: Multiple soundness issues.
-    "RUSTSEC-2024-0436", # paste: Unmaintained warning.
+    # --- lock-only: pulled by optional features of polars 0.44 (cloud/http/python), never compiled in ---
+    "RUSTSEC-2026-0258", # until 2027-01-08 ; lock-only ; h2 0.4.12 (HTTP/2 DoS). Empty cargo tree: not compiled into oaxaca_blinder, pay-equity-engine, meridian-mcp or the WASM.
+    "RUSTSEC-2025-0020", # until 2027-01-08 ; lock-only ; pyo3 0.21.2 (buffer overflow in PyString::from_object). Empty cargo tree: the Python bindings are not part of any shipped artifact.
+    "RUSTSEC-2026-0177", # until 2027-01-08 ; lock-only ; pyo3 0.21.2 (missing Sync bound on PyCFunction::new_closure). Empty cargo tree: pyo3 is not compiled into any shipped artifact.
+    "RUSTSEC-2026-0194", # until 2027-01-08 ; lock-only ; quick-xml 0.36.2 (quadratic attribute check). Empty cargo tree: no XML parsing is compiled in.
+    "RUSTSEC-2026-0195", # until 2027-01-08 ; lock-only ; quick-xml 0.36.2 (unbounded namespace allocation in NsReader). Empty cargo tree: no XML parsing is compiled in.
+    "RUSTSEC-2026-0185", # until 2027-01-08 ; lock-only ; quinn-proto 0.11.14 (QUIC reassembly memory exhaustion). Empty cargo tree: no network stack is compiled in.
+    "RUSTSEC-2026-0285", # until 2027-01-08 ; lock-only ; rustls 0.23.35 (TLS 1.3 handshake state). Empty cargo tree: no TLS stack is compiled in.
+    # --- compiled in, no fix we can take: polars 0.44 pins these ---
+    "RUSTSEC-2025-0003", # until 2027-01-08 ; risk-accepted ; fast-float 0.2.0 in polars-arrow's CSV float parser (segfault on bad input, no patched release). Input is the consultant's own file, parsed in their own browser; worst case is a crashed tab.
+    "RUSTSEC-2024-0379", # until 2027-01-08 ; risk-accepted ; fast-float 0.2.0 soundness issues in the same CSV float parser, no patched release. Same exposure: the consultant's own file in their own browser; worst case a crashed tab.
+    "RUSTSEC-2026-0186", # until 2027-01-08 ; risk-accepted ; memmap2 0.7.1 unchecked offset in advise_range/flush_range, fixed only in 0.9.11 (polars-io 0.44 pins 0.7). Polars 0.44 source never calls those functions (grep over polars-io/utils/plan/mem-engine/core/arrow).
+    "RUSTSEC-2024-0436", # until 2027-01-08 ; risk-accepted ; paste 1.0.15 is unmaintained, no vulnerability. Proc-macro only (nalgebra/simba), runs at build time and is absent from the shipped binaries.
+    "RUSTSEC-2026-0173", # until 2027-01-08 ; risk-accepted ; proc-macro-error2 2.0.1 is unmaintained, no vulnerability. Proc-macro only (getset), runs at build time and is absent from the shipped binaries.
 ]

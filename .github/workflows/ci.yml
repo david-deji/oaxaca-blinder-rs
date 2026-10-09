@@ -139,13 +139,31 @@ jobs:
   security:
     name: Security Audit
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - name: Run cargo-audit
-        uses: rustsec/audit-check@v1.4.1
+      # cargo tree (ignore validator) resolves the workspace under the toolchain rust-toolchain.toml pins.
+      - name: Setup Rust toolchain (1.90.0, matches rust-toolchain.toml)
+        uses: dtolnay/rust-toolchain@4aab473fa1157d90c6dc14f879ca54797e16fea0 # 1.90.0
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          toolchain: 1.90.0
+
+      # Prebuilt binary, exact version. Building cargo-audit from source needs a newer rustc than the
+      # pinned 1.90.0, which is why rustsec/audit-check audited nothing from the day the toolchain was pinned.
+      - name: Install cargo-audit (pinned prebuilt)
+        uses: taiki-e/install-action@fa23953489c080190314742a9b907f8e97c6767c # v2.87.10
+        with:
+          tool: cargo-audit@0.22.2
+
+      - name: cargo audit --deny warnings
+        run: cargo audit --deny warnings
+
+      # Every ignore in .cargo/audit.toml must be dated, unexpired, matched to a locked package, and
+      # classified (lock-only with an empty cargo tree, or risk-accepted with a reason).
+      - name: Validate .cargo/audit.toml ignores
+        if: ${{ !cancelled() }}
+        run: python3 scripts/validate-audit-ignores.py --no-fetch
 
   memory-ceiling:
     name: Memory Ceiling (50k @ N=8 < 326 MiB)
