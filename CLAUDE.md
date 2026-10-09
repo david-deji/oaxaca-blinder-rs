@@ -29,8 +29,10 @@ cd oaxaca_blinder && maturin develop --features python
 cargo build -p pay-equity-engine --features wasm --target wasm32-unknown-unknown
 
 # Ship an engine change to the Meridian app — THIS is the command you want
-bash scripts/build-wasm.sh                # build both artifacts + publish into the app
-bash scripts/build-wasm.sh --no-publish   # build only (CI baseline recording)
+bash scripts/build-wasm.sh                # build both artifacts + publish into the app (+ manifest); writes NO baseline
+bash scripts/build-wasm.sh --no-publish   # build only
+bash scripts/build-wasm.sh --record       # the only mode that writes engine/*.sha256 (then commit them)
+bash scripts/build-wasm.sh --verify       # build raw blobs, compare with HEAD's baselines; writes/ships nothing, exit 1 on mismatch
 ```
 
 ## Shipping an engine change to Meridian
@@ -40,14 +42,17 @@ wasm-bindgen, writes no JS glue, and touches nothing the browser loads. **A gree
 plus a green cargo wasm build still means the app is running the previous engine.**
 
 `scripts/build-wasm.sh` is the whole path: it builds both artifacts (sequential-stable and
-threaded-nightly), records their raw sha256 baselines, runs wasm-bindgen, and then **publishes**
-the results into the consuming app — by default the sibling checkout at
+threaded-nightly), runs wasm-bindgen, and then **publishes**
+the results into the consuming app, with an `engine-manifest.json` beside each blob (raw sha256, shipped
+`_bg.wasm` sha256, engine commit, dirty flag). Baselines are written only by `--record` — by default the sibling checkout at
 `../pay-equity-app/frontend/src/{wasm,wasm-threaded}/`. Override the destination with
 `MERIDIAN_FRONTEND=/path/to/frontend/src`; the step skips with a notice (not an error) when no
 app checkout is found, so this repo stays usable standalone.
 
 Every published file is sha256-verified against its source and the script exits non-zero on a
-mismatch. The copy is file-by-file, never a directory sync — `frontend/src/wasm/` also holds
+mismatch. wasm-bindgen output is not deterministic (two runs over one raw blob differ in ~120 bytes), so
+the shipped blob is checked against its manifest, never against a committed hash; the app's
+`scripts/lib/wasm-freshness.mjs` does that and compares the manifest with the engine source (no mtimes). The copy is file-by-file, never a directory sync — `frontend/src/wasm/` also holds
 frontend-owned `analysis.worker.js`, `thread-cap.js`, and `.gitignore`, which a sync would delete.
 
 WHY this is automated rather than written down as a manual step: the app's test suites **mock the
