@@ -205,7 +205,7 @@ jobs:
 
       # Pinned nightly for the THREADED pass (build-std + atomics).
       - name: Setup pinned nightly (rust-src + wasm target)
-        uses: dtolnay/rust-toolchain@f0d5300ba8908d942c808f4d31c08471d7798ba3 # nightly branch (takes the toolchain input)
+        uses: dtolnay/rust-toolchain@4aab473fa1157d90c6dc14f879ca54797e16fea0 # nightly branch (takes the toolchain input)
         with:
           toolchain: nightly-2025-06-27
           components: rust-src
@@ -285,7 +285,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup pinned nightly (rust-src + wasm target)
-        uses: dtolnay/rust-toolchain@f0d5300ba8908d942c808f4d31c08471d7798ba3 # nightly branch (takes the toolchain input)
+        uses: dtolnay/rust-toolchain@4aab473fa1157d90c6dc14f879ca54797e16fea0 # nightly branch (takes the toolchain input)
         with:
           toolchain: nightly-2025-06-27
           components: rust-src
