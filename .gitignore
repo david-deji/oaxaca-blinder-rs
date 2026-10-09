@@ -34,3 +34,5 @@ oaxaca_blinder/tests/fixtures/mem_profile_50k.csv
 .idea/
 .claude
 .agent
+# Python bytecode of scripts/ (verify-live refuses a tree with untracked files outside ground/)
+__pycache__/

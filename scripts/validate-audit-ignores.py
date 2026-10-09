@@ -8,6 +8,10 @@ Fails (exit 1) when an ignore:
   - is labelled `lock-only` but the crate is compiled in, or is labelled neither;
   - carries no reason text.
 
+Also fails when Cargo.lock holds a crate below MIN_LOCKED: a fix that has an advisory only as a GitHub
+GHSA (no RUSTSEC entry) is invisible to cargo-audit, so a lockfile that regressed to the vulnerable version
+would keep the Security Audit green (0119 review F3).
+
 Findings come from `cargo audit --json` run from an empty directory, so no audit.toml applies and
 every advisory against Cargo.lock is visible, ignored or not.
 
@@ -25,6 +29,12 @@ import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+# Compiled-in crates whose advisories exist only as GHSA, so cargo-audit cannot see them.
+# crate -> (minimum locked version, advisory). Add a row when a bump like this lands; every locked
+# version of the crate must be at or above the minimum.
+MIN_LOCKED = {
+    "xxhash-rust": ("0.8.16", "GHSA-6g2r-675j-hx59 (compiled into the WASM; Dependabot alert #15)"),
+}
 LINE = re.compile(r'^\s*"(RUSTSEC-\d{4}-\d{4})"\s*,?\s*(#.*)?$')
 UNTIL = re.compile(r"#\s*until\s+(\d{4}-\d{2}-\d{2})\b")
 
@@ -49,6 +59,23 @@ def audit_findings(lock: Path, no_fetch: bool) -> dict:
         if adv:
             found.setdefault(adv["id"], []).append((e["package"]["name"], e["package"]["version"]))
     return found
+
+
+def vtuple(v: str) -> tuple:
+    return tuple(int(x) for x in re.findall(r"\d+", v.split("-")[0].split("+")[0]))
+
+
+def min_version_errors(lock: Path) -> list:
+    packages = tomllib.loads(lock.read_text()).get("package", [])
+    errors = []
+    for crate, (minimum, why) in MIN_LOCKED.items():
+        versions = [p["version"] for p in packages if p["name"] == crate]
+        if not versions:
+            errors.append(f"{crate}: not in {lock.name}; MIN_LOCKED expects it (remove the row if the crate was dropped)")
+        for v in versions:
+            if vtuple(v) < vtuple(minimum):
+                errors.append(f"{crate} {v} is locked, minimum is {minimum}: {why}")
+    return errors
 
 
 def compiled_in(crate: str, version: str) -> bool:
@@ -79,8 +106,8 @@ def main() -> int:
         if m:
             comments[m.group(1)] = m.group(2) or ""
 
+    errors = min_version_errors(Path(args.lock))
     found = audit_findings(Path(args.lock), args.no_fetch)
-    errors = []
     for adv in ids:
         comment = comments.get(adv)
         if comment is None:
@@ -122,7 +149,8 @@ def main() -> int:
         for e in errors:
             print(f"  - {e}")
         return 1
-    print(f"audit ignore validation passed: {len(ids)} ignores, all dated, matched to a locked package, classified.")
+    print(f"audit ignore validation passed: {len(ids)} ignores, all dated, matched to a locked package, classified; "
+          f"{len(MIN_LOCKED)} minimum locked version(s) held.")
     return 0
 
 

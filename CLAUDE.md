@@ -60,6 +60,38 @@ engine**, so nothing on either side fails when the shipped blob is stale. Before
 was manual and undocumented, and the app's blobs sat hours behind engine source with every suite
 green. Do not reintroduce a manual step between an engine change and the binary that ships.
 
+### Order of operations: engine merge, republish, app commit, verify-live
+
+The app's freshness gate reads `engine_commit` from each `engine-manifest.json` and looks that commit up in
+the engine checkout. A branch commit that a squash-merge leaves out of `main` makes the gate red in every
+fresh clone until the blobs are republished. So, in this order:
+
+1. Merge the engine PR into `main` with a **merge commit or a rebase merge, never a squash** (or squash, and
+   then do step 2 from the merged `main` commit; the manifests must name a commit that exists on `main`).
+2. From a clean `main` checkout: `bash scripts/build-wasm.sh`. It writes the blobs and both manifests into the app.
+3. In the app: `git add -f frontend/src/wasm/engine-manifest.json` together with the blobs (the directory's own
+   `.gitignore` is `*`, so a plain `git add` skips the sequential manifest). Check with
+   `git ls-files frontend/src/wasm | grep manifest`. Commit the app.
+4. `bash scripts/verify-live.sh <epic>` from a clean engine tree. Its `app_tree_committed` check fails while
+   the app tree is dirty or a published manifest is untracked, so a `pass` receipt describes a commit.
+
+Receipts and probes under `ground/` are committed to this **public** repository: counts, flags and hashes only,
+no absolute paths, no app file names, no git status lines. The scripts scrub them; do not hand-add either.
+
+## CI gate and audit triage
+
+`gate` is the one required check (S5). It fails unless every gating job is `success`, and it reads the finished
+run through the jobs API (`scripts/gate-step-audit.py`): a successful job with a skipped step is red.
+`scripts/check-ci-invariants.py` refuses what would switch a check off (job- or step-level `if` and
+`continue-on-error`, `|| true`, `set +e`, `exit 0`, `shell:` overrides, widened permissions, unpinned actions,
+an edited `gate`); `scripts/test-ci-invariants.py` runs it against mutated copies. A step-level `if` needs an
+entry in `ALLOWED_STEP_IFS`, which is a reviewed change.
+
+Security Audit: `cargo audit --deny warnings` on `main`, the Monday cron and manual runs; a pull request fails
+only on vulnerabilities, so a new unmaintained notice cannot block an unrelated PR. A red audit is triaged by
+the steps at the top of `.cargo/audit.toml`. `scripts/validate-audit-ignores.py` also holds minimum locked
+versions for crates whose advisories exist only as GHSA (xxhash-rust >= 0.8.16), which cargo-audit cannot see.
+
 ## Repo location and `target/` growth
 
 Real bytes live at `~/hr-apps/oaxaca-blinder-rs` (NVMe). `apps/hr-apps/oaxaca-blinder-rs` in the

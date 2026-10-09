@@ -333,11 +333,11 @@ def p_verify_live():
 result["verify_live"] = probe("verify_live", p_verify_live, lambda r: {"last_receipt": None, "ran_at": None, "age_hours": None, "result": None, "reason": r})
 
 # --------------------------------------------------------------------------------------------------
-# register_drift: this repo has no REGISTER.md (issues are tracked in the pay-equity-app repo, 0119-MERIDIAN)
+# register_drift: this repo has no REGISTER.md (epics are tracked in the app tracker, 0119-MERIDIAN)
 # --------------------------------------------------------------------------------------------------
 result["register_drift"] = {
     "counter": None, "highest_file": None, "rows_missing": [], "applicable": False,
-    "reason": "oaxaca-blinder-rs has no REGISTER.md; its issues live in pay-equity-app/issues and its GitHub issues are listed in open_issues",
+    "reason": "oaxaca-blinder-rs has no REGISTER.md; its epics are tracked in the Meridian app tracker and its GitHub issues are listed in open_issues",
 }
 
 
@@ -481,7 +481,17 @@ for key, reason in REASONS.items():
 GROUND.mkdir(exist_ok=True)
 out_file = GROUND / f"{datetime.now(timezone.utc).strftime('%Y-%m-%d')}-probes.json"
 tmp = out_file.with_suffix(".json.tmp")
-tmp.write_text(json.dumps(result, indent=2) + "\n")
+
+
+def scrub(text: str) -> str:
+    """This repo is public and the probes file is committed: no absolute path of this machine goes in it (0119 review OPS-2)."""
+    for real, label in ((str(ROOT.parent), "<workspace>"), (str(Path.home()), "~")):
+        text = text.replace(real, label)
+    return text
+
+
+payload = scrub(json.dumps(result, indent=2)) + "\n"
+tmp.write_text(payload)
 os.replace(tmp, out_file)
-print(json.dumps(result, indent=2))
+print(payload, end="")
 sys.exit(0)

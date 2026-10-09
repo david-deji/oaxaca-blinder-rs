@@ -2,13 +2,18 @@
 """Tests for scripts/ground.sh and scripts/verify-live.sh (0119-MERIDIAN S6, verification V6).
 
     python3 scripts/test-loop-scripts.py                 # all
-    python3 scripts/test-loop-scripts.py ground-nopath   # one of: ground-nopath ground-normal ground-validator verify-live-corrupt verify-live-dirty
+    python3 scripts/test-loop-scripts.py ground-nopath   # one of: ground-nopath ground-normal ground-validator verify-live-corrupt verify-live-dirty verify-live-app-tree verify-live-scrub
 
 Each test writes its output under target/ (never /tmp: disk is tight) and removes it afterwards.
   ground-nopath         ground.sh with `gh` and `cargo` removed from PATH exits 0, and errors[] names both.
   ground-normal         ground.sh on a normal run: every contract key present, suites total > 0.
   verify-live-corrupt   verify-live.sh against a COPY of the published blobs with one byte flipped: exits 1,
                         fails at published_vs_pkg, runs none of the app's checks, copies nothing.
+  verify-live-app-tree  the app_tree_committed check, against a scratch git repo standing in for the app: a clean
+                        committed tree passes; an ignored manifest, an uncommitted blob and a dirty app receipt
+                        each fail with their own message (0119 review F3, OPS-3). Needs git only.
+  verify-live-scrub     the committed receipt holds no absolute path, no app file names and no git status lines
+                        (0119 review OPS-2). Needs python only.
 verify-live-corrupt needs a clean engine tree (verify-live refuses a dirty one) and engine/pkg from a
 build-wasm.sh run.
 """
@@ -174,7 +179,100 @@ def test_verify_live_dirty():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
-TESTS = {"ground-nopath": test_ground_nopath, "ground-normal": test_ground_normal, "ground-validator": test_ground_validator, "verify-live-corrupt": test_verify_live_corrupt, "verify-live-dirty": test_verify_live_dirty}
+def load_verify_live(env):
+    """Import scripts/lib/verify_live.py with MERIDIAN_APP / MERIDIAN_FRONTEND set to a scratch app."""
+    import importlib.util
+    for k, v in env.items():
+        os.environ[k] = v
+    spec = importlib.util.spec_from_file_location("verify_live_under_test", ROOT / "scripts" / "lib" / "verify_live.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def git_in(cwd, *args):
+    return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, check=True,
+                          env=dict(os.environ, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@example.invalid", GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@example.invalid"))
+
+
+def test_verify_live_app_tree():
+    print("verify-live-app-tree: the tested app tree must be committed, manifests tracked")
+    tmp = scratch("apptree")
+    saved = {k: os.environ.get(k) for k in ("MERIDIAN_APP", "MERIDIAN_FRONTEND")}
+    try:
+        app = tmp / "app"
+        fe = app / "frontend" / "src"
+        for d in ("wasm", "wasm-threaded"):
+            (fe / d).mkdir(parents=True)
+            (fe / d / "pay_equity_engine_bg.wasm").write_bytes(b"blob-" + d.encode())
+            (fe / d / "engine-manifest.json").write_text("{}")
+        (fe / "wasm" / ".gitignore").write_text("*\n!.gitignore\n")   # like the app's: the manifest is ignored
+        (app / "scripts").mkdir()
+        (app / "scripts" / "gate.mjs").write_text("// gate\n")
+        git_in(app, "init", "-q")
+        git_in(app, "add", "-A")
+        git_in(app, "add", "-f", "frontend/src/wasm/pay_equity_engine_bg.wasm")   # the app force-adds its blobs; the manifest is the one left out
+        git_in(app, "commit", "-q", "-m", "init")
+        vl = load_verify_live({"MERIDIAN_APP": str(app), "MERIDIAN_FRONTEND": str(fe)})
+        clean_receipt = {"tested_tree": {"dirty": False}}
+
+        problems, _ = vl.app_tree_problems(app, fe, clean_receipt, None)
+        check(any("wasm/engine-manifest.json is not tracked" in p and ".gitignore" in p for p in problems),
+              "a manifest matched by a .gitignore and never added is reported, naming the ignore")
+        check(not any("wasm-threaded/engine-manifest.json" in p for p in problems), "the tracked threaded manifest is not reported")
+
+        git_in(app, "add", "-f", "frontend/src/wasm/engine-manifest.json")
+        git_in(app, "commit", "-q", "-m", "manifest")
+        problems, note = vl.app_tree_problems(app, fe, clean_receipt, None)
+        check(problems == [] and note, f"committed blobs and tracked manifests pass (problems: {problems})")
+
+        (fe / "wasm" / "pay_equity_engine_bg.wasm").write_bytes(b"changed")
+        problems, _ = vl.app_tree_problems(app, fe, clean_receipt, None)
+        check(any("uncommitted entries" in p for p in problems), "an uncommitted blob is reported")
+        git_in(app, "checkout", "--", "frontend/src/wasm/pay_equity_engine_bg.wasm")
+
+        (app / "scripts" / "gate.mjs").write_text("// edited\n")
+        problems, _ = vl.app_tree_problems(app, fe, clean_receipt, None)
+        check(any("uncommitted entries" in p for p in problems), "an uncommitted edit in the app's scripts/ is reported")
+        git_in(app, "checkout", "--", "scripts/gate.mjs")
+
+        problems, _ = vl.app_tree_problems(app, fe, {"tested_tree": {"dirty": True}}, None)
+        check(any("dirty app tree" in p for p in problems), "an app receipt made from a dirty tree is reported")
+        problems, _ = vl.app_tree_problems(app, fe, {"tested_tree": {}}, None)
+        check(any("dirty app tree" in p for p in problems), "an app receipt that does not say the tree was clean is reported")
+        problems, _ = vl.app_tree_problems(app, fe, None, None)
+        check(any("no app receipt" in p for p in problems), "no app receipt is reported when the run was not halted")
+        problems, _ = vl.app_tree_problems(app, fe, None, "published_vs_pkg")
+        check(not any("no app receipt" in p for p in problems), "no app receipt is not an extra complaint when an earlier check halted the run")
+        problems, _ = vl.app_tree_problems(app, tmp / "elsewhere" / "src", clean_receipt, None)
+        check(any("outside the app checkout" in p for p in problems), "a published directory outside the app checkout cannot pass")
+    finally:
+        for k, v in saved.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_verify_live_scrub():
+    print("verify-live-scrub: nothing machine-specific or app-private in the committed receipt")
+    vl = load_verify_live({"MERIDIAN_APP": "/home/someone/ws/pay-equity-app", "MERIDIAN_FRONTEND": "/home/someone/ws/pay-equity-app/frontend/src"})
+    text = vl.scrub(json.dumps({"a": "/home/someone/ws/pay-equity-app/frontend/src/wasm", "b": "/home/someone/ws/pay-equity-app", "c": str(ROOT / "engine"), "d": str(Path.home()) + "/x"}))
+    check("/home/someone" not in text and str(ROOT) not in text and str(Path.home()) not in text, f"absolute paths are replaced ({text[:140]})")
+    summary = vl.app_receipt_summary({
+        "epic": "0119", "ran_at": "t", "commit": "abc", "result": "pass",
+        "tested_tree": {"base_commit": "abc", "dirty": True, "files": {"frontend/src/secret-name.spec.js": "sha"}},
+        "checks": [{"name": "render_sweep", "result": "pass", "detail": "private detail /home/x"}],
+    })
+    flat = json.dumps(summary)
+    check("secret-name" not in flat and "private detail" not in flat, "the app receipt summary drops file names and details")
+    check(summary["tested_tree"] == {"base_commit": "abc", "dirty": True, "file_count": 1} and summary["checks"] == [{"name": "render_sweep", "result": "pass"}],
+          "the summary keeps results, the dirty flag and counts")
+    check(vl.app_receipt_summary(None) is None, "no app receipt stays None")
+
+
+TESTS = {"ground-nopath": test_ground_nopath, "ground-normal": test_ground_normal, "ground-validator": test_ground_validator, "verify-live-corrupt": test_verify_live_corrupt, "verify-live-dirty": test_verify_live_dirty, "verify-live-app-tree": test_verify_live_app_tree, "verify-live-scrub": test_verify_live_scrub}
 
 if __name__ == "__main__":
     wanted = sys.argv[1:] or list(TESTS)

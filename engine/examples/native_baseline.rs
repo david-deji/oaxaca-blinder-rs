@@ -12,6 +12,8 @@
 //! output is byte-identical across thread counts (INV-02), so this runs on
 //! rayon's default global pool rather than pinning one.
 //!
+//! Output: `{"three_fold": <result>, "two_fold": <result>}`, the same two requests compute.worker.mjs runs.
+//!
 //! Run: `cargo run -p pay-equity-engine --example native_baseline > native-baseline.json`
 
 use pay_equity_engine::analysis::decompose_inner;
@@ -19,8 +21,12 @@ use pay_equity_engine::types::DecompositionRequest;
 
 const FIXTURE: &[u8] = include_bytes!("../../oaxaca_blinder/tests/fixtures/parity_fixture.csv");
 
-fn main() {
-    let req = DecompositionRequest {
+/// The request both legs run. `three_fold` selects the decomposition: the three-fold result carries the
+/// interaction term but no per-predictor detail and no standard error, the two-fold result carries the
+/// detail rows and the bootstrap standard error. Both are compared (0119 review F2), because a comparison
+/// of the three-fold payload alone covered 18 scalars and no coefficient-level number.
+fn request(three_fold: bool) -> DecompositionRequest {
+    DecompositionRequest {
         csv_data: FIXTURE.to_vec(),
         outcome_variable: "log_wage".to_string(),
         group_variable: "gender".to_string(),
@@ -31,11 +37,20 @@ fn main() {
             "tenure".to_string(),
         ],
         categorical_predictors: None,
-        three_fold: Some(true),
+        three_fold: Some(three_fold),
         quantile: None,
         reference_coefficients: None,
         bootstrap_reps: Some(64), // matches compute.worker.mjs + mode_parity_test.rs
-    };
-    let result = decompose_inner(req).expect("native baseline decompose");
-    print!("{}", serde_json::to_string(&result).expect("serialize"));
+    }
+}
+
+fn main() {
+    let three_fold =
+        decompose_inner(request(true)).expect("native baseline decompose (three-fold)");
+    let two_fold = decompose_inner(request(false)).expect("native baseline decompose (two-fold)");
+    let both = serde_json::json!({
+        "three_fold": serde_json::to_value(&three_fold).expect("serialize three-fold"),
+        "two_fold": serde_json::to_value(&two_fold).expect("serialize two-fold"),
+    });
+    print!("{}", serde_json::to_string(&both).expect("serialize"));
 }

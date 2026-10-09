@@ -82,7 +82,7 @@
     "highest_file": null,
     "rows_missing": [],
     "applicable": false,
-    "reason": "oaxaca-blinder-rs has no REGISTER.md; its issues live in pay-equity-app/issues and its GitHub issues are listed in open_issues"
+    "reason": "oaxaca-blinder-rs has no REGISTER.md; its epics are tracked in the Meridian app tracker and its GitHub issues are listed in open_issues"
   },
   "open_issues": [],
   "flake_recurrence": [],

@@ -54,6 +54,11 @@ jobs:
       - name: Run Tests
         run: cargo test --locked --workspace --all-features
 
+      # ground.sh and verify-live.sh feed the dev loop; a regression in their probes or validator would
+      # otherwise change no CI result (0119 review F4). These cases need no wasm build and no app checkout.
+      - name: Test the loop scripts (ground.sh without gh/cargo; its validator; verify-live's app-tree check and receipt scrub)
+        run: python3 scripts/test-loop-scripts.py ground-nopath ground-validator verify-live-app-tree verify-live-scrub
+
   security:
     name: Security Audit
     runs-on: ubuntu-latest
@@ -74,14 +79,29 @@ jobs:
         with:
           tool: cargo-audit@0.22.2
 
-      - name: cargo audit --deny warnings
-        run: cargo audit --deny warnings
+      # A new advisory against any of ~490 locked crates must not turn every unrelated pull request red, so a
+      # pull request fails only on vulnerabilities; `--deny warnings` (unmaintained, unsound, yanked) runs on
+      # main, the Monday cron and manual runs, where the triage path in CLAUDE.md applies. The branching is in
+      # the script, not in a step `if`, because scripts/check-ci-invariants.py refuses step-level `if`s here.
+      - name: cargo audit (--deny warnings; vulnerabilities only on pull requests)
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" = "pull_request" ]; then
+            cargo audit
+          else
+            cargo audit --deny warnings
+          fi
 
       # Every ignore in .cargo/audit.toml must be dated, unexpired, matched to a locked package, and
       # classified (lock-only with an empty cargo tree, or risk-accepted with a reason).
       - name: Validate .cargo/audit.toml ignores
         if: ${{ !cancelled() }}
         run: python3 scripts/validate-audit-ignores.py --no-fetch
+
+      # The validator is tested before it is trusted: one failure class per case, against the real lockfile.
+      - name: Test the ignore validator (every failure class must be reported)
+        run: python3 scripts/test-audit-validator.py
 
   memory-ceiling:
     name: Memory Ceiling (50k @ N=8 < 326 MiB)
@@ -415,6 +435,10 @@ jobs:
       - browser-parity
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # actions: read lets the second step list this run's jobs and steps through the API.
+    permissions:
+      contents: read
+      actions: read
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -432,11 +456,29 @@ jobs:
           fi
           echo "gate: all $(echo "$NEEDS" | jq 'length') gating jobs succeeded"
 
-      # continue-on-error, a job-level `if`, a missing timeout, an unpinned action, `npm install`, or
-      # a gate whose `needs` drifted from the gating jobs would make a green gate mean less.
+      # Independent of the workflow text: a job can be `success` while one of its steps was skipped (a step
+      # `if` that is false), and no `needs` result shows that. Read the finished jobs from the API.
+      - name: No step of a successful job was skipped or cancelled (the run's jobs API)
+        if: ${{ always() }}
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          gh api "repos/${REPO}/actions/runs/${RUN_ID}/jobs?per_page=100" --paginate > run-jobs.json
+          python3 scripts/gate-step-audit.py run-jobs.json --expect-jobs "$(echo "$NEEDS" | jq 'length')"
+
+      # continue-on-error, a job-level `if`, a step-level `if`, `|| true`, `set +e`, a missing timeout, an
+      # unpinned action, widened permissions, `npm install`, or a gate whose `needs` or steps drifted from the
+      # reviewed shape would make a green gate mean less.
       - name: Workflow invariants (scripts/check-ci-invariants.py)
         if: ${{ always() }}
         run: python3 scripts/check-ci-invariants.py
+
+      - name: Tests of the workflow guard (mutated copies must fail)
+        if: ${{ always() }}
+        run: python3 scripts/test-ci-invariants.py
 
   benchmark-speedup:
     name: Benchmark (Rust methods, non-blocking)

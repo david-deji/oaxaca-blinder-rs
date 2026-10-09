@@ -4,7 +4,7 @@
 //
 // 0119-MERIDIAN S3: the comparator must not be able to pass vacuously.
 //   * `serde_wasm_bindgen` drops `None` fields, so native `null` shows up as an ABSENT key in the
-//     wasm output. That is the only asymmetry tolerated, and only at the two paths in
+//     wasm output. That is the only asymmetry tolerated, and only at the paths in
 //     ABSENT_AS_NULL_PATHS, and only when the side that has the key holds literally `null`.
 //     A number (or anything else) against an absent key is a mismatch.
 //   * The result reports how many numeric leaves were compared and at which paths, so a caller can
@@ -15,35 +15,67 @@
 // a browser; importing parity.spec.mjs directly fails outside Playwright's test runner.
 export const DEFAULT_TOLERANCE = 1e-6;
 
-// Paths where one side may omit a key whose other side is `null` (TRUST-4). Frozen and asserted
-// verbatim by native-wasm-diff.test.mjs: widening it is a deliberate, reviewed change.
-export const ABSENT_AS_NULL_PATHS = Object.freeze(['$.unexplained_standard_error', '$.unresolved_row_keys']);
+// The payload holds two decompositions of the same data, because each leaves out what the other has:
+// `three_fold` has the interaction term but no per-predictor detail and no standard error; `two_fold` has the
+// per-predictor detail rows and the bootstrap standard error but no interaction (0119 review F2: comparing the
+// three-fold payload alone covered 18 scalars and not one coefficient-level number).
+export const CASES = Object.freeze(['three_fold', 'two_fold']);
 
-// Numeric leaves compared today (counted on engine/examples/native_baseline.rs output, 2026-10-09).
-// Lower this only with a reason recorded in the 0119 issue Log.
-export const NUMERIC_LEAF_FLOOR = 18;
+// Paths where one side may omit a key whose other side is `null` (TRUST-4): `serde_wasm_bindgen` drops `None`.
+// Frozen and asserted verbatim by native-wasm-diff.test.mjs: widening it is a deliberate, reviewed change.
+// Every entry is a field the engine leaves `None` for that case; the two_fold standard error is NOT here, so
+// a wasm build that drops it fails as number-vs-absent.
+export const ABSENT_AS_NULL_PATHS = Object.freeze([
+  '$.three_fold.unexplained_standard_error',
+  '$.three_fold.unresolved_row_keys',
+  '$.two_fold.interaction_gap',
+  '$.two_fold.interaction_percentage',
+  '$.two_fold.unresolved_row_keys',
+]);
+
+const SCALAR_FIELDS = [
+  'total_gap',
+  'explained_gap',
+  'unexplained_gap',
+  'explained_percentage',
+  'unexplained_percentage',
+  'data_summary.total_count',
+  'data_summary.group_a_count',
+  'data_summary.group_b_count',
+  'data_summary.group_a_mean',
+  'data_summary.group_b_mean',
+  'run_metadata.bootstrap_reps_requested',
+  'run_metadata.bootstrap_reps_succeeded',
+  'run_metadata.bootstrap_reps_discarded',
+  'analysed_reference_count',
+  'analysed_target_count',
+  'adjustments_on_excluded_rows',
+];
+const DETAIL_FIELDS = ['estimate', 'std_err', 'p_value', 'ci_lower', 'ci_upper'];
+// Fixture predictors (education, experience, tenure) plus the intercept the engine reports as a row.
+const DETAIL_ROWS = 4;
+
+function detailPaths(group) {
+  const out = [];
+  for (let i = 0; i < DETAIL_ROWS; i += 1) for (const f of DETAIL_FIELDS) out.push(`$.two_fold.${group}[${i}].${f}`);
+  return out;
+}
 
 // Numeric paths that must be present in a native/wasm comparison, whatever else the payload holds.
 export const REQUIRED_NUMERIC_PATHS = Object.freeze([
-  '$.total_gap',
-  '$.explained_gap',
-  '$.unexplained_gap',
-  '$.interaction_gap',
-  '$.explained_percentage',
-  '$.unexplained_percentage',
-  '$.interaction_percentage',
-  '$.data_summary.total_count',
-  '$.data_summary.group_a_count',
-  '$.data_summary.group_b_count',
-  '$.data_summary.group_a_mean',
-  '$.data_summary.group_b_mean',
-  '$.run_metadata.bootstrap_reps_requested',
-  '$.run_metadata.bootstrap_reps_succeeded',
-  '$.run_metadata.bootstrap_reps_discarded',
-  '$.analysed_reference_count',
-  '$.analysed_target_count',
-  '$.adjustments_on_excluded_rows',
+  ...SCALAR_FIELDS.map((f) => `$.three_fold.${f}`),
+  '$.three_fold.interaction_gap',
+  '$.three_fold.interaction_percentage',
+  ...SCALAR_FIELDS.map((f) => `$.two_fold.${f}`),
+  '$.two_fold.unexplained_standard_error',
+  ...detailPaths('detailed_explained'),
+  ...detailPaths('detailed_unexplained'),
 ]);
+
+// Numeric leaves compared today (counted on engine/examples/native_baseline.rs output, 2026-10-09):
+// 18 three-fold + 57 two-fold (16 scalars, the standard error, 8 detail rows x 5 numbers).
+// Lower this only with a reason recorded in the 0119 issue Log.
+export const NUMERIC_LEAF_FLOOR = 75;
 
 function walk(native, wasm, path, tolerance, out) {
   if (typeof native === 'number' && typeof wasm === 'number') {

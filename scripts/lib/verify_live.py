@@ -16,8 +16,15 @@ Order, and why:
   3. app_real_blob_specs  the app's specs that execute the SHIPPED blobs under node.
   4. app_verify_live      the app's own scripts/verify-live.sh <epic>. Its receipt is embedded only when
                         its ran_at is after this run started and its commit is the app's HEAD.
+  5. app_tree_committed   the app tree that was tested is committed: the app receipt was not made from a dirty
+                        tree, nothing under the published directories is uncommitted, and each published
+                        engine-manifest.json is tracked by git (the sequential one sits in a directory whose
+                        .gitignore is `*`, so a plain `git add` skips it).
 Every nested exit code is checked: a non-zero exit fails its check whatever the receipt says.
 Nothing here copies or publishes anything.
+
+The receipt is committed to a public repository: it holds counts, flags and hashes, never an absolute path
+of this machine, the app's file names, or its git status lines (0119 review OPS-2).
 """
 from __future__ import annotations
 
@@ -70,6 +77,62 @@ def git(args: list, cwd: Path = ROOT) -> str:
     rc, out = run(["git"] + args, 30, cwd)
     # rstrip("\n") only: `git status --porcelain` lines begin with a space, which strip() would eat
     return out.rstrip("\n") if rc == 0 else ""
+
+
+def inside_app(path: Path, app: Path = None) -> bool:
+    try:
+        return path.resolve().is_relative_to((app or APP).resolve())
+    except OSError:
+        return False
+
+
+def scrub(text: str) -> str:
+    """Replace this machine's absolute paths in text that is about to be committed."""
+    for real, label in ((str(FRONTEND_SRC), "<app>/frontend/src"), (str(APP), "<app>"), (str(ROOT), "<engine>"),
+                        (str(ROOT.parent), "<workspace>"), (str(Path.home()), "~")):
+        if real and real != "/":
+            text = text.replace(real, label)
+    return text
+
+
+def app_receipt_summary(rec):
+    """What of the app's own receipt may be committed here: results and counts, not its file names."""
+    if rec is None:
+        return None
+    tt = rec.get("tested_tree") or {}
+    return {
+        "epic": rec.get("epic"), "ran_at": rec.get("ran_at"), "commit": rec.get("commit"), "result": rec.get("result"),
+        "tested_tree": {"base_commit": tt.get("base_commit"), "dirty": tt.get("dirty"), "file_count": len(tt.get("files") or {})},
+        "checks": [{"name": c.get("name"), "result": c.get("result")} for c in rec.get("checks") or []],
+    }
+
+
+def app_tree_problems(app: Path, frontend_src: Path, app_receipt, halted_at):
+    """(problems, note) for check 5. `app` is the app checkout, `frontend_src` the directory published into."""
+    problems = []
+    note = None
+    if not app.is_dir():
+        problems.append("app checkout not found")
+    elif not inside_app(frontend_src, app):
+        problems.append("the published directory is outside the app checkout (MERIDIAN_FRONTEND), so its tracking in git cannot be checked")
+    else:
+        rel_src = frontend_src.resolve().relative_to(app.resolve())
+        pub_rel = [str(rel_src / "wasm"), str(rel_src / "wasm-threaded")]
+        uncommitted = [l for l in git(["status", "--porcelain", "--untracked-files=all", "--", *pub_rel, "scripts"], app).splitlines() if l]
+        if uncommitted:
+            problems.append(f"{len(uncommitted)} uncommitted entries under the published directories and the app's scripts/ (commit them, then rerun)")
+        for rel in pub_rel:
+            m = f"{rel}/engine-manifest.json"
+            rc, _ = run(["git", "ls-files", "--error-unmatch", "--", m], 30, app)
+            if rc != 0:
+                ignored = run(["git", "check-ignore", "-q", "--", m], 30, app)[0] == 0
+                problems.append(f"{m} is not tracked by git" + (" (matched by a .gitignore: `git add -f` it, or negate it in a tracked ignore rule)" if ignored else ""))
+        note = "each published engine-manifest.json is tracked"
+    if app_receipt is not None and (app_receipt.get("tested_tree") or {}).get("dirty") is not False:
+        problems.append("the app receipt was made from a dirty app tree (tested_tree.dirty is not false)")
+    elif app_receipt is None and halted_at is None:
+        problems.append("no app receipt to read the tested tree from")
+    return problems, note
 
 
 def main() -> int:
@@ -164,7 +227,8 @@ def main() -> int:
         not problems,
         "published blobs, glue and manifests equal engine pkg byte for byte, and each manifest's raw sha256 equals the raw blob built from this source"
         if not problems else "; ".join(problems)[:1500],
-        published_dir=str(FRONTEND_SRC), artifacts=facts,
+        published_dir="frontend/src of the app checkout" if inside_app(FRONTEND_SRC) else "an override outside the app checkout (MERIDIAN_FRONTEND)",
+        artifacts=facts,
     )
     if not (checks[0]["result"] == "pass" and pub_ok):
         halted_at = "wasm_verify" if checks[0]["result"] != "pass" else "published_vs_pkg"
@@ -228,7 +292,18 @@ def main() -> int:
         for n in ("app_real_blob_specs", "app_verify_live"):
             checks.append({"name": n, "result": "not_run", "detail": f"not run: {halted_at} failed, so the app's checks would describe a different blob than the one that ships"})
 
-    app_status = git(["status", "--porcelain"], APP).splitlines() if APP.is_dir() else None
+    # 5. the tested app tree is committed (a receipt that says `pass` for a tree that exists in no commit proves nothing)
+    problems, tracked_note = app_tree_problems(APP, FRONTEND_SRC, app_receipt, halted_at)
+    add("app_tree_committed", not problems,
+        "the app receipt's tree is clean, nothing under the published directories or scripts/ is uncommitted, " + (tracked_note or "")
+        if not problems else "; ".join(problems)[:1200])
+
+    app_clean = None
+    app_uncommitted = None
+    if APP.is_dir():
+        app_status = git(["status", "--porcelain"], APP).splitlines()
+        app_uncommitted = len([l for l in app_status if l])
+        app_clean = app_uncommitted == 0
     overall = all(c["result"] == "pass" for c in checks)
     receipt = {
         "epic": epic,
@@ -240,16 +315,16 @@ def main() -> int:
         "halted_at": halted_at,
         "copied_or_published": False,
         "checks": checks,
-        "app_receipt": app_receipt,
+        "app_receipt": app_receipt_summary(app_receipt),
         "app_receipt_note": app_receipt_note,
-        "app_git_status": {"path": str(APP), "head": app_head or None, "porcelain": app_status},
+        "app_git_status": {"head": app_head or None, "clean": app_clean, "uncommitted_entries": app_uncommitted},
         "engine_git_status": porcelain,
     }
     rdir = GROUND / "receipts"
     rdir.mkdir(parents=True, exist_ok=True)
     path = rdir / f"{epic}-live.json"
     tmp = path.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(receipt, indent=2) + "\n")
+    tmp.write_text(scrub(json.dumps(receipt, indent=2)) + "\n")
     os.replace(tmp, path)
     print(json.dumps({k: receipt[k] for k in ("epic", "ran_at", "commit", "result", "halted_at")} | {"checks": [(c["name"], c["result"]) for c in checks]}, indent=2))
     print(f"receipt written: {path}", file=sys.stderr)
