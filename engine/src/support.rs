@@ -352,12 +352,18 @@ fn group_report(
             threshold: QUANTILE_TIE_SHARE,
         });
     }
-    if offset.abs() > QUANTILE_ECDF_OFFSET {
+    // A type-7 percentile sits between two order statistics, so even with no tied value
+    // F_n(q_tau) - tau lies in (-tau/n, (1 - tau)/n]: up to 1/n by discreteness alone. A group of
+    // 23 distinct salaries is off by 0.03 at the median and is not a step grid. The line is the
+    // larger of the 0.01 of T16 and 1/n; `tie_share` is the step-grid signal.
+    let discreteness = if n > 0.0 { 1.0 / n } else { 0.0 };
+    let offset_line = QUANTILE_ECDF_OFFSET.max(discreteness);
+    if offset.abs() > offset_line {
         warnings.push(DiagnosticWarning {
             code: WarningCode::EcdfOffset,
             subject: Some(label.to_string()),
             value: offset,
-            threshold: QUANTILE_ECDF_OFFSET,
+            threshold: offset_line,
         });
     }
     (

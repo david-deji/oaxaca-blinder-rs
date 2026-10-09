@@ -377,6 +377,27 @@ fn v1c_shares_come_from_the_rows_that_survive_cleaning() {
     );
 }
 
+#[test]
+fn v1c_weights_and_dropped_rows_together_count_the_weights_of_the_surviving_rows() {
+    // E-REV F2. The weighted case above drops no row and the dropped case above carries no
+    // weight, so a share taken from the weights of the PRE-cleaning frame passes both. Here the
+    // six blank-Tenure rows (Eng x4, Admin x2, weights 1,1,1,3,3,2) leave a weighted model: the
+    // shares must be the sum of the weights of the rows that survive. The generator also checks
+    // this case equals `lm()` on the surviving rows repeated by their weights (4.6e-14).
+    let df = read("norm_skewed_fixture.csv");
+    let mut m = Model::skewed();
+    m.nums = vec!["Age", "Experience_Years", "Tenure"];
+    m.weights = Some("w");
+    let worst = check_case(
+        "skewed_weighted_dropped",
+        &df,
+        &m,
+        NormalizationConvention::PopulationShare,
+        TOL_REFIT,
+    );
+    println!("weighted and dropped: worst difference from the refit {worst:e}");
+}
+
 // ---------------------------------------------------------------------------------------------
 // V1c: the identity and its teeth
 // ---------------------------------------------------------------------------------------------

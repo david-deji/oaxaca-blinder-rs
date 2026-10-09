@@ -1,6 +1,6 @@
 {
   "_meta": {
-    "generated_utc": "2026-10-09 13:59:12 UTC",
+    "generated_utc": "2026-10-09 16:13:44 UTC",
     "r_version": "4.6.1",
     "packages": {
       "oaxaca": "0.1.5",
@@ -10,7 +10,7 @@
     },
     "seed": 20261009,
     "rngkind": "Mersenne-Twister,Inversion,Rejection",
-    "generator_sha256": "7cdd96b767142e7c8414f1253aeca015c7dfc5a7cd09911816cba26211ec5812",
+    "generator_sha256": "73204a0031d36e0a26cbb672e0c994ecefdcb3b8d82313567587ded239c3ac99",
     "fixture_sha256": {
       "employers_trust_fixture.csv": "91582bcc86845bfbf1e1b376abb0ac03fe6c4a6bff4a093e1a5b895a32cfeb7d",
       "norm_skewed_fixture.csv": "e1bce8c81b60328a11a79e61788c25e0cd9f0c7470180872c9512fc9c42a2bcd",
@@ -36,6 +36,9 @@
       "skewed_permuted_shares_max_abs": 0.12791313937965576,
       "weighted_vs_expanded_rows": 2.8421709430404007e-14,
       "dropped_rows": 6,
+      "weighted_dropped_vs_expanded_rows": 4.6185277824406512e-14,
+      "weighted_shares_pre_vs_post_cleaning_max_abs": 0.0027424997148180474,
+      "weighted_vs_row_count_shares_max_abs": 0.02293989491221321,
       "balanced_pop_vs_equal": 0,
       "balanced_vs_ddecompose": 3.5778671692021646e-17,
       "rif_q10_vs_ddecompose": 1.1102230246251565e-16,
@@ -2275,6 +2278,183 @@
         "interaction": 0.028336973005826997
       },
       "posthoc_vs_refit_max_abs_diff": 5.3290705182007514e-15
+    },
+    "skewed_weighted_dropped": {
+      "shares": {
+        "Department": {
+          "Admin": 0.62422145328719725,
+          "Eng": 0.27335640138408307,
+          "Ops": 0.087889273356401384,
+          "Zeta": 0.01453287197231834
+        },
+        "Location": {
+          "Boston": 0.44844290657439445,
+          "Chicago": 0.35155709342560554,
+          "Denver": 0.20000000000000001
+        }
+      },
+      "n_a": 336,
+      "n_b": 258,
+      "total_gap": 0.19717556083831589,
+      "schemes": {
+        "GroupA": {
+          "detailed_explained": {
+            "__ob_intercept__": 0,
+            "Age": 0.012662822336773979,
+            "Experience_Years": 0.0050280748421342621,
+            "Tenure": -0.00098283103152176847,
+            "Department_Admin": 0.017419833430591995,
+            "Department_Eng": 0.041936569368990401,
+            "Department_Ops": -7.9600037817861449e-06,
+            "Department_Zeta": -0.00098235420710710572,
+            "Location_Boston": 0.00083359309785781114,
+            "Location_Chicago": 0.0036331486045487137,
+            "Location_Denver": -0.0025778986899712883
+          },
+          "detailed_unexplained": {
+            "__ob_intercept__": 0.14937833078251828,
+            "Age": -0.097423951636810335,
+            "Experience_Years": 0.08052947301079437,
+            "Tenure": -0.0015050529321019267,
+            "Department_Admin": -0.013814319336576545,
+            "Department_Eng": 0.012990565693551963,
+            "Department_Ops": -0.0060200632092516099,
+            "Department_Zeta": -0.0027825235626937773,
+            "Location_Boston": -0.0038450809391170101,
+            "Location_Chicago": 0.0089391757566011434,
+            "Location_Denver": -0.0062339905371121577
+          },
+          "explained": 0.076962997748515213,
+          "unexplained": 0.1202125630898024
+        },
+        "GroupB": {
+          "detailed_explained": {
+            "__ob_intercept__": 0,
+            "Age": 0.016203632760758955,
+            "Experience_Years": -0.0022798093511975171,
+            "Tenure": -0.0010753603716252948,
+            "Department_Admin": 0.013033764053443947,
+            "Department_Eng": 0.024708211846054665,
+            "Department_Ops": 0.00044993853917635719,
+            "Department_Zeta": -0.00031192584943891385,
+            "Location_Boston": -0.0003396071459326534,
+            "Location_Chicago": 0.00047959702219874014,
+            "Location_Denver": -0.00067699268837060668
+          },
+          "detailed_unexplained": {
+            "__ob_intercept__": 0.14937833078251828,
+            "Age": -0.10096476206079531,
+            "Experience_Years": 0.087837357204126151,
+            "Tenure": -0.0014125235919984001,
+            "Department_Admin": -0.0094282499594284964,
+            "Department_Eng": 0.030218923216487694,
+            "Department_Ops": -0.0064779617522097528,
+            "Department_Zeta": -0.003452951920361969,
+            "Location_Boston": -0.0026718806953265456,
+            "Location_Chicago": 0.012092727338951118,
+            "Location_Denver": -0.0081348965387128391
+          },
+          "explained": 0.05019144881506768,
+          "unexplained": 0.14698411202324993
+        },
+        "Weighted": {
+          "detailed_explained": {
+            "__ob_intercept__": 0,
+            "Age": 0.014539819419661516,
+            "Experience_Years": 0.0011541376157729172,
+            "Tenure": -0.0010318811868984474,
+            "Department_Admin": 0.015094761359384102,
+            "Department_Eng": 0.032803751471018924,
+            "Department_Ops": 0.00023477375670675213,
+            "Department_Zeta": -0.00062695758290375969,
+            "Location_Boston": 0.00021167518315642992,
+            "Location_Chicago": 0.001961438907607482,
+            "Location_Denver": -0.001570221183240408
+          },
+          "detailed_unexplained": {
+            "__ob_intercept__": 0.14937833078251828,
+            "Age": -0.099300948719697871,
+            "Experience_Years": 0.084403410237155724,
+            "Tenure": -0.0014560027767252476,
+            "Department_Admin": -0.011489247265368652,
+            "Department_Eng": 0.022123383591523434,
+            "Department_Ops": -0.0062627969697401469,
+            "Department_Zeta": -0.0031379201868971234,
+            "Location_Boston": -0.0032231630244156291,
+            "Location_Chicago": 0.010610885453542374,
+            "Location_Denver": -0.0072416680438430383
+          },
+          "explained": 0.062771297760265507,
+          "unexplained": 0.13440426307805209
+        },
+        "Pooled": {
+          "detailed_explained": {
+            "__ob_intercept__": 0,
+            "Age": 0.012121825574529507,
+            "Experience_Years": 0.0033285468935570256,
+            "Tenure": -0.00071824251674166867,
+            "Department_Admin": 0.015684488255102123,
+            "Department_Eng": 0.035031616688574442,
+            "Department_Ops": 0.00017418262551453822,
+            "Department_Zeta": -0.00069651325578170523,
+            "Location_Boston": 0.00017189159956120152,
+            "Location_Chicago": 0.0020149233811795945,
+            "Location_Denver": -0.0016471498955851044
+          },
+          "detailed_unexplained": {
+            "__ob_intercept__": 0.14937833078251828,
+            "Age": -0.096882954874565858,
+            "Experience_Years": 0.082229000959371606,
+            "Tenure": -0.0017696414468820259,
+            "Department_Admin": -0.012078974161086673,
+            "Department_Eng": 0.01989551837396792,
+            "Department_Ops": -0.0062022058385479339,
+            "Department_Zeta": -0.0030683645140191776,
+            "Location_Boston": -0.0031833794408204007,
+            "Location_Chicago": 0.010557400979970263,
+            "Location_Denver": -0.0071647393314983408
+          },
+          "explained": 0.065465569349909949,
+          "unexplained": 0.13170999148840765,
+          "indicator_coefficient": 0.13170999148840598
+        },
+        "PooledNoIndicator": {
+          "detailed_explained": {
+            "__ob_intercept__": 0,
+            "Age": 0.013518802814774506,
+            "Experience_Years": 0.0021952466936020162,
+            "Tenure": -0.00033203090284318084,
+            "Department_Admin": 0.018623880583017099,
+            "Department_Eng": 0.041273885282355795,
+            "Department_Ops": 0.00018647082552091304,
+            "Department_Zeta": -0.0006815111219314133,
+            "Location_Boston": 0.0022403355360408853,
+            "Location_Chicago": 0.0030943386617422308,
+            "Location_Denver": -0.0010496482483531016
+          },
+          "detailed_unexplained": {
+            "__ob_intercept__": 0.14937833078251828,
+            "Age": -0.09827993211481087,
+            "Experience_Years": 0.083362301159326621,
+            "Tenure": -0.0021558530607805153,
+            "Department_Admin": -0.015018366489001646,
+            "Department_Eng": 0.013653249780186569,
+            "Department_Ops": -0.0062144940385543083,
+            "Department_Zeta": -0.0030833666478694696,
+            "Location_Boston": -0.0052518233773000845,
+            "Location_Chicago": 0.0094779856994076268,
+            "Location_Denver": -0.0077622409787303451
+          },
+          "explained": 0.079069770123925756,
+          "unexplained": 0.11810579071439185
+        }
+      },
+      "three_fold_raw": {
+        "endowments": 0.050191448815067645,
+        "coefficients": 0.12021256308980369,
+        "interaction": 0.026771548933447586
+      },
+      "posthoc_vs_refit_max_abs_diff": 1.7763568394002505e-15
     },
     "balanced_popshare": {
       "shares": {

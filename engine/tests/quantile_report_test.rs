@@ -49,14 +49,16 @@ fn want(case: &str, tau: &str) -> &'static Value {
     golden().block(&["quantiles", case, "taus", tau])
 }
 
-/// Warnings the thresholds should raise, derived from R's numbers (5% ties, 0.01 ECDF offset).
+/// Warnings the thresholds should raise, derived from R's numbers (5% ties; ECDF offset above
+/// 0.01 and above 1/n, the most a tie-free group of n rows can be off by discreteness).
 fn expected_group_warnings(w: &Value, tau: f64) -> Vec<(WarningCode, String)> {
     let mut out = Vec::new();
     for (label, g) in [("reference", &w["reference"]), ("target", &w["target"])] {
         if f(g, "tie_share") > 0.05 {
             out.push((WarningCode::TieShare, label.to_string()));
         }
-        if (f(g, "ecdf_at_quantile") - tau).abs() > 0.01 {
+        let line = 0.01_f64.max(1.0 / g["count"].as_f64().unwrap());
+        if (f(g, "ecdf_at_quantile") - tau).abs() > line {
             out.push((WarningCode::EcdfOffset, label.to_string()));
         }
     }
@@ -274,5 +276,116 @@ fn v8_the_rif_total_is_the_pre_change_number() {
         (sum - res.total_gap).abs() < 1e-9,
         "{sum} vs {}",
         res.total_gap
+    );
+}
+
+// ---- E-REV-2: discreteness is not a step grid -------------------------------------------------
+
+/// A group of `n` strictly increasing (tie-free) salaries.
+fn distinct(n: usize) -> Vec<f64> {
+    (0..n)
+        .map(|i| 50_000.0 + 137.0 * i as f64 + (i * i) as f64)
+        .collect()
+}
+
+#[test]
+fn e_rev_2_small_tie_free_groups_do_not_raise_the_ecdf_warning() {
+    use pay_equity_engine::support::quantile_report;
+    // F_n(q_tau) - tau is up to 1/n by discreteness alone, with no tied value anywhere. The old
+    // fixed 0.01 line fired for every one of these groups at some percentile.
+    let mut old_line_would_have_fired = 0;
+    for n in [8usize, 11, 15, 23, 37, 49, 60, 100] {
+        for tau in [0.1, 0.5, 0.9] {
+            let (rep, warnings) = quantile_report(tau, &distinct(60), &distinct(n), 0.0);
+            assert!(
+                rep.target.tie_share <= 1.0 / n as f64,
+                "n={n} tau={tau}: at most the one row that q lands on"
+            );
+            if rep.target.ecdf_offset.abs() > 0.01 {
+                old_line_would_have_fired += 1;
+            }
+            assert!(
+                warnings
+                    .iter()
+                    .all(|w| w.code != WarningCode::EcdfOffset
+                        || w.subject.as_deref() != Some("target")),
+                "n={n} tau={tau}: offset {} raised the warning {warnings:?}",
+                rep.target.ecdf_offset
+            );
+            assert!(
+                rep.target.ecdf_offset.abs() <= 1.0 / n as f64 + 1e-12,
+                "n={n} tau={tau}: a tie-free offset is at most 1/n, got {}",
+                rep.target.ecdf_offset
+            );
+        }
+    }
+    // the gate can fail: the fixed line did fire on these inputs (n = 8, 11, 15, 23, 37, 49 ...)
+    assert!(
+        old_line_would_have_fired >= 10,
+        "only {old_line_would_have_fired} of 24 cases exceed 0.01; the test would pass on the old line"
+    );
+}
+
+#[test]
+fn e_rev_2_the_23_woman_roster_is_silent_end_to_end_and_a_tied_one_still_fires() {
+    // 23 women with 23 different salaries against 40 men, through the engine entry point.
+    fn csv(women: &[f64]) -> Vec<u8> {
+        let mut out = String::from("y,x,g\n");
+        for (i, y) in distinct(40).iter().enumerate() {
+            out.push_str(&format!("{y},{},Male\n", 10 + i % 9));
+        }
+        for (i, y) in women.iter().enumerate() {
+            out.push_str(&format!("{y},{},Female\n", 10 + i % 9));
+        }
+        out.into_bytes()
+    }
+    let run = |women: &[f64], tau: f64| {
+        decompose_inner(DecompositionRequest {
+            csv_data: csv(women),
+            outcome_variable: "y".to_string(),
+            group_variable: "g".to_string(),
+            reference_group: "Male".to_string(),
+            predictors: vec!["x".to_string()],
+            categorical_predictors: None,
+            three_fold: None,
+            quantile: Some(tau),
+            reference_coefficients: Some("GroupB".to_string()),
+            bootstrap_reps: Some(0),
+        })
+        .unwrap()
+    };
+    for tau in [0.1, 0.5, 0.9] {
+        let res = run(&distinct(23), tau);
+        assert!(
+            report_warnings(&res).is_empty(),
+            "tau={tau}: tie-free roster raised {:?}",
+            res.warnings
+        );
+    }
+    // Nine of the 23 women share the median salary: a step, not discreteness. Both signals fire.
+    let mut stepped = distinct(23);
+    let median = stepped[11];
+    for y in stepped.iter_mut().skip(8).take(9) {
+        *y = median;
+    }
+    stepped.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let res = run(&stepped, 0.5);
+    let fired = report_warnings(&res);
+    assert!(
+        fired.contains(&(WarningCode::TieShare, "target".to_string())),
+        "{fired:?}"
+    );
+    assert!(
+        fired.contains(&(WarningCode::EcdfOffset, "target".to_string())),
+        "{fired:?}"
+    );
+    let w = res
+        .warnings
+        .iter()
+        .find(|w| w.code == WarningCode::EcdfOffset)
+        .unwrap();
+    assert!(
+        w.threshold >= 1.0 / 23.0 - 1e-12,
+        "the line that applied is reported: {w:?}"
     );
 }

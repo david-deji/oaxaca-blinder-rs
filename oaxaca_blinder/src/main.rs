@@ -94,8 +94,9 @@ impl NormalizationArg {
 /// What a weights column means (0120-MERIDIAN S9 / T17).
 #[derive(Clone, Copy, Debug, clap::ValueEnum)]
 enum WeightsKindArg {
-    /// Whole-number replication counts (a headcount). `2` is the row twice; a fractional value is
-    /// refused, naming the row.
+    /// Whole-number replication counts (a headcount). `2` is the row twice, in the point estimates
+    /// and in the bootstrap (a replicate draws sum(w) employees, so standard errors and p-values
+    /// match the repeated rows); a fractional value is refused, naming the row.
     Frequency,
     /// Relative importance (FTE, design weights), rescaled to sum to the row count. The weighted
     /// quantile is `Hmisc::wtd.quantile(type = "quantile", normwt = TRUE)`. Uniform weights change

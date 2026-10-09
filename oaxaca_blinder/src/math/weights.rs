@@ -5,8 +5,11 @@
 //! column always travels with a [`WeightsKind`]:
 //!
 //! * [`WeightsKind::Frequency`]: every weight is a non-negative integer count of identical
-//!   employees (a headcount). The estimators treat `w = 2` as the row twice. A fractional weight
-//!   is refused, naming the row.
+//!   employees (a headcount). The estimators treat `w = 2` as the row twice, and so does the
+//!   bootstrap: a replicate draws `sum(w)` employees (multinomial, probability `w_i / sum(w)`) and
+//!   the draw counts become the replicate's weights, so standard errors, intervals and p-values
+//!   match the repeated rows. A fractional weight is refused, naming the row.
+//!   [`WeightsKind::Relative`] weights are carried along with their row in a row-level bootstrap.
 //! * [`WeightsKind::Relative`]: weights say how much one row counts against another (FTE, survey
 //!   design weights). They are rescaled so the rows that carry weight sum to their own count, and
 //!   the weighted quantile is a port of `Hmisc::wtd.quantile(type = "quantile", normwt = TRUE)`.

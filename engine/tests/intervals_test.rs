@@ -185,6 +185,80 @@ fn v7_the_level_is_clamped_and_defaults_to_95() {
     assert_eq!(high.interval.confidence_level, 0.999);
 }
 
+/// E-REV F1 (contract): under `range_target` LowerBound / UpperBound the payment IS the interval
+/// bound, so the t-based bound moves remedy dollars. The oracle is `predict.lm`'s own `lwr` /
+/// `upr` for each compared row: the payment is `max(0, bound - wage)` and the new wage is
+/// `max(wage, bound)`. (Midpoint payments never touched the interval.)
+#[test]
+fn v7_range_target_payments_equal_the_predict_lm_bound_minus_the_wage() {
+    for name in ["df5", "employers"] {
+        let c = case(name);
+        for (target, key) in [
+            (RangeTarget::LowerBound, "lwr"),
+            (RangeTarget::UpperBound, "upr"),
+        ] {
+            let mut req = optimisation(name, Some(0.95));
+            req.range_target = Some(target.clone());
+            req.strategy = Some(AllocationStrategy::Greedy);
+            req.budget = 1.0e12;
+            let res = optimize_inner(req).unwrap();
+            let got = by_index(&res);
+            let mut paid = 0;
+            let mut worst = 0.0_f64;
+            for row in c["levels"]["0.95"]["target"].as_array().unwrap() {
+                let ordinal = row["ordinal"].as_u64().unwrap() as usize;
+                let a = got[&ordinal];
+                let (bound, wage) = (f(row, key), f(row, "wage"));
+                let want = (bound - wage).max(0.0);
+                let err = (a.adjustment - want).abs();
+                assert!(
+                    err <= 1e-9 * wage.abs(),
+                    "{name} {key} row {ordinal}: paid {} against predict.lm bound - wage {want}",
+                    a.adjustment
+                );
+                worst = worst.max(err / wage.abs());
+                assert!(
+                    (a.new_wage - wage.max(bound)).abs() <= 1e-9 * wage.abs(),
+                    "{name} {key} row {ordinal}: new wage {} vs max(wage, bound) {}",
+                    a.new_wage,
+                    wage.max(bound)
+                );
+                if want > 0.0 {
+                    paid += 1;
+                }
+            }
+            assert!(
+                paid > 0,
+                "{name} {key}: no compared row is paid to its bound; the case has no teeth"
+            );
+            println!("{name} {key}: payment vs predict.lm, worst relative difference {worst:e}");
+        }
+    }
+}
+
+#[test]
+fn v7_the_range_target_oracle_can_fail_a_normal_theory_bound_is_far_off_at_five_df() {
+    // On the 5-df fixture the z half-width is 76% of the t half-width, so a z-based LowerBound
+    // payment differs from R's by hundreds of dollars on some compared row.
+    let c = case("df5");
+    let t = f(&c["levels"]["0.95"], "critical");
+    let z = 1.959963984540054;
+    let worst = c["levels"]["0.95"]["target"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|row| {
+            let (fair, lwr, wage) = (f(row, "fair"), f(row, "lwr"), f(row, "wage"));
+            let z_bound = fair - (fair - lwr) * z / t;
+            ((lwr - wage).max(0.0) - (z_bound - wage).max(0.0)).abs()
+        })
+        .fold(0.0_f64, f64::max);
+    assert!(
+        worst > 100.0,
+        "a z bound would move a payment by only {worst}"
+    );
+}
+
 fn defensibility_request(
     name: &str,
     confidence: Option<f64>,

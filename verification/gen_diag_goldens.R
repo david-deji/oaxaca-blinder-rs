@@ -79,6 +79,7 @@ extra_hash <- list(`0118-fixture-f.csv` = sha(file.path(REPO_ROOT, "engine/tests
 hand_type7 <- function(x, p) as.numeric(quantile(x, p, type = 7, names = FALSE))
 support_case <- function(csv, outcome, group, preds, ref_group = NULL) {
   d <- read.csv(csv, stringsAsFactors = FALSE)
+  d$.ordinal <- seq_len(nrow(d)) - 1L                       # 0-based data-row ordinal
   d <- d[complete.cases(d[, c(outcome, group, preds)]), ]
   if (is.null(ref_group)) {                        # the advantaged group is the baseline
     m <- tapply(d[[outcome]], d[[group]], mean); ref_group <- names(m)[which.max(m)]
@@ -112,6 +113,12 @@ support_case <- function(csv, outcome, group, preds, ref_group = NULL) {
        reference_count = nrow(A), target_count = nrow(B), model_columns = k,
        reference_residual_df = nrow(A) - k, target_residual_df = nrow(B) - k,
        reference_max_leverage = hmax, extrapolated_target_count = sum(hB > hmax * (1 + 1e-9) + 1e-12),
+       # per compared row (E-REV F1): its leverage on the baseline design and whether it exceeds the
+       # baseline maximum, keyed by 0-based data-row ordinal, so a test can compare the SET of
+       # flagged rows and not only how many there are
+       # (small files only; the 10 000-row roster would add 5 000 entries)
+       target_rows = if (nrow(B) <= 100) lapply(seq_len(nrow(B)), function(i)
+         list(ordinal = B$.ordinal[i], leverage = hB[i], extrapolated = hB[i] > hmax * (1 + 1e-9) + 1e-12)) else NULL,
        per_predictor = out)
 }
 support <- list(

@@ -144,7 +144,8 @@ pub enum WarningCode {
     /// own percentile value (`subject` = `"reference"` or `"target"`).
     TieShare,
     /// In percentile mode, a group's empirical CDF at its own percentile value is more than
-    /// [`QUANTILE_ECDF_OFFSET`] away from the requested percentile (`subject` as above).
+    /// `max(QUANTILE_ECDF_OFFSET, 1/n)` away from the requested percentile (`subject` as above);
+    /// the `1/n` is the most a tie-free group of `n` rows can be off by discreteness alone.
     EcdfOffset,
 }
 
@@ -157,7 +158,8 @@ pub const SUPPORT_NORMALISED_DIFFERENCE: f64 = 0.25;
 pub const SUPPORT_MIN_RESIDUAL_DF: i64 = 10;
 /// Tie share above which `TieShare` fires.
 pub const QUANTILE_TIE_SHARE: f64 = 0.05;
-/// Absolute `F_n(q_tau) - tau` above which `EcdfOffset` fires.
+/// Absolute `F_n(q_tau) - tau` above which `EcdfOffset` fires, floored at `1/n` for a group of
+/// `n` rows (the warning's own `threshold` carries the line that applied).
 pub const QUANTILE_ECDF_OFFSET: f64 = 0.01;
 
 /// One thing a reader should be told about a result. `value` is what was measured and

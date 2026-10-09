@@ -1,6 +1,6 @@
 {
   "_meta": {
-    "generated_utc": "2026-10-09 15:39:24 UTC",
+    "generated_utc": "2026-10-09 16:12:48 UTC",
     "r_version": "4.6.1",
     "packages": {
       "ddecompose": "1.0.0",
@@ -10,7 +10,7 @@
     },
     "seed": 20261009,
     "rngkind": "Mersenne-Twister,Inversion,Rejection",
-    "generator_sha256": "01d407dd8df2aca70ee383d308f64671831dd0c83a14dde04f5137ea5ec2a313",
+    "generator_sha256": "c2b816122b98c5798201162abc13d61674c9365545c7960ed49436ffd1a7bab0",
     "fixture_sha256": {
       "employers_trust_fixture.csv": "91582bcc86845bfbf1e1b376abb0ac03fe6c4a6bff4a093e1a5b895a32cfeb7d",
       "parity_fixture.csv": "eefc16ea537f3c20346f3d36d9a056d80e6e8f96aee06f10e0299219a14bbf7d",
@@ -45,6 +45,7 @@
       "target_residual_df": 4889,
       "reference_max_leverage": 0.0018309293060116113,
       "extrapolated_target_count": 0,
+      "target_rows": null,
       "per_predictor": {
         "Age": {
           "reference_min": 21,
@@ -84,6 +85,7 @@
       "target_residual_df": 146,
       "reference_max_leverage": 0.11322930340096445,
       "extrapolated_target_count": 0,
+      "target_rows": null,
       "per_predictor": {
         "education": {
           "reference_min": 9.3705113163588649,
@@ -135,6 +137,203 @@
       "target_residual_df": 37,
       "reference_max_leverage": 0.061567773879478836,
       "extrapolated_target_count": 0,
+      "target_rows": [
+        {
+          "ordinal": 1,
+          "leverage": 0.017049063072284334,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 3,
+          "leverage": 0.05378624852786118,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 6,
+          "leverage": 0.061296468716664922,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 8,
+          "leverage": 0.018121951670684866,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 11,
+          "leverage": 0.016666769433773793,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 16,
+          "leverage": 0.061567773879478836,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 18,
+          "leverage": 0.01995942754610646,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 21,
+          "leverage": 0.017024398966573973,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 23,
+          "leverage": 0.040442967338558004,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 26,
+          "leverage": 0.05378624852786118,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 28,
+          "leverage": 0.022536826592838777,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 31,
+          "leverage": 0.018121951670684866,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 33,
+          "leverage": 0.034881211500872492,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 36,
+          "leverage": 0.046744646347554236,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 38,
+          "leverage": 0.025854148810881807,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 41,
+          "leverage": 0.01995942754610646,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 43,
+          "leverage": 0.030059378834497684,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 46,
+          "leverage": 0.040442967338558004,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 48,
+          "leverage": 0.029911394200235537,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 51,
+          "leverage": 0.022536826592838777,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 53,
+          "leverage": 0.025977469339433588,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 56,
+          "leverage": 0.034881211500872492,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 58,
+          "leverage": 0.034708562760900001,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 61,
+          "leverage": 0.025854148810881807,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 63,
+          "leverage": 0.022635483015680202,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 66,
+          "leverage": 0.030059378834497684,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 68,
+          "leverage": 0.040245654492875156,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 71,
+          "leverage": 0.029911394200235537,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 73,
+          "leverage": 0.020033419863237534,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 76,
+          "leverage": 0.025977469339433588,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 78,
+          "leverage": 0.046522669396161044,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 81,
+          "leverage": 0.034708562760900001,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 83,
+          "leverage": 0.018171279882105578,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 86,
+          "leverage": 0.022635483015680202,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 88,
+          "leverage": 0.053539607470757623,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 91,
+          "leverage": 0.040245654492875156,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 93,
+          "leverage": 0.017049063072284334,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 96,
+          "leverage": 0.020033419863237534,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 98,
+          "leverage": 0.061296468716664922,
+          "extrapolated": false
+        }
+      ],
       "per_predictor": {
         "Experience": {
           "reference_min": 0,
@@ -162,6 +361,33 @@
       "target_residual_df": 3,
       "reference_max_leverage": 0.69230769230769207,
       "extrapolated_target_count": 0,
+      "target_rows": [
+        {
+          "ordinal": 0,
+          "leverage": 0.69230769230769207,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 1,
+          "leverage": 0.23076923076922995,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 2,
+          "leverage": 0.26923076923076894,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 3,
+          "leverage": 0.23076923076922995,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 4,
+          "leverage": 0.57692307692307665,
+          "extrapolated": false
+        }
+      ],
       "per_predictor": {
         "education": {
           "reference_min": 12,
@@ -189,6 +415,308 @@
       "target_residual_df": 58,
       "reference_max_leverage": 0.047435897435896601,
       "extrapolated_target_count": 60,
+      "target_rows": [
+        {
+          "ordinal": 1,
+          "leverage": 0.3935897435897342,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 3,
+          "leverage": 0.3935897435897342,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 5,
+          "leverage": 0.3935897435897342,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 7,
+          "leverage": 0.63974358974357426,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 9,
+          "leverage": 0.3935897435897342,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 11,
+          "leverage": 0.7858974358974169,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 13,
+          "leverage": 0.50897435897434673,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 15,
+          "leverage": 0.3935897435897342,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 17,
+          "leverage": 0.3935897435897342,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 19,
+          "leverage": 0.63974358974357426,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 21,
+          "leverage": 0.3935897435897342,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 23,
+          "leverage": 0.50897435897434673,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 25,
+          "leverage": 0.50897435897434673,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 27,
+          "leverage": 0.63974358974357426,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 29,
+          "leverage": 0.7858974358974169,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 31,
+          "leverage": 0.50897435897434673,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 33,
+          "leverage": 0.3935897435897342,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 35,
+          "leverage": 0.63974358974357426,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 37,
+          "leverage": 0.7858974358974169,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 39,
+          "leverage": 0.3935897435897342,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 41,
+          "leverage": 0.50897435897434673,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 43,
+          "leverage": 0.7858974358974169,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 45,
+          "leverage": 0.63974358974357426,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 47,
+          "leverage": 0.7858974358974169,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 49,
+          "leverage": 0.3935897435897342,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 51,
+          "leverage": 0.7858974358974169,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 53,
+          "leverage": 0.50897435897434673,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 55,
+          "leverage": 0.50897435897434673,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 57,
+          "leverage": 0.50897435897434673,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 59,
+          "leverage": 0.50897435897434673,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 61,
+          "leverage": 0.63974358974357426,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 63,
+          "leverage": 0.50897435897434673,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 65,
+          "leverage": 0.3935897435897342,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 67,
+          "leverage": 0.7858974358974169,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 69,
+          "leverage": 0.50897435897434673,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 71,
+          "leverage": 0.50897435897434673,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 73,
+          "leverage": 0.7858974358974169,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 75,
+          "leverage": 0.63974358974357426,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 77,
+          "leverage": 0.50897435897434673,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 79,
+          "leverage": 0.7858974358974169,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 81,
+          "leverage": 0.63974358974357426,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 83,
+          "leverage": 0.7858974358974169,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 85,
+          "leverage": 0.3935897435897342,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 87,
+          "leverage": 0.63974358974357426,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 89,
+          "leverage": 0.63974358974357426,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 91,
+          "leverage": 0.7858974358974169,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 93,
+          "leverage": 0.50897435897434673,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 95,
+          "leverage": 0.50897435897434673,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 97,
+          "leverage": 0.7858974358974169,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 99,
+          "leverage": 0.3935897435897342,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 101,
+          "leverage": 0.63974358974357426,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 103,
+          "leverage": 0.50897435897434673,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 105,
+          "leverage": 0.7858974358974169,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 107,
+          "leverage": 0.63974358974357426,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 109,
+          "leverage": 0.63974358974357426,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 111,
+          "leverage": 0.7858974358974169,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 113,
+          "leverage": 0.7858974358974169,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 115,
+          "leverage": 0.7858974358974169,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 117,
+          "leverage": 0.3935897435897342,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 119,
+          "leverage": 0.7858974358974169,
+          "extrapolated": true
+        }
+      ],
       "per_predictor": {
         "edu": {
           "reference_min": 16,
@@ -216,6 +744,308 @@
       "target_residual_df": 58,
       "reference_max_leverage": 0.050395256916996534,
       "extrapolated_target_count": 60,
+      "target_rows": [
+        {
+          "ordinal": 60,
+          "leverage": 0.7381422924901242,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 61,
+          "leverage": 0.7381422924901242,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 62,
+          "leverage": 0.59930830039526151,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 63,
+          "leverage": 0.47529644268775062,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 64,
+          "leverage": 0.7381422924901242,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 65,
+          "leverage": 0.36610671936759165,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 66,
+          "leverage": 0.59930830039526151,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 67,
+          "leverage": 0.59930830039526151,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 68,
+          "leverage": 0.47529644268775062,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 69,
+          "leverage": 0.36610671936759165,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 70,
+          "leverage": 0.59930830039526151,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 71,
+          "leverage": 0.36610671936759165,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 72,
+          "leverage": 0.59930830039526151,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 73,
+          "leverage": 0.7381422924901242,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 74,
+          "leverage": 0.36610671936759165,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 75,
+          "leverage": 0.36610671936759165,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 76,
+          "leverage": 0.36610671936759165,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 77,
+          "leverage": 0.36610671936759165,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 78,
+          "leverage": 0.59930830039526151,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 79,
+          "leverage": 0.7381422924901242,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 80,
+          "leverage": 0.47529644268775062,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 81,
+          "leverage": 0.47529644268775062,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 82,
+          "leverage": 0.59930830039526151,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 83,
+          "leverage": 0.47529644268775062,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 84,
+          "leverage": 0.59930830039526151,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 85,
+          "leverage": 0.47529644268775062,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 86,
+          "leverage": 0.36610671936759165,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 87,
+          "leverage": 0.7381422924901242,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 88,
+          "leverage": 0.59930830039526151,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 89,
+          "leverage": 0.47529644268775062,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 90,
+          "leverage": 0.7381422924901242,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 91,
+          "leverage": 0.47529644268775062,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 92,
+          "leverage": 0.36610671936759165,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 93,
+          "leverage": 0.36610671936759165,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 94,
+          "leverage": 0.47529644268775062,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 95,
+          "leverage": 0.36610671936759165,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 96,
+          "leverage": 0.59930830039526151,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 97,
+          "leverage": 0.59930830039526151,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 98,
+          "leverage": 0.7381422924901242,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 99,
+          "leverage": 0.47529644268775062,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 100,
+          "leverage": 0.59930830039526151,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 101,
+          "leverage": 0.36610671936759165,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 102,
+          "leverage": 0.59930830039526151,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 103,
+          "leverage": 0.36610671936759165,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 104,
+          "leverage": 0.7381422924901242,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 105,
+          "leverage": 0.7381422924901242,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 106,
+          "leverage": 0.59930830039526151,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 107,
+          "leverage": 0.7381422924901242,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 108,
+          "leverage": 0.59930830039526151,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 109,
+          "leverage": 0.47529644268775062,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 110,
+          "leverage": 0.47529644268775062,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 111,
+          "leverage": 0.7381422924901242,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 112,
+          "leverage": 0.7381422924901242,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 113,
+          "leverage": 0.47529644268775062,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 114,
+          "leverage": 0.47529644268775062,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 115,
+          "leverage": 0.36610671936759165,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 116,
+          "leverage": 0.36610671936759165,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 117,
+          "leverage": 0.59930830039526151,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 118,
+          "leverage": 0.7381422924901242,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 119,
+          "leverage": 0.59930830039526151,
+          "extrapolated": true
+        }
+      ],
       "per_predictor": {
         "edu": {
           "reference_min": 16,
@@ -243,6 +1073,308 @@
       "target_residual_df": 58,
       "reference_max_leverage": 0.070400920774985401,
       "extrapolated_target_count": 0,
+      "target_rows": [
+        {
+          "ordinal": 60,
+          "leverage": 0.017511167137102285,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 61,
+          "leverage": 0.028801622317831718,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 62,
+          "leverage": 0.0215121536817297,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 63,
+          "leverage": 0.053246005864459586,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 64,
+          "leverage": 0.070400920774985401,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 65,
+          "leverage": 0.070400920774985401,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 66,
+          "leverage": 0.016798662683949472,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 67,
+          "leverage": 0.016798662683949472,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 68,
+          "leverage": 0.039379573045408331,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 69,
+          "leverage": 0.028801622317831718,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 70,
+          "leverage": 0.053246005864459586,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 71,
+          "leverage": 0.053246005864459586,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 72,
+          "leverage": 0.016798662683949472,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 73,
+          "leverage": 0.0215121536817297,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 74,
+          "leverage": 0.070400920774985401,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 75,
+          "leverage": 0.053246005864459586,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 76,
+          "leverage": 0.028801622317831718,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 77,
+          "leverage": 0.016798662683949472,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 78,
+          "leverage": 0.016798662683949472,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 79,
+          "leverage": 0.053246005864459586,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 80,
+          "leverage": 0.0215121536817297,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 81,
+          "leverage": 0.070400920774985401,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 82,
+          "leverage": 0.053246005864459586,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 83,
+          "leverage": 0.053246005864459586,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 84,
+          "leverage": 0.028801622317831718,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 85,
+          "leverage": 0.039379573045408331,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 86,
+          "leverage": 0.017511167137102285,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 87,
+          "leverage": 0.028801622317831718,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 88,
+          "leverage": 0.039379573045408331,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 89,
+          "leverage": 0.016798662683949472,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 90,
+          "leverage": 0.0215121536817297,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 91,
+          "leverage": 0.0215121536817297,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 92,
+          "leverage": 0.017511167137102285,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 93,
+          "leverage": 0.039379573045408331,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 94,
+          "leverage": 0.016798662683949472,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 95,
+          "leverage": 0.070400920774985401,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 96,
+          "leverage": 0.039379573045408331,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 97,
+          "leverage": 0.053246005864459586,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 98,
+          "leverage": 0.070400920774985401,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 99,
+          "leverage": 0.016798662683949472,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 100,
+          "leverage": 0.070400920774985401,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 101,
+          "leverage": 0.028801622317831718,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 102,
+          "leverage": 0.017511167137102285,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 103,
+          "leverage": 0.0215121536817297,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 104,
+          "leverage": 0.017511167137102285,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 105,
+          "leverage": 0.070400920774985401,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 106,
+          "leverage": 0.028801622317831718,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 107,
+          "leverage": 0.070400920774985401,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 108,
+          "leverage": 0.053246005864459586,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 109,
+          "leverage": 0.017511167137102285,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 110,
+          "leverage": 0.070400920774985401,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 111,
+          "leverage": 0.0215121536817297,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 112,
+          "leverage": 0.070400920774985401,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 113,
+          "leverage": 0.039379573045408331,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 114,
+          "leverage": 0.016798662683949472,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 115,
+          "leverage": 0.039379573045408331,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 116,
+          "leverage": 0.039379573045408331,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 117,
+          "leverage": 0.070400920774985401,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 118,
+          "leverage": 0.017511167137102285,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 119,
+          "leverage": 0.053246005864459586,
+          "extrapolated": false
+        }
+      ],
       "per_predictor": {
         "edu": {
           "reference_min": 10,
@@ -270,6 +1402,43 @@
       "target_residual_df": 3,
       "reference_max_leverage": 0.89578139831091974,
       "extrapolated_target_count": 4,
+      "target_rows": [
+        {
+          "ordinal": 1,
+          "leverage": 2.1800029522343225,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 3,
+          "leverage": 2.7682252792046449,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 5,
+          "leverage": 0.66491006722414681,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 7,
+          "leverage": 1.1384070067963004,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 9,
+          "leverage": 0.26189787221390082,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 11,
+          "leverage": 0.92072214714830936,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 13,
+          "leverage": 0.37465520350820369,
+          "extrapolated": false
+        }
+      ],
       "per_predictor": {
         "edu": {
           "reference_min": 10,
@@ -321,6 +1490,38 @@
       "target_residual_df": 3,
       "reference_max_leverage": 0.54800966021994046,
       "extrapolated_target_count": 2,
+      "target_rows": [
+        {
+          "ordinal": 8,
+          "leverage": 0.30489383921600566,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 9,
+          "leverage": 0.22701068536586166,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 10,
+          "leverage": 0.42853967189641606,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 11,
+          "leverage": 0.64836832049689641,
+          "extrapolated": true
+        },
+        {
+          "ordinal": 12,
+          "leverage": 0.26920617415604881,
+          "extrapolated": false
+        },
+        {
+          "ordinal": 13,
+          "leverage": 3.0827792968587073,
+          "extrapolated": true
+        }
+      ],
       "per_predictor": {
         "x1": {
           "reference_min": 10.69,

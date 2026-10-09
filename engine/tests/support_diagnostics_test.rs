@@ -351,6 +351,129 @@ fn v6_defensibility_rows_carry_the_extrapolated_flag_too() {
     assert!(e.adjustments.iter().all(|a| !a.extrapolated));
 }
 
+// ---- E-REV F1: the per-row flag lands on the right rows, not only the right number of them ---
+
+/// R's verdict per compared row: ordinal -> (leverage, exceeds the baseline maximum).
+fn r_rows(case: &str) -> Vec<(usize, f64, bool)> {
+    golden()
+        .block(&["support", case, "target_rows"])
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| {
+            (
+                r["ordinal"].as_u64().unwrap() as usize,
+                f(r, "leverage"),
+                r["extrapolated"].as_bool().unwrap(),
+            )
+        })
+        .collect()
+}
+
+/// A mixed roster is the only kind that can tell a right row from a wrong one.
+fn assert_mixed(case: &str, rows: &[(usize, f64, bool)]) {
+    let flagged = rows.iter().filter(|r| r.2).count();
+    assert!(
+        flagged > 0 && flagged < rows.len(),
+        "{case}: R flags {flagged} of {} compared rows; the fixture must hold both kinds",
+        rows.len()
+    );
+    // ...and no compared row sits on the threshold, where rounding could decide it
+    let hmax = f(golden().block(&["support", case]), "reference_max_leverage");
+    for (ord, h, _) in rows {
+        assert!(
+            ((h - hmax) / hmax).abs() > 0.01,
+            "{case} row {ord} is within 1% of the maximum"
+        );
+    }
+}
+
+fn check_flags(label: &str, case: &str, rows: &[(usize, f64, bool)], got: &[(usize, bool)]) {
+    for (ord, h, want) in rows {
+        let (_, flag) = got
+            .iter()
+            .find(|(i, _)| i == ord)
+            .unwrap_or_else(|| panic!("{label} {case}: compared row {ord} is not listed"));
+        assert_eq!(
+            flag, want,
+            "{label} {case}: row {ord} has leverage {h} against R's verdict {want}"
+        );
+    }
+    // the flagged set is exactly R's set
+    let mut got_set: Vec<usize> = got
+        .iter()
+        .filter(|(i, f)| *f && rows.iter().any(|r| r.0 == *i))
+        .map(|(i, _)| *i)
+        .collect();
+    let mut want_set: Vec<usize> = rows.iter().filter(|r| r.2).map(|r| r.0).collect();
+    got_set.sort_unstable();
+    want_set.sort_unstable();
+    assert_eq!(got_set, want_set, "{label} {case}: flagged rows");
+    // a baseline row can never be extrapolated
+    assert!(
+        got.iter()
+            .filter(|(i, _)| !rows.iter().any(|r| r.0 == *i))
+            .all(|(_, flag)| !flag),
+        "{label} {case}: a baseline row was flagged"
+    );
+}
+
+#[test]
+fn e_rev_f1_optimize_flags_exactly_the_rows_whose_leverage_exceeds_the_baseline_maximum() {
+    for case in ["df5", "tiny"] {
+        let rows = r_rows(case);
+        assert_mixed(case, &rows);
+        for (label, strategy) in [
+            ("greedy", AllocationStrategy::Greedy),
+            ("equitable", AllocationStrategy::Equitable),
+        ] {
+            let mut req = optimisation(case, true);
+            req.strategy = Some(strategy);
+            req.budget = 1.0e9;
+            let res = optimize_inner(req).unwrap_or_else(|e| panic!("{label} {case}: {e}"));
+            let got: Vec<(usize, bool)> = res
+                .adjustments
+                .iter()
+                .map(|a| (a.index, a.extrapolated))
+                .collect();
+            check_flags(&format!("optimize {label}"), case, &rows, &got);
+            assert_eq!(
+                res.support.extrapolated_target_count,
+                rows.iter().filter(|r| r.2).count(),
+                "{label} {case}: the result's count agrees with the rows"
+            );
+        }
+    }
+}
+
+#[test]
+fn e_rev_f1_defensibility_flags_exactly_the_rows_whose_leverage_exceeds_the_baseline_maximum() {
+    for case in ["df5", "tiny"] {
+        let rows = r_rows(case);
+        assert_mixed(case, &rows);
+        let req = VerificationRequest {
+            decomposition_params: decomposition(case),
+            adjustments: rows
+                .iter()
+                .map(|r| ProposedAdjustment {
+                    index: r.0,
+                    row_key: None,
+                    value: 100.0,
+                    predictor_overrides: None,
+                })
+                .collect(),
+            confidence_level: None,
+        };
+        let res = check_defensibility_inner(req).unwrap();
+        let got: Vec<(usize, bool)> = res
+            .adjustments
+            .iter()
+            .map(|a| (a.index, a.extrapolated))
+            .collect();
+        check_flags("defensibility", case, &rows, &got);
+    }
+}
+
 fn tiny_csv(reference_rows: usize, target_rows: usize) -> Vec<u8> {
     let mut s = String::from("wage,grp,a,b,c\n");
     for i in 0..reference_rows {

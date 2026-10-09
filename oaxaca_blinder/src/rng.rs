@@ -57,6 +57,41 @@ pub(crate) fn resample_indices(rng: &mut ChaCha8Rng, n: usize) -> IdxCa {
     IdxCa::from_vec("idx".into(), idx)
 }
 
+/// One bootstrap replicate of a FREQUENCY-weighted group (0120-MERIDIAN E-REV-1).
+///
+/// Under `WeightsKind::Frequency` a row with `w = 2` stands for two identical employees, so the
+/// inferential sample is `sum(w)` units, not `rows` units. A replicate draws `N = sum(w)` units
+/// with replacement, each unit being row `i` with probability `w_i / N` (multinomial), and
+/// returns the rows that were drawn at least once (ascending) with their draw counts, which
+/// become that replicate's weights. A replicate on `w = 2` is therefore distributed as a replicate
+/// on the same rows written twice with `w = 1`, which is what Stata `bsample ..., weight(fw)` draws.
+/// Weights must be whole numbers (validated before the bootstrap runs).
+pub(crate) fn resample_frequency(rng: &mut ChaCha8Rng, weights: &[f64]) -> (IdxCa, Vec<f64>) {
+    let mut cum: Vec<u64> = Vec::with_capacity(weights.len());
+    let mut acc: u64 = 0;
+    for &w in weights {
+        acc += w.max(0.0) as u64;
+        cum.push(acc);
+    }
+    let mut counts = vec![0u64; weights.len()];
+    if acc > 0 {
+        for _ in 0..acc {
+            let r = rng.gen_range(0..acc);
+            // first row whose cumulative weight exceeds r; zero-weight rows are never selected
+            counts[cum.partition_point(|&c| c <= r)] += 1;
+        }
+    }
+    let mut idx: Vec<IdxSize> = Vec::new();
+    let mut drawn: Vec<f64> = Vec::new();
+    for (i, &c) in counts.iter().enumerate() {
+        if c > 0 {
+            idx.push(i as IdxSize);
+            drawn.push(c as f64);
+        }
+    }
+    (IdxCa::from_vec("idx".into(), idx), drawn)
+}
+
 /// Outcome of a single bootstrap replicate. Replaces the silent `filter_map(...).ok()`
 /// discard with an explicit, order-preserving marker so the discard count is a pure
 /// function of `(master, rep, base frames)` and therefore thread-count-independent (D5).
@@ -223,5 +258,41 @@ mod tests {
             idx1.iter().all(|&i| (i as usize) < n),
             "every resampled index must be < n"
         );
+    }
+    /// E-REV-1: a frequency replicate draws `sum(w)` units, never selects a zero-weight row,
+    /// returns ascending distinct rows, is reproducible, and gives row `i` a mean count of `w_i`.
+    #[test]
+    fn frequency_replicate_draws_the_expanded_sample() {
+        let w = [2.0, 0.0, 5.0, 1.0, 0.0, 3.0];
+        let total: f64 = w.iter().sum();
+        let mut sum_counts = vec![0.0f64; w.len()];
+        let reps = 4000u64;
+        for rep in 0..reps {
+            let mut rng = unit_rng(DEFAULT_SEED, RngPurpose::Bootstrap, rep);
+            let (idx, counts) = resample_frequency(&mut rng, &w);
+            let idx: Vec<IdxSize> = idx.into_no_null_iter().collect();
+            assert_eq!(counts.iter().sum::<f64>(), total, "sum(w) units are drawn");
+            assert_eq!(idx.len(), counts.len());
+            assert!(idx.windows(2).all(|p| p[0] < p[1]), "ascending, distinct");
+            assert!(counts.iter().all(|&c| c >= 1.0));
+            for (i, c) in idx.iter().zip(&counts) {
+                assert!(w[*i as usize] > 0.0, "a zero-weight row was drawn");
+                sum_counts[*i as usize] += c;
+            }
+        }
+        for (i, wi) in w.iter().enumerate() {
+            let mean = sum_counts[i] / reps as f64;
+            assert!(
+                (mean - wi).abs() < 0.08,
+                "row {i}: mean count {mean} vs weight {wi}"
+            );
+        }
+        let (a, ca) = resample_frequency(&mut unit_rng(DEFAULT_SEED, RngPurpose::Bootstrap, 9), &w);
+        let (b, cb) = resample_frequency(&mut unit_rng(DEFAULT_SEED, RngPurpose::Bootstrap, 9), &w);
+        assert_eq!(
+            a.into_no_null_iter().collect::<Vec<_>>(),
+            b.into_no_null_iter().collect::<Vec<_>>()
+        );
+        assert_eq!(ca, cb);
     }
 }

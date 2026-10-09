@@ -7,7 +7,8 @@
   `verify_adjustments`, MCP) and the CLI (`run`, `report`) normalise every categorical predictor on every run:
   each level, the alphabetically first one included, is a deviation from the pooled-sample share-weighted average of
   the levels (population-share, founder decision D1). All k levels are emitted; the intercept absorbs the average.
-  Aggregates, remedy, verify, defensibility and frontier numbers are unchanged. The library keeps `normalize()`
+  The decomposition aggregates and the remedy's level are unchanged by S1-S4 alone; the numbers that do move are
+  listed under S6-S9 below (Student t intervals and the range-target payments built on them). The library keeps `normalize()`
   opt-in (raw by default); `normalize_all_categoricals()` and `normalization_convention(PopulationShare |
   EqualShare)` are new, `EqualShare` being what Stata `categorical()`, R `oaxaca` and `ddecompose` print.
   `oaxaca-cli --normalization population-share|equal-share|none`. Surface table: `docs/NORMALIZATION.md`.
@@ -51,8 +52,20 @@
   `oaxaca_blinder::weighted_quantile(values, weights, tau, kind)` is public. An integer-typed weights column (a
   headcount read from CSV) is accepted. Under `frequency` the RIF density bandwidth now reads `sum(w)` instead of
   Kish's effective n, so a run with `w = 2` equals the run on the row twice, density included.
+- **Frequency weights bootstrap the expanded sample.** A replicate used to draw one row per ROW and carry the weight,
+  so `w = 2` matched the repeated rows for point estimates only: on `norm_skewed_fixture.csv` the standard errors came
+  out 1.32x (explained) and 1.45x (unexplained) those of the repeated rows and Department_Admin's unexplained p-value
+  was 0.084 against 0.000. Under `weights_kind = frequency` a replicate now draws `sum(w)` employees per group
+  (multinomial, probability `w_i / sum(w)`) and the draw counts become that replicate's weights, on the mean and the
+  percentile path. `relative` weights and unweighted runs keep the row-level draw (byte baselines unchanged).
 - **Prediction intervals and the frontier p-value are Student t**, on the baseline regression's residual degrees of
-  freedom (`predict.lm(interval = "prediction")`, `pt`), not Normal. `is_defensible` allows one cent below the
+  freedom (`predict.lm(interval = "prediction")`, `pt`), not Normal. **Remedy dollars move under `range_target`
+  `LowerBound` / `UpperBound`**: the payment is the interval bound, so `adjustments[].adjustment`, `new_wage`,
+  `total_cost`, `required_budget`, `new_gap`, `original_unexplained_gap` and `new_unexplained_gap` are t-based. The
+  half-width grows by t/z, about +2% at 58 residual df and +14% at 10, so a saved scenario re-run on this engine
+  returns different dollars. `Midpoint` payments do not touch the interval and are unchanged. The bound is checked
+  against `predict.lm` in `intervals_test` (`v7_range_target_payments_equal_the_predict_lm_bound_minus_the_wage`).
+  `is_defensible` allows one cent below the
   interval floor, not one dollar. `confidence_level` is now read by `check_defensibility` and
   `calculate_efficient_frontier` (default 0.95, clamped to [0.50, 0.999]; for the frontier it sets
   `is_significant`). MCP `check_defensibility` and `generate_efficient_frontier` accept it.
@@ -69,7 +82,9 @@
   `group_coefficient` and `degrees_of_freedom` on every frontier point.
 - `warnings[]` is `{code, subject, value, threshold}` with codes `outside_range` (> 5% of compared rows beyond the
   baseline range), `normalised_difference` (|Imbens-Rubin| > 0.25), `few_residual_df` (< 10), `tie_share` (> 5%)
-  and `ecdf_offset` (|F_n(q) - tau| > 0.01). The engine carries no wording.
+  and `ecdf_offset` (|F_n(q) - tau| > max(0.01, 1/n): a tie-free group of n rows is off by up to 1/n by discreteness
+  alone, so a 23-person roster with 23 different salaries is silent; `tie_share` is the step-grid signal). The
+  engine carries no wording.
 - `verification/gen_diag_goldens.R` -> `diag_goldens_r.json` (base R `lm` / `predict.lm` / `quantile`, `ddecompose`,
   `Hmisc`), fixtures `diag_*.csv`; sha256 of the generator and every fixture are recorded and checked.
 

@@ -20,7 +20,9 @@ use crate::math::normalization::{
 use crate::math::ols::ols;
 use crate::math::rif::{calculate_rif, calculate_rif_relative, calculate_rif_weighted};
 use crate::math::weights::{check_weight, rescale_to_count, WeightsKind};
-use crate::rng::{resample_indices, unit_rng, RngPurpose, RunMetadata, DEFAULT_SEED};
+use crate::rng::{
+    resample_frequency, resample_indices, unit_rng, RngPurpose, RunMetadata, DEFAULT_SEED,
+};
 use crate::rows::{
     DataMatricesWithRows, ExcludedRow, ExclusionReason, GroupMatrices, RowAccounting,
 };
@@ -515,8 +517,10 @@ impl OaxacaBuilder {
     /// [`weights`](Self::weights) is set; a run without it is refused with
     /// [`OaxacaError::WeightsKindRequired`].
     ///
-    /// * [`WeightsKind::Frequency`]: whole-number replication counts; `w = 2` is the row twice.
-    ///   A fractional weight is refused, naming the row.
+    /// * [`WeightsKind::Frequency`]: whole-number replication counts; `w = 2` is the row twice,
+    ///   in the point estimates and in the bootstrap (a replicate draws `sum(w)` employees, so
+    ///   standard errors and p-values match the repeated rows). A fractional weight is refused,
+    ///   naming the row.
     /// * [`WeightsKind::Relative`]: relative importance (FTE, design weights). Each regression's
     ///   weights are rescaled to sum to its row count, and the RIF quantile is
     ///   `Hmisc::wtd.quantile(type = "quantile", normwt = TRUE)`. Uniform weights change nothing.
@@ -1416,10 +1420,8 @@ impl OaxacaBuilder {
                     let mut rng_a = unit_rng(master, RngPurpose::Bootstrap, rep * 2);
                     let mut rng_b = unit_rng(master, RngPurpose::Bootstrap, rep * 2 + 1);
 
-                    let sample_a =
-                        df_a_global.take(&resample_indices(&mut rng_a, df_a_global.height()));
-                    let sample_b =
-                        df_b_global.take(&resample_indices(&mut rng_b, df_b_global.height()));
+                    let sample_a = self.bootstrap_sample(&df_a_global, &mut rng_a);
+                    let sample_b = self.bootstrap_sample(&df_b_global, &mut rng_b);
                     let (sample_a, sample_b) = match (sample_a, sample_b) {
                         (Ok(a), Ok(b)) => (a, b),
                         _ => return Rep::Failed(Vec::new()),
@@ -1492,6 +1494,35 @@ impl OaxacaBuilder {
         Ok(self
             .rif_replace_outcome(&groups.df_a, quantile)?
             .vstack(&self.rif_replace_outcome(&groups.df_b, quantile)?)?)
+    }
+
+    /// One bootstrap replicate of a group frame (0120-MERIDIAN E-REV-1).
+    ///
+    /// Unweighted and `Relative` runs resample ROWS (weights, if any, travel with their row).
+    /// A `Frequency` run resamples the expanded sample: `sum(w)` units drawn with probability
+    /// `w_i / sum(w)`, the draw counts replacing the weights, so a replicate on `w = 2` is
+    /// distributed as a replicate on the row written twice and the standard errors, intervals and
+    /// p-values agree with the expanded sample (a per-row draw leaves the point estimate alone but
+    /// inflates every standard error by roughly the square root of the weight).
+    fn bootstrap_sample(
+        &self,
+        g: &DataFrame,
+        rng: &mut rand_chacha::ChaCha8Rng,
+    ) -> PolarsResult<DataFrame> {
+        match (&self.weights_col, self.weights_kind) {
+            (Some(col), Some(WeightsKind::Frequency)) => {
+                let w: Vec<f64> = weight_values(g, col)
+                    .map_err(|e| PolarsError::ComputeError(e.to_string().into()))?
+                    .into_iter()
+                    .map(|o| o.unwrap_or(0.0))
+                    .collect();
+                let (idx, counts) = resample_frequency(rng, &w);
+                let mut out = g.take(&idx)?;
+                out.with_column(Column::new(col.as_str().into(), counts))?;
+                Ok(out)
+            }
+            _ => g.take(&resample_indices(rng, g.height())),
+        }
     }
 
     /// Replace the outcome column of `g` with its Recentered Influence Function at
@@ -1690,10 +1721,8 @@ impl OaxacaBuilder {
                     let mut rng_a = unit_rng(master, RngPurpose::Bootstrap, rep * 2);
                     let mut rng_b = unit_rng(master, RngPurpose::Bootstrap, rep * 2 + 1);
 
-                    let sample_a =
-                        df_a_global.take(&resample_indices(&mut rng_a, df_a_global.height()));
-                    let sample_b =
-                        df_b_global.take(&resample_indices(&mut rng_b, df_b_global.height()));
+                    let sample_a = self.bootstrap_sample(&df_a_global, &mut rng_a);
+                    let sample_b = self.bootstrap_sample(&df_b_global, &mut rng_b);
                     let (sample_a, sample_b) = match (sample_a, sample_b) {
                         (Ok(a), Ok(b)) => (a, b),
                         _ => return Rep::Failed(Vec::new()),

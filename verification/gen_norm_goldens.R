@@ -402,6 +402,26 @@ mf <- sk[mf_rows, ]
 stopifnot(isTRUE(all.equal(unlist(sk_t$shares$Department), unlist(as.list(level_shares(mf, "Department"))))))
 cases$skewed_dropped_popshare <- strip_internal(sk_t)
 
+# weights AND dropped rows together (E-REV F2): the share counts must be the sum of the weights of
+# the rows that survive cleaning. Blank Tenure removes Eng x4 and Admin x2 (weights 1,1,1,3,3,2).
+sk_wt <- run_case(sk, sk$log_salary, c(SK_NUMS, "Tenure"), SK_CATS, "Gender", "Female", w = sk$w)
+mf_keep <- stats::complete.cases(sk[, c("log_salary", SK_NUMS, "Tenure", SK_CATS, "Gender")])
+stopifnot(sum(!mf_keep) == 6, sum(sk$w[!mf_keep]) > 0)
+# weighted-and-dropped == lm() on the surviving rows repeated by their weights
+ex_keep <- rep(which(mf_keep), sk$w[mf_keep])
+sk_wtx <- run_case(sk[ex_keep, ], sk$log_salary[ex_keep], c(SK_NUMS, "Tenure"), SK_CATS, "Gender", "Female")
+anchor$weighted_dropped_vs_expanded_rows <- max(vapply(names(sk_wt$schemes), function(sc) cmp_pkg_to_case(sk_wtx$schemes[[sc]], sk_wt$schemes[[sc]]), numeric(1)))
+stopifnot(anchor$weighted_dropped_vs_expanded_rows < 1e-9)
+# the gate can fail: weights taken over the PRE-cleaning frame give other shares, so another table
+pre <- unlist(level_shares(sk, "Department", sk$w)); post <- unlist(level_shares(sk[mf_keep, ], "Department", sk$w[mf_keep]))
+anchor$weighted_shares_pre_vs_post_cleaning_max_abs <- max(abs(pre - post[names(pre)]))
+stopifnot(anchor$weighted_shares_pre_vs_post_cleaning_max_abs > 1e-3)
+# ...and the unweighted count of the surviving rows is another source again
+post_rows <- unlist(level_shares(sk[mf_keep, ], "Department"))
+anchor$weighted_vs_row_count_shares_max_abs <- max(abs(post - post_rows[names(post)]))
+stopifnot(anchor$weighted_vs_row_count_shares_max_abs > 1e-3)
+cases$skewed_weighted_dropped <- strip_internal(sk_wt)
+
 # ---- balanced pooled / unbalanced within group: population-share == equal-share == ddecompose ----
 ba_pop <- run_case(ba, ba$log_salary, SK_NUMS, BA_CATS, "Gender", "Female")
 ba_eq  <- run_case(ba, ba$log_salary, SK_NUMS, BA_CATS, "Gender", "Female", equal = TRUE)

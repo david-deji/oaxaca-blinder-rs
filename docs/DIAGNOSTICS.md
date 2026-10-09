@@ -2,7 +2,7 @@
 
 Every field below is documented where it is defined (`engine/src/types.rs`); this page is the map.
 All of them are ADDITIVE: an existing consumer that ignores them reads the same numbers it read
-before, except the two places marked CHANGED. Words a reader sees (copy, captions) belong to the
+before, except the places marked CHANGED. Words a reader sees (copy, captions) belong to the
 app. The engine says what was measured and which line it crossed.
 
 ## Support and small samples (S6, T12, T13)
@@ -28,6 +28,14 @@ Warning codes and their lines (restated as literals in `engine/tests/support_dia
 | `normalised_difference` | the absolute normalised difference of a continuous predictor exceeds 0.25 (Imbens and Rubin 2015, section 14.2) | the predictor |
 | `few_residual_df` | a FITTED group has fewer than 10 residual degrees of freedom | `reference` or `target` |
 | `tie_share`, `ecdf_offset` | percentile mode only, see below | `reference` or `target` |
+
+Open decision (V6, founder): the re-ground says the support check is silent on `parity`, but T12's
+`normalised_difference` line also fires there (education and experience are 0.45 and 0.39 pooled SDs apart), so
+`parity` carries two `normalised_difference` warnings and no `outside_range`, `few_residual_df` or extrapolation
+(pinned in `support_diagnostics_test`). Either the app renders only `outside_range`, extrapolation and
+`few_residual_df` as caveats and treats `normalised_difference` as information, or the T12 trigger changes. The
+engine emits all four and decides nothing. The 50 000-row memory-profile file is git-ignored, so its silence check
+runs on `employers_trust_fixture.csv` (same shape, 10 000 rows) and is not tested on the 50k file.
 
 Normalised difference is `(mean_target - mean_reference) / sqrt((var_target + var_reference) / 2)` with
 sample variances. `ddecompose` prints the same quantity without the 1/2, so it is `1/sqrt(2)` of this one;
@@ -59,6 +67,12 @@ CHANGED: intervals are Student t on the baseline regression's residual degrees o
 bound (`DEFENSIBLE_TOLERANCE`), not one dollar. Frontier with no residual df is a named refusal, not
 `(t = 0, p = 1)`.
 
+CHANGED: under `range_target` `LowerBound` / `UpperBound` the remedy PAYS the interval bound, so the t-based
+bound moves remedy dollars: `adjustment`, `new_wage`, `total_cost`, `required_budget`, `new_gap`,
+`original_unexplained_gap` and `new_unexplained_gap`. The half-width grows by t/z: about +2% at 58 residual df, about
++14% at 10, +31% at 5. A saved scenario re-run on this engine returns different dollars; `Midpoint` is unchanged.
+The bound is checked against `predict.lm` row by row (`engine/tests/intervals_test.rs`).
+
 ## Percentile mode (S8, T16)
 
 `quantile_report` on `decompose` when `quantile` is set (absent otherwise):
@@ -70,8 +84,11 @@ bound (`DEFENSIBLE_TOLERANCE`), not one dollar. Frontier with no residual df is 
 | `rif_total` | the RIF model total, equal to `total_gap` on this path |
 | `reference`, `target` | per group: `count`, `quantile_value`, `ecdf_at_quantile` (`F_n(q_tau)`), `ecdf_offset` (`F_n(q_tau) - tau`), `tie_share` (rows exactly equal to `quantile_value`) |
 
-`tie_share` fires above 5%; `ecdf_offset` fires above 0.01 in absolute value. On gridded pay both are large;
-on small groups the offset is at least `1/n`-sized by construction.
+`tie_share` fires above 5%; `ecdf_offset` fires above `max(0.01, 1/n)` in absolute value, `n` being the group's
+row count (the warning's own `threshold` carries the line that applied). A type-7 percentile lies between two
+order statistics, so a group with no tied value is off by up to `1/n` by discreteness alone (0.043 at 23 rows); the
+`1/n` floor keeps that from reading as a step grid. T16 said 0.01; this amends it. On gridded pay both warnings are
+large. `tie_share` is the step-grid signal.
 
 ## Weights (S9, T17)
 
@@ -82,7 +99,7 @@ weights.
 
 | Kind | Meaning | Estimators | Quantile |
 |---|---|---|---|
-| `frequency` | whole-number counts; `w = 2` is the row twice | used as given; a fractional, negative or non-finite value is refused: `INVALID_WEIGHT: column=, row=, value=` with the original 0-based data-row ordinal | type 7 on the expanded sample; the RIF density bandwidth reads `n = sum(w)`, so the whole run equals the run on the repeated rows |
+| `frequency` | whole-number counts; `w = 2` is the row twice, and so is the bootstrap: a replicate draws `sum(w)` employees per group, so standard errors, intervals and p-values match the repeated rows | used as given; a fractional, negative or non-finite value is refused: `INVALID_WEIGHT: column=, row=, value=` with the original 0-based data-row ordinal | type 7 on the expanded sample; the RIF density bandwidth reads `n = sum(w)`, so the whole run equals the run on the repeated rows |
 | `relative` | FTE or design weights | each regression's weights are rescaled to sum to its row count; scale-free | `Hmisc::wtd.quantile(type = "quantile", normwt = TRUE)`; the bandwidth reads Kish's effective n |
 
 Uniform weights of any size are a no-op under `relative`. Zero-weight rows carry no mass under both.
