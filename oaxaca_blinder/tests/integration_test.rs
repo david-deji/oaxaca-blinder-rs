@@ -94,13 +94,13 @@ fn test_detailed_components_with_rare_category() {
 }
 
 #[test]
-fn test_level_confined_to_an_excluded_third_group() {
-    // Adversary-A MINOR-1 (0014-close round-1): with a 3-valued group column the
-    // comparison is F vs M, so X's rows never enter either group frame — but the
-    // dummy columns are encoded from the UNSPLIT frame, so sector "C" still gets a
-    // column that is constant-zero inside both design matrices. Scanning only
-    // df_a ∪ df_b would never see "C" and would fall through to the opaque
-    // Cholesky message. The refusal names it because the scan reads the full frame.
+fn test_third_group_value_is_a_named_error() {
+    // 0118-MERIDIAN S2. This fixture used to pin the old behaviour: a 3-valued group column
+    // compared F against M and silently dropped the X rows from both estimation frames, so a
+    // level living only in X (sector "C") surfaced as EmptyLevelInGroup. That "excluded third
+    // group" no longer exists: more than one non-reference group value is refused up front, on
+    // the raw frame, by name, before any estimation. The level-confinement scan therefore only
+    // ever sees the two compared groups (its third-group branch is gone).
     let df = df!(
         "wage" => &[10.0, 12.0, 11.0, 13.0, 15.0, 20.0, 22.0, 21.0, 23.0, 25.0, 30.0, 31.0],
         "education" => &[12.0, 16.0, 14.0, 16.0, 18.0, 12.0, 16.0, 14.0, 16.0, 18.0, 14.0, 15.0],
@@ -117,20 +117,18 @@ fn test_level_confined_to_an_excluded_third_group() {
         .run();
 
     match result {
-        Err(OaxacaError::EmptyLevelInGroup {
-            column,
-            level,
-            missing_from_group,
+        Err(OaxacaError::TooManyGroupValues {
+            group_column,
+            reference_group,
+            other_values,
         }) => {
-            assert_eq!(column, "sector");
-            assert_eq!(level, "C");
-            // "C" is missing from BOTH compared groups; group A is named first.
-            assert_eq!(missing_from_group, "M");
+            assert_eq!(group_column, "gender");
+            assert_eq!(reference_group, "F");
+            // Both values other than the reference are named, ascending.
+            assert_eq!(other_values, vec!["M".to_string(), "X".to_string()]);
         }
-        Err(e) => panic!("Expected EmptyLevelInGroup, got a different error: {e}"),
-        Ok(_) => {
-            panic!("Expected EmptyLevelInGroup refusal for a level confined to the excluded group")
-        }
+        Err(e) => panic!("Expected TooManyGroupValues, got a different error: {e}"),
+        Ok(_) => panic!("Expected TooManyGroupValues refusal for a 3-valued group column"),
     }
 }
 

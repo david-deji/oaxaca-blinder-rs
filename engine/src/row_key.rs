@@ -1,12 +1,14 @@
 //! Stable row identity for adjustment rows — 0017-MERIDIAN P4.
 //!
-//! `Adjustment.index` is a POSITIONAL offset: the 0-based row ordinal of the parsed CSV
-//! DataFrame (`analysis.rs` `optimize_inner` assigns `index: pot.orig_idx`, where `orig_idx`
-//! comes from enumerating the group-column mask). It is correct as an offset — seven sites in
-//! this crate use it to index a `Vec`, a polars `ChunkedArray`, or a matrix-row map — but it is
-//! WRONG as an identity across a save boundary. Insert one row near the top of a corrected CSV
-//! and every subsequent index shifts by one, silently re-attaching the consultant's persisted
-//! overrides and CNESST justification narratives to different employees.
+//! `Adjustment.index` is a POSITIONAL offset: the 0-based row ordinal among the parsed data
+//! rows of the CSV (`analysis.rs` `optimize_inner` assigns `index: pot.orig_idx`, where
+//! `orig_idx` is the original ordinal that `OaxacaBuilder::get_data_matrices_with_rows` reports
+//! for each matrix row — 0118-MERIDIAN; a row left out of the analysis keeps its ordinal and
+//! simply has no adjustment). It is correct as an offset — seven sites in this crate use it to
+//! index a `Vec`, a polars `ChunkedArray`, or a matrix-row map — but it is WRONG as an identity
+//! across a save boundary. Insert one row near the top of a corrected CSV and every subsequent
+//! index shifts by one, silently re-attaching the consultant's persisted overrides and CNESST
+//! justification narratives to different employees.
 //!
 //! This module mints a STRING key per DataFrame row, at the parse boundary, so identity stops
 //! being a function of position. `index` is kept and unchanged; the key is purely additive.

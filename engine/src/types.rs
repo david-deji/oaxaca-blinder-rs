@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use oaxaca_blinder::RunMetadata;
+use oaxaca_blinder::{ExclusionReason, RunMetadata};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct DecompositionRequest {
@@ -31,6 +31,25 @@ pub struct DecompositionRequest {
     pub bootstrap_reps: Option<usize>,
 }
 
+/// One input row the analysis left out because a model column was blank on it
+/// (0118-MERIDIAN S5). Present on every result so a consumer can say which employees were not
+/// analysed instead of silently showing fewer rows.
+#[derive(Serialize, Debug, Clone, PartialEq)]
+pub struct ExcludedRow {
+    /// Original row ordinal: the zero-based position among the parsed data rows of the CSV sent
+    /// to the engine. The same ordinal `Adjustment.index` uses.
+    pub index: usize,
+    /// The row's stable key (`Adjustment.row_key`), populated only when the CSV carries an
+    /// employee-number column (`row_key_source` = `"column"`). `None` otherwise.
+    pub row_key: Option<String>,
+    /// Distinct reasons, in the order the columns are checked: `outcome`, `groupValue`,
+    /// `numericPredictor`, `categoricalPredictor`, `weights`, `selectionOutcome`,
+    /// `selectionPredictor`.
+    pub reasons: Vec<ExclusionReason>,
+    /// Every blank column on this row. A row blank in two columns appears once, naming both.
+    pub columns: Vec<String>,
+}
+
 #[derive(Serialize, Debug)]
 pub struct DetailedComponent {
     pub name: String,
@@ -41,6 +60,13 @@ pub struct DetailedComponent {
     pub ci_upper: Option<f64>,
 }
 
+/// Counts and means for the two groups. `group_a_*` is the REFERENCE group and `group_b_*`
+/// every other row (the target group); this predates the A/B convention of the data matrices and
+/// is the shape the app reads.
+///
+/// 0118-MERIDIAN S5: `group_a_count`, `group_b_count` and both means are over the ANALYSED rows
+/// (complete cases), the same rows the decomposition used. `total_count` stays the raw row count
+/// of the file, so `total_count - analysed counts` is the number of excluded rows.
 #[derive(Serialize, Debug)]
 pub struct DataSummary {
     pub total_count: usize,
@@ -69,6 +95,15 @@ pub struct DecompositionResult {
     /// `Some(0)` from `verify_adjustments` when every key resolved; `None` from `decompose`,
     /// which consumes no proposed adjustments. See `crate::row_key`.
     pub unresolved_row_keys: Option<usize>,
+    /// Analysed (complete-case) reference-group rows. 0118-MERIDIAN S5.
+    pub analysed_reference_count: usize,
+    /// Analysed (complete-case) target-group rows. 0118-MERIDIAN S5.
+    pub analysed_target_count: usize,
+    /// Rows left out of the analysis because a model column was blank. 0118-MERIDIAN S5.
+    pub excluded_rows: Vec<ExcludedRow>,
+    /// Inbound proposed adjustments addressed to an excluded or unknown row, skipped and
+    /// counted rather than applied. `0` from `decompose`, which consumes none.
+    pub adjustments_on_excluded_rows: usize,
 }
 
 #[derive(Deserialize, Debug)]
@@ -121,10 +156,11 @@ pub struct Contribution {
 
 #[derive(Serialize, Debug)]
 pub struct Adjustment {
-    /// POSITIONAL: the 0-based row ordinal of the parsed CSV DataFrame. Correct as an offset
-    /// (seven sites in this crate index a Vec / ChunkedArray / matrix-row map with it), wrong as
-    /// an identity across a save boundary. Kept unchanged for every existing consumer and every
-    /// payload already written.
+    /// POSITIONAL: the 0-based row ordinal among the parsed data rows of the CSV sent to the
+    /// engine, counting rows the analysis excluded (a row with a blank model cell keeps its
+    /// ordinal and simply has no adjustment). Correct as an offset (seven sites in this crate
+    /// index a Vec / ChunkedArray / matrix-row map with it), wrong as an identity across a save
+    /// boundary. Kept unchanged for every existing consumer and every payload already written.
     pub index: usize,
     /// STABLE identity for this row — 0017-MERIDIAN P4. Derived from an employee-number column
     /// when the CSV carries one, otherwise from the row's full cell set; never from position.
@@ -167,6 +203,16 @@ pub struct OptimizationResult {
     /// adjustments (optimize). A non-zero value means the CSV no longer contains those rows —
     /// the annotations are orphaned, not misplaced.
     pub unresolved_row_keys: Option<usize>,
+    /// Analysed (complete-case) reference-group rows. 0118-MERIDIAN S5.
+    pub analysed_reference_count: usize,
+    /// Analysed (complete-case) target-group rows. 0118-MERIDIAN S5.
+    pub analysed_target_count: usize,
+    /// Rows left out of the analysis because a model column was blank. 0118-MERIDIAN S5.
+    pub excluded_rows: Vec<ExcludedRow>,
+    /// Inbound proposed adjustments addressed to an excluded or unknown row, skipped and
+    /// counted rather than applied (`check_defensibility`). `0` from `optimize`, which
+    /// consumes none.
+    pub adjustments_on_excluded_rows: usize,
 }
 
 #[derive(Deserialize, Debug)]

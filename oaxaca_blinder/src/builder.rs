@@ -17,6 +17,9 @@ use crate::math::normalization::normalize_categorical_coefficients;
 use crate::math::ols::ols;
 use crate::math::rif::{calculate_rif, calculate_rif_weighted};
 use crate::rng::{resample_indices, unit_rng, RepOutcome, RngPurpose, RunMetadata, DEFAULT_SEED};
+use crate::rows::{
+    DataMatricesWithRows, ExcludedRow, ExclusionReason, GroupMatrices, RowAccounting,
+};
 use crate::types::{ComponentResult, DecompositionDetail, OaxacaResults, TwoFoldResults};
 
 #[derive(Clone)]
@@ -73,6 +76,10 @@ impl RepEstimates {
         }
     }
 }
+
+/// Name of the row-ordinal column added to the frame before cleaning (0118-MERIDIAN S1).
+/// Reserved: a caller column with this name is a conflict and is refused by polars.
+const ROW_ORDINAL_COL: &str = "__ob_row_ordinal__";
 
 pub struct OaxacaBuilder {
     dataframe: DataFrame,
@@ -143,6 +150,50 @@ impl OaxacaBuilder {
         })
     }
 
+    /// 0118-MERIDIAN S2: the group column must hold the reference value and at most ONE other
+    /// value. Checked once, on the RAW frame (before `clean_dataframe`), never inside
+    /// `split_groups`, which runs per bootstrap replicate on the cleaned frame. Before this, a
+    /// third value (`'Non-binary'`, `'Unknown'`, `'F '`) was silently dropped from the
+    /// estimation frames by `split_groups` while the optimiser still listed its rows as
+    /// target employees, which shifted every pairing after the first such row.
+    ///
+    /// Values are compared exactly as they sit in the file: no trimming, no case folding. A
+    /// group column that is not a string column, or is missing, is left to the existing
+    /// downstream errors so their wording is unchanged.
+    fn check_group_values(&self) -> Result<(), OaxacaError> {
+        let Ok(col) = self.dataframe.column(&self.group) else {
+            return Ok(());
+        };
+        let Ok(values) = col.as_materialized_series().str() else {
+            return Ok(());
+        };
+
+        let mut reference_present = false;
+        let mut others: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+        for v in values.into_iter().flatten() {
+            if v == self.reference_group {
+                reference_present = true;
+            } else if !others.contains(v) {
+                others.insert(v.to_string());
+            }
+        }
+
+        if !reference_present {
+            return Err(OaxacaError::ReferenceGroupAbsent {
+                group_column: self.group.clone(),
+                reference_group: self.reference_group.clone(),
+            });
+        }
+        if others.len() > 1 {
+            return Err(OaxacaError::TooManyGroupValues {
+                group_column: self.group.clone(),
+                reference_group: self.reference_group.clone(),
+                other_values: others.into_iter().collect(),
+            });
+        }
+        Ok(())
+    }
+
     /// D1 (0014-close round-1) pre-flight refusal: a categorical predictor level
     /// present in the full dataset but entirely absent from one comparison group
     /// collapses that group's own design matrix to a singular `X'X` (either as an
@@ -159,23 +210,12 @@ impl OaxacaBuilder {
     /// `create_dummies_manual`) — so the same data always names the same
     /// offender first, and group A is checked before group B for a given level.
     ///
-    /// The candidate level set comes from `df_full` (the unsplit frame the dummy
-    /// columns were encoded from), NOT from the union of the two groups. With a
-    /// 3+-valued group column the compared pair excludes a third value's rows, so
-    /// a level living only there is absent from both `df_a` and `df_b` — yet
-    /// `create_dummies_manual` still materialized a column for it, constant-zero
-    /// inside each group's own design matrix, which is the same singular `X'X`.
-    /// Scanning only the pair's union would miss exactly that case.
-    ///
-    /// A level is "present" in a group only if it carries positive total weight
-    /// there. Unweighted requests reduce to row presence; a weighted request
-    /// whose rows for a level all carry `weight == 0` contributes an
-    /// effectively-zero column to `X'WX` (`math/ols.rs` scales rows by
-    /// `sqrt(weight)` before forming the Gram matrix), which is the same
-    /// singularity under a different mechanism.
+    /// The candidate level set is every level present in either comparison frame.
+    /// `check_group_values` (0118-MERIDIAN S2) guarantees the group column holds
+    /// the reference plus at most one other value, so after cleaning the two frames
+    /// together ARE the unsplit frame the dummy columns were encoded from.
     fn check_level_confinement(
         &self,
-        df_full: &DataFrame,
         df_a: &DataFrame,
         df_b: &DataFrame,
         group_a_name: &str,
@@ -185,13 +225,17 @@ impl OaxacaBuilder {
             let levels_in_a = self.weighted_levels_present(df_a, cat_pred)?;
             let levels_in_b = self.weighted_levels_present(df_b, cat_pred)?;
 
-            let mut full_levels: Vec<&str> = df_full
-                .column(cat_pred)?
-                .as_materialized_series()
-                .str()?
-                .into_iter()
-                .flatten()
-                .collect();
+            let mut full_levels: Vec<&str> = Vec::new();
+            for frame in [df_a, df_b] {
+                full_levels.extend(
+                    frame
+                        .column(cat_pred)?
+                        .as_materialized_series()
+                        .str()?
+                        .into_iter()
+                        .flatten(),
+                );
+            }
             full_levels.sort_unstable();
             full_levels.dedup();
 
@@ -425,6 +469,10 @@ impl OaxacaBuilder {
     /// therefore bind the *third* returned matrix (`X_B`), not the first. See the engine crate's
     /// `ab_binding_regression_test` for the guardrail that locks this convention against the
     /// recurring "A = reference" mistake.
+    ///
+    /// A consumer that must map a matrix row back to an employee needs
+    /// [`get_data_matrices_with_rows`](Self::get_data_matrices_with_rows) instead: this tuple
+    /// carries no row ordinals, and rows with a blank in any model column are dropped from it.
     #[allow(clippy::type_complexity)]
     pub fn get_data_matrices(
         &self,
@@ -438,18 +486,37 @@ impl OaxacaBuilder {
         ),
         OaxacaError,
     > {
-        let df_dirty = self.dataframe.clone();
-        let mut df = self.clean_dataframe(&df_dirty)?;
+        let m = self.get_data_matrices_with_rows()?;
+        Ok((
+            m.target.x,
+            m.target.y,
+            m.reference.x,
+            m.reference.y,
+            m.predictor_names,
+        ))
+    }
+
+    /// 0118-MERIDIAN S1: the data matrices together with the original row ordinal of every
+    /// matrix row and the list of excluded rows, all from ONE `clean_dataframe` +
+    /// `split_groups` pass (a row-ordinal column is added before cleaning and read back after
+    /// the split), so the ordinals cannot disagree with the matrices.
+    ///
+    /// Groups are labelled `reference` and `target`, never A/B: `target` holds every row whose
+    /// group value is not `reference_group` (at most one other value, see
+    /// [`OaxacaError::TooManyGroupValues`]).
+    ///
+    /// An ordinal is the zero-based position among the parsed data rows of the frame given to
+    /// the builder. `GroupMatrices::rows[i]` is the ordinal of matrix row `i`.
+    pub fn get_data_matrices_with_rows(&self) -> Result<DataMatricesWithRows, OaxacaError> {
+        let (mut df, excluded_rows, total_rows) = self.prepare_clean_frame()?;
 
         let mut all_dummy_names = Vec::new();
-        // let mut category_counts = std::collections::HashMap::new();
 
         if !self.categorical_predictors.is_empty() {
             for cat_pred in &self.categorical_predictors {
                 let series = df.column(cat_pred)?;
                 let (dummies, _, _) =
                     self.create_dummies_manual(series.as_materialized_series())?;
-                // category_counts.insert(cat_pred.clone(), m);
                 for s in dummies.get_columns() {
                     all_dummy_names.push(s.name().to_string());
                 }
@@ -457,14 +524,150 @@ impl OaxacaBuilder {
             }
         }
 
+        // `split_groups` names its frames by the legacy A/B convention: `df_a` is the
+        // non-reference (target) group, `df_b` the reference group.
         let groups = self.split_groups(&df)?;
-        let df_a = groups.df_a;
-        let df_b = groups.df_b;
+        let target_rows = Self::row_ordinals(&groups.df_a)?;
+        let reference_rows = Self::row_ordinals(&groups.df_b)?;
 
-        let (x_a, y_a, _, predictor_names) = self.prepare_data(&df_a, &all_dummy_names, &[])?;
-        let (x_b, y_b, _, _) = self.prepare_data(&df_b, &all_dummy_names, &[])?;
+        let (x_target, y_target, _, predictor_names) =
+            self.prepare_data(&groups.df_a, &all_dummy_names, &[])?;
+        let (x_reference, y_reference, _, _) =
+            self.prepare_data(&groups.df_b, &all_dummy_names, &[])?;
 
-        Ok((x_a, y_a, x_b, y_b, predictor_names))
+        Ok(DataMatricesWithRows {
+            reference: GroupMatrices {
+                x: x_reference,
+                y: y_reference,
+                rows: reference_rows,
+            },
+            target: GroupMatrices {
+                x: x_target,
+                y: y_target,
+                rows: target_rows,
+            },
+            predictor_names,
+            excluded_rows,
+            total_rows,
+        })
+    }
+
+    /// 0118-MERIDIAN S1: which original rows are analysed (per group) and which are excluded,
+    /// without building the matrices. Same cleaning and split as
+    /// [`get_data_matrices_with_rows`](Self::get_data_matrices_with_rows).
+    pub fn analysed_rows(&self) -> Result<RowAccounting, OaxacaError> {
+        let (df, excluded_rows, total_rows) = self.prepare_clean_frame()?;
+        let groups = self.split_groups(&df)?;
+        Ok(RowAccounting {
+            total_rows,
+            reference_rows: Self::row_ordinals(&groups.df_b)?,
+            target_rows: Self::row_ordinals(&groups.df_a)?,
+            excluded_rows,
+        })
+    }
+
+    /// The single cleaning pass behind S1: group-value check on the raw frame, ordinal column
+    /// added, `clean_dataframe`, and the excluded-row list from the same raw frame. Returns the
+    /// cleaned frame (still carrying the ordinal column), the excluded rows, and the raw row
+    /// count.
+    fn prepare_clean_frame(&self) -> Result<(DataFrame, Vec<ExcludedRow>, usize), OaxacaError> {
+        self.check_group_values()?;
+
+        let total_rows = self.dataframe.height();
+        let indexed = self
+            .dataframe
+            .clone()
+            .with_row_index(ROW_ORDINAL_COL.into(), None)?;
+        let cleaned = self.clean_dataframe(&indexed)?;
+        let excluded_rows = self.excluded_rows(&self.dataframe)?;
+
+        // Internal consistency: every raw row is either analysed or excluded, exactly once.
+        if cleaned.height() + excluded_rows.len() != total_rows {
+            return Err(OaxacaError::PolarsError(PolarsError::ComputeError(
+                format!(
+                    "row accounting mismatch: {} analysed + {} excluded != {} rows",
+                    cleaned.height(),
+                    excluded_rows.len(),
+                    total_rows
+                )
+                .into(),
+            )));
+        }
+        Ok((cleaned, excluded_rows, total_rows))
+    }
+
+    /// Reads the ordinal column back as `usize`s, in frame row order.
+    fn row_ordinals(df: &DataFrame) -> Result<Vec<usize>, OaxacaError> {
+        let col = df.column(ROW_ORDINAL_COL)?.as_materialized_series();
+        let ca = col.idx()?;
+        Ok(ca
+            .into_no_null_iter()
+            .map(|v| v as usize)
+            .collect::<Vec<usize>>())
+    }
+
+    /// The columns `clean_dataframe` drops nulls on, in check order, each with the reason a
+    /// blank in it excludes a row. One source for both the cleaning and the exclusion report,
+    /// so the report names exactly the rules the cleaning applied.
+    fn cleaning_columns(&self) -> Vec<(String, ExclusionReason)> {
+        let mut cols = vec![
+            (self.outcome.clone(), ExclusionReason::Outcome),
+            (self.group.clone(), ExclusionReason::GroupValue),
+        ];
+        cols.extend(
+            self.predictors
+                .iter()
+                .map(|c| (c.clone(), ExclusionReason::NumericPredictor)),
+        );
+        cols.extend(
+            self.categorical_predictors
+                .iter()
+                .map(|c| (c.clone(), ExclusionReason::CategoricalPredictor)),
+        );
+        if let Some(w) = &self.weights_col {
+            cols.push((w.to_string(), ExclusionReason::Weights));
+        }
+        if let Some(sel_out) = &self.selection_outcome {
+            cols.push((sel_out.to_string(), ExclusionReason::SelectionOutcome));
+        }
+        cols.extend(
+            self.selection_predictors
+                .iter()
+                .map(|c| (c.clone(), ExclusionReason::SelectionPredictor)),
+        );
+        cols
+    }
+
+    /// Every row with a blank in a cleaning column, one entry per row, ascending by ordinal.
+    /// Computed from the raw frame's null masks; `prepare_clean_frame` cross-checks the count
+    /// against what `drop_nulls` actually removed.
+    fn excluded_rows(&self, raw: &DataFrame) -> Result<Vec<ExcludedRow>, OaxacaError> {
+        let mut by_row: std::collections::BTreeMap<usize, ExcludedRow> =
+            std::collections::BTreeMap::new();
+        let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+        for (name, reason) in self.cleaning_columns() {
+            if !seen.insert(name.clone()) {
+                // A column named twice (e.g. a predictor that is also the weights column) is
+                // reported once, under the first reason it was checked for.
+                continue;
+            }
+            let mask = raw.column(&name)?.as_materialized_series().is_null();
+            for (idx, is_null) in mask.into_iter().enumerate() {
+                if is_null == Some(true) {
+                    let entry = by_row.entry(idx).or_insert_with(|| ExcludedRow {
+                        index: idx,
+                        reasons: Vec::new(),
+                        columns: Vec::new(),
+                    });
+                    if !entry.reasons.contains(&reason) {
+                        entry.reasons.push(reason);
+                    }
+                    entry.columns.push(name.clone());
+                }
+            }
+        }
+        Ok(by_row.into_values().collect())
     }
 
     #[allow(clippy::type_complexity)]
@@ -902,6 +1105,8 @@ impl OaxacaBuilder {
         // chunk·Sc) AND the fixed rep-index reduction order (so the quantile path is
         // byte-identical across thread counts too, INV-02), and reusing the same
         // `unit_rng(master, Bootstrap, rep*2 [+1])` streams keeps determinism.
+        // 0118-MERIDIAN S2: refuse a third group value on the RAW frame, before any cleaning.
+        self.check_group_values()?;
         let df_dirty = self.dataframe.clone();
         let mut df = self.clean_dataframe(&df_dirty)?;
 
@@ -930,7 +1135,6 @@ impl OaxacaBuilder {
 
         // D1 (0014-close round-1): named refusal before estimation reaches Cholesky.
         self.check_level_confinement(
-            &df,
             &df_a_global,
             &df_b_global,
             &groups.group_a_name,
@@ -1058,17 +1262,11 @@ impl OaxacaBuilder {
 
     /// Helper to drop rows with missing values in relevant columns.
     fn clean_dataframe(&self, df: &DataFrame) -> Result<DataFrame, OaxacaError> {
-        let mut cols = vec![self.outcome.clone(), self.group.clone()];
-        cols.extend(self.predictors.clone());
-        cols.extend(self.categorical_predictors.clone());
-
-        if let Some(w) = &self.weights_col {
-            cols.push(w.to_string());
-        }
-        if let Some(sel_out) = &self.selection_outcome {
-            cols.push(sel_out.to_string());
-        }
-        cols.extend(self.selection_predictors.clone());
+        let cols: Vec<String> = self
+            .cleaning_columns()
+            .into_iter()
+            .map(|(name, _)| name)
+            .collect();
 
         // Ensure all columns exist before trying to drop nulls on them
         for c in &cols {
@@ -1085,6 +1283,8 @@ impl OaxacaBuilder {
 
     /// Executes the Oaxaca-Blinder decomposition.
     pub fn run(&self) -> Result<OaxacaResults, OaxacaError> {
+        // 0118-MERIDIAN S2: refuse a third group value on the RAW frame, before any cleaning.
+        self.check_group_values()?;
         let df_dirty = self.dataframe.clone();
         let mut df = self.clean_dataframe(&df_dirty)?;
 
@@ -1115,7 +1315,6 @@ impl OaxacaBuilder {
 
         // D1 (0014-close round-1): named refusal before estimation reaches Cholesky.
         self.check_level_confinement(
-            &df,
             &groups.df_a,
             &groups.df_b,
             &groups.group_a_name,

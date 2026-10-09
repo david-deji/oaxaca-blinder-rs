@@ -27,6 +27,25 @@ pub enum OaxacaError {
         level: String,
         missing_from_group: String,
     },
+    /// The group column carries more than one value besides the reference group
+    /// (0118-MERIDIAN S2). The decomposition compares exactly two groups; a third
+    /// value used to be silently dropped from the estimation frames while the
+    /// optimiser still counted its rows as target employees. Checked once, on the
+    /// RAW frame, so a third value that only appears on a row blank elsewhere is
+    /// still refused. Values are compared untrimmed and case-sensitively: `"F "`,
+    /// `" "` and `"f"` are values.
+    TooManyGroupValues {
+        group_column: String,
+        reference_group: String,
+        /// Every distinct non-null value other than the reference, ascending.
+        other_values: Vec<String>,
+    },
+    /// The reference group value does not occur in the group column at all
+    /// (0118-MERIDIAN S2).
+    ReferenceGroupAbsent {
+        group_column: String,
+        reference_group: String,
+    },
 }
 
 impl From<PolarsError> for OaxacaError {
@@ -34,6 +53,9 @@ impl From<PolarsError> for OaxacaError {
         OaxacaError::PolarsError(err)
     }
 }
+
+/// How many distinct group values [`OaxacaError::TooManyGroupValues`] prints before "and N more".
+pub const MAX_LISTED_GROUP_VALUES: usize = 5;
 
 impl fmt::Display for OaxacaError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -52,6 +74,38 @@ impl fmt::Display for OaxacaError {
                 f,
                 "EMPTY_LEVEL_IN_GROUP: column={}, level={}, missing_from_group={}",
                 column, level, missing_from_group
+            ),
+            OaxacaError::TooManyGroupValues {
+                group_column,
+                reference_group,
+                other_values,
+            } => {
+                // The variant keeps every value; the message names at most
+                // `MAX_LISTED_GROUP_VALUES` of them. A wrong group column (a name or an ID)
+                // would otherwise put every distinct cell into an error shown in the UI and
+                // written to logs. `distinct_other_values` is the full count.
+                let shown = &other_values[..other_values.len().min(MAX_LISTED_GROUP_VALUES)];
+                write!(
+                    f,
+                    "TOO_MANY_GROUP_VALUES: column={}, reference_group={:?}, \
+                     distinct_other_values={}, other_values={:?}",
+                    group_column,
+                    reference_group,
+                    other_values.len(),
+                    shown
+                )?;
+                if other_values.len() > shown.len() {
+                    write!(f, " and {} more", other_values.len() - shown.len())?;
+                }
+                Ok(())
+            }
+            OaxacaError::ReferenceGroupAbsent {
+                group_column,
+                reference_group,
+            } => write!(
+                f,
+                "REFERENCE_GROUP_ABSENT: column={}, reference_group={:?}",
+                group_column, reference_group
             ),
         }
     }
@@ -96,6 +150,60 @@ mod tests {
             empty_level_err.to_string(),
             "EMPTY_LEVEL_IN_GROUP: column=education, level=PhD, missing_from_group=group_b"
         );
+    }
+
+    #[test]
+    fn too_many_group_values_message_is_capped_but_the_variant_keeps_every_value() {
+        let few = OaxacaError::TooManyGroupValues {
+            group_column: "Gender".to_string(),
+            reference_group: "Male".to_string(),
+            other_values: vec!["Female".to_string(), "X".to_string()],
+        };
+        assert_eq!(
+            few.to_string(),
+            "TOO_MANY_GROUP_VALUES: column=Gender, reference_group=\"Male\", \
+             distinct_other_values=2, other_values=[\"Female\", \"X\"]"
+        );
+
+        // Exactly at the cap: nothing is cut.
+        let at_cap = OaxacaError::TooManyGroupValues {
+            group_column: "Name".to_string(),
+            reference_group: "Ann".to_string(),
+            other_values: (1..=5).map(|i| format!("n{i}")).collect(),
+        };
+        assert_eq!(
+            at_cap.to_string(),
+            "TOO_MANY_GROUP_VALUES: column=Name, reference_group=\"Ann\", \
+             distinct_other_values=5, other_values=[\"n1\", \"n2\", \"n3\", \"n4\", \"n5\"]"
+        );
+
+        // One over: the first five, then the remainder as a count.
+        let many: Vec<String> = (1..=300).map(|i| format!("n{i:03}")).collect();
+        let big = OaxacaError::TooManyGroupValues {
+            group_column: "Name".to_string(),
+            reference_group: "Ann".to_string(),
+            other_values: many.clone(),
+        };
+        let msg = big.to_string();
+        assert_eq!(
+            msg,
+            "TOO_MANY_GROUP_VALUES: column=Name, reference_group=\"Ann\", \
+             distinct_other_values=300, \
+             other_values=[\"n001\", \"n002\", \"n003\", \"n004\", \"n005\"] and 295 more"
+        );
+        assert!(!msg.contains("n006"), "{msg}");
+        assert!(
+            msg.len() < 300,
+            "message must stay short: {} bytes",
+            msg.len()
+        );
+        // The variant itself still carries all of them.
+        match big {
+            OaxacaError::TooManyGroupValues { other_values, .. } => {
+                assert_eq!(other_values, many)
+            }
+            _ => unreachable!(),
+        }
     }
 
     #[test]
