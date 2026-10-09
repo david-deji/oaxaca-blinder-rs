@@ -104,8 +104,9 @@ pub fn calculate_efficient_frontier(val: JsValue) -> Result<JsValue, JsValue> {
 #[cfg(feature = "wasm")]
 #[wasm_bindgen]
 pub fn check_defensibility(val: JsValue) -> Result<JsValue, JsValue> {
-    let req: VerificationRequest = serde_wasm_bindgen::from_value(val)?;
-    let res = crate::defensibility::check_defensibility_inner(req)
+    let req: DefensibilityRequest = serde_wasm_bindgen::from_value(val)?;
+    let target = req.target.unwrap_or(OptimizationTarget::Reference);
+    let res = crate::defensibility::check_defensibility_on(req.verification, &target)
         .map_err(|e| JsValue::from_str(e.as_str()))?;
     Ok(serde_wasm_bindgen::to_value(&res)?)
 }

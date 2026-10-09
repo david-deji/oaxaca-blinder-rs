@@ -2,6 +2,40 @@
 
 ## [Unreleased]
 
+### Changed, BREAKING (0120-MERIDIAN T8, optimiser Pooled target, 2026-10-09)
+- **The optimiser's `Pooled` target is the decomposition's `Pooled` line.** `OptimizationTarget::Pooled` used to stack
+  both groups with no group column, which is `PooledNoIndicator` (Neumark), so the remedy was priced against one line
+  while the headline beside it was measured against another. It now fits the pooled regression WITH a target-group
+  indicator, drops the indicator, and reads every fair wage at indicator 0. At the midpoint `original_unexplained_gap`
+  equals the indicator's coefficient, which is the decomposition's `Pooled` unexplained gap (R `lm` and `oaxaca` weight
+  -2, 1e-9; `optimize` against `decompose` on the same file, 1e-9). `model_coefficients` and each row's `contributions`
+  are the pooled terms of the model's own columns, without the indicator. **Every Pooled-target dollar changes**: fair
+  wages, payments, `total_cost`, `required_budget`, `new_gap` and both unexplained gaps. The Reference target is
+  byte-identical.
+- **The interval for that target comes from the same fit.** Bounds are `predict.lm(pooled_fit, newdata = row at
+  indicator 0, interval = "prediction")`: sigma squared, `(Z'Z)^-1` and the residual df (`n_reference + n_target - k -
+  1`) are the pooled regression's, so `interval.degrees_of_freedom` and `critical_value` report that fit. The
+  "approximation until T8" note is removed from `IntervalBasis` and `docs/DIAGNOSTICS.md`.
+- **`extrapolated` and `few_residual_df` judge the pooled fit under this target.** A row is extrapolated when its
+  leverage at indicator 0 exceeds the largest leverage among the reference rows of the pooled design (ordinal sets
+  equal R's `hatvalues` row by row). `few_residual_df` carries subject `pooled` and the pooled df; a pooled fit with no
+  residual df is refused as `INSUFFICIENT_RESIDUAL_DF: group=pooled`, and a baseline group too small to carry its own
+  line is no longer a reason to refuse under Pooled (it still is under Reference).
+- Oracle `verification/gen_pooled_target_goldens.R` writes `oaxaca_blinder/tests/fixtures/pooled_target_goldens_r.json`
+  (sha256 of the script and of seven fixtures checked on load). `null_free_regression_test` no longer compares
+  `optimize/noisy/pooled_target` with the pre-0118 text (it pinned the no-indicator fit); that case is held to a pooled
+  `lm` fitted from the fixture's own cells, and every Reference-target case still equals the golden at 1e-9.
+- **`check_defensibility` takes the same `target`** (0120-MERIDIAN review N8, "E2-c" of the Track A plan). WASM and
+  MCP requests may carry `target: "Reference" | "Pooled"`; absent means Reference, byte-identical to before (an explicit
+  Reference equals the default byte for byte). Under Pooled the check reads fair wages, bounds, `extrapolated` and
+  `few_residual_df` (subject `pooled`) off the pooled fit, so the remedy's rows and the check's rows mark the same
+  people. Held to the same R golden as the optimiser: bounds at 0.90 / 0.95 / 0.99 against `predict.lm` (1e-9),
+  critical value and df, extrapolated ordinals against `hatvalues`, and equal to the remedy's set. New type
+  `DefensibilityRequest` (a flattened `VerificationRequest` plus `target`); `verify_adjustments` is unchanged.
+  `check_defensibility_inner` is `check_defensibility_on(req, &Reference)`.
+- Still not built: the exact `group_test` on the defensibility run (E2-c's second half, the group coefficient's own t
+  and p), and E2-e / E2-f (coefficients and group shares for a redo-by-hand table).
+
 ### Changed, BREAKING (0120-MERIDIAN S1-S4, Track E core, 2026-10-09)
 - **Per-level driver rows no longer depend on which level sorts first.** The engine (WASM `decompose` and
   `verify_adjustments`, MCP) and the CLI (`run`, `report`) normalise every categorical predictor on every run:

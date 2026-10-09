@@ -605,43 +605,42 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
         feature_names.push(format!("Feature {}", feature_names.len()));
     }
 
-    // The baseline group's pay line is the standard every fair wage is read off. A line with no
-    // residual degrees of freedom has no honest range (it used to return a zero-width one), so
-    // it is refused by name before anything is solved (0120-MERIDIAN T13).
-    if y_a.len() <= x_a.ncols() {
-        return Err(support::insufficient_df_error(
-            "reference",
-            y_a.len(),
-            x_a.ncols(),
-        ));
-    }
+    // The level comes from the request (default 95%, refused outside [50%, 99.9%]).
+    let confidence_of_request = req.confidence_level;
 
-    // Calculate Fair Beta based on Target Mode
-    let beta_fair = match target_mode {
-        OptimizationTarget::Reference => x_a
-            .clone()
-            .svd(true, true)
-            .solve(&y_a, 1e-9)
-            .map_err(|e| format!("SVD Solve Error (Reference): {}", e))?,
-        OptimizationTarget::Pooled => {
-            let n_a = x_a.nrows();
-            let n_b = x_b.nrows();
-            let n_pooled = n_a + n_b;
-            let n_cols = x_a.ncols();
-
-            let mut x_pooled = x_a.clone();
-            x_pooled = x_pooled.resize_vertically(n_pooled, 0.0);
-            x_pooled.view_mut((n_a, 0), (n_b, n_cols)).copy_from(&x_b);
-
-            let mut y_pooled = y_a.clone();
-            y_pooled = y_pooled.resize_vertically(n_pooled, 0.0);
-            y_pooled.view_mut((n_a, 0), (n_b, 1)).copy_from(&y_b);
-
-            x_pooled
+    // The pay line every fair wage is read off, and the prediction interval built from that same
+    // fit (0120-MERIDIAN T14, T8). A line with no residual degrees of freedom has no honest range
+    // (it used to return a zero-width one), so it is refused by name before anything is solved
+    // (T13).
+    //
+    //  * Reference: the reference group's own regression; its sigma^2, (X'X)^-1 and df.
+    //  * Pooled: the pooled regression WITH a target-group indicator, read at indicator 0, with
+    //    that regression's sigma^2, (X'X)^-1 and df. At the midpoint the target group's mean
+    //    shortfall to this line is the indicator's coefficient, which is the decomposition's
+    //    `Pooled` unexplained gap. The no-indicator stack (Neumark) is `PooledNoIndicator`, not
+    //    offered by this entry point.
+    let (beta_fair, interval_model) = match target_mode {
+        OptimizationTarget::Reference => {
+            if y_a.len() <= x_a.ncols() {
+                return Err(support::insufficient_df_error(
+                    "reference",
+                    y_a.len(),
+                    x_a.ncols(),
+                ));
+            }
+            let beta = x_a
                 .clone()
                 .svd(true, true)
-                .solve(&y_pooled, 1e-9)
-                .map_err(|e| format!("SVD Solve Error (Pooled): {}", e))?
+                .solve(&y_a, 1e-9)
+                .map_err(|e| format!("SVD Solve Error (Reference): {}", e))?;
+            let confidence = support::resolve_confidence(confidence_of_request)?;
+            let model = IntervalModel::new(&x_a, &y_a, &beta, confidence)?;
+            (beta, model)
+        }
+        OptimizationTarget::Pooled => {
+            let confidence = support::resolve_confidence(confidence_of_request)?;
+            let fit = support::PooledFit::new(&x_a, &y_a, &x_b, &y_b, confidence)?;
+            (fit.beta, fit.interval)
         }
     };
 
@@ -661,11 +660,9 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
     let predicted_y_a_fair = &x_a * &beta_fair;
 
     // --- Prediction intervals (0120-MERIDIAN T14) ---
-    // Student t on the baseline regression's residual degrees of freedom, with the level taken
-    // from the request (default 95%, refused outside [50%, 99.9%]). `IntervalModel` also carries the
-    // baseline group's leverage, which decides each row's `extrapolated` flag.
-    let confidence = support::resolve_confidence(req.confidence_level)?;
-    let interval_model = IntervalModel::new(&x_a, &y_a, &beta_fair, confidence)?;
+    // `interval_model` (above) is Student t on the residual degrees of freedom of the fit that
+    // produced `beta_fair`. It also carries that fit's leverage, which decides each row's
+    // `extrapolated` flag.
     let calculate_interval = |features: DVector<f64>, predicted_y: f64| -> (f64, f64) {
         interval_model.interval(&features, predicted_y)
     };
@@ -676,7 +673,10 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
         &x_b,
         &feature_names,
         &req.predictors,
-        Fitted::Reference,
+        match target_mode {
+            OptimizationTarget::Reference => Fitted::Reference,
+            OptimizationTarget::Pooled => Fitted::Pooled,
+        },
         Some(interval_model.leverage()),
     )?;
     // -------------------------------------------------------------------

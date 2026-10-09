@@ -94,6 +94,11 @@ pub struct Leverage {
     cov: DMatrix<f64>,
     /// The largest leverage among the baseline group's own rows.
     pub h_max: f64,
+    /// Zeros appended to a feature vector before it meets `cov`. Under the Pooled optimise
+    /// target the inverse is of the pooled design WITH the group indicator, and a row is
+    /// priced at indicator 0, so a feature vector of the model's columns is extended by one
+    /// zero. 0 for every other fit.
+    pad: usize,
 }
 
 impl Leverage {
@@ -105,17 +110,34 @@ impl Leverage {
 
     /// From an inverse the caller already holds.
     pub fn with_cov(x: &DMatrix<f64>, cov: DMatrix<f64>) -> Leverage {
+        Leverage::with_cov_rows(x, cov, x.nrows(), 0)
+    }
+
+    /// `h_max` over the first `baseline_rows` rows of `x` only, and `pad` zeros appended to the
+    /// feature vectors `at` is asked about (see the field).
+    pub fn with_cov_rows(
+        x: &DMatrix<f64>,
+        cov: DMatrix<f64>,
+        baseline_rows: usize,
+        pad: usize,
+    ) -> Leverage {
         let xc = x * &cov;
         let mut h_max = 0.0_f64;
-        for i in 0..x.nrows() {
+        for i in 0..baseline_rows.min(x.nrows()) {
             let h: f64 = (0..x.ncols()).map(|j| xc[(i, j)] * x[(i, j)]).sum();
             h_max = h_max.max(h);
         }
-        Leverage { cov, h_max }
+        Leverage { cov, h_max, pad }
     }
 
     pub fn at(&self, features: &DVector<f64>) -> f64 {
-        (features.transpose() * &self.cov * features)[(0, 0)]
+        if self.pad == 0 {
+            return (features.transpose() * &self.cov * features)[(0, 0)];
+        }
+        let extended = features
+            .clone()
+            .resize_vertically(features.len() + self.pad, 0.0);
+        (extended.transpose() * &self.cov * &extended)[(0, 0)]
     }
 
     /// True when `h` is larger than any baseline row's leverage, beyond rounding.
@@ -128,9 +150,14 @@ impl Leverage {
     }
 }
 
-/// Student-t prediction intervals of the baseline regression (T14): `predict.lm(interval =
-/// "prediction")`. The standard error is `sqrt(sigma^2 (1 + x' (X'X)^-1 x))` and the multiplier
-/// the t quantile on `n - k` degrees of freedom.
+/// Student-t prediction intervals of the regression that produced the fair wage (T14):
+/// `predict.lm(interval = "prediction")`. The standard error is `sqrt(sigma^2 (1 + x' (X'X)^-1
+/// x))` and the multiplier the t quantile on the fit's residual degrees of freedom.
+///
+/// Two fits build one: the baseline group's own regression (`new`, the Reference optimise target
+/// and defensibility) and the pooled regression with a group indicator (`PooledFit`, the Pooled
+/// optimise target, T8). In both, `sigma^2`, `(X'X)^-1` and the degrees of freedom are the ones
+/// of the fit the fair wage is read off, so each interval is exactly `predict.lm` on that fit.
 pub struct IntervalModel {
     sigma_squared: f64,
     leverage: Leverage,
@@ -146,19 +173,34 @@ impl IntervalModel {
         beta: &DVector<f64>,
         confidence: f64,
     ) -> Result<IntervalModel, String> {
+        IntervalModel::from_design(x, y, beta, confidence, "reference", x.nrows(), 0)
+    }
+
+    /// The model of a fit on `design` (`y` ~ `design * beta`). `baseline_rows` leading rows of
+    /// the design set the leverage a row may reach before it counts as extrapolated; `pad` is
+    /// how many zero columns a feature vector of the fair-wage model lacks against the design.
+    fn from_design(
+        design: &DMatrix<f64>,
+        y: &DVector<f64>,
+        beta: &DVector<f64>,
+        confidence: f64,
+        group: &str,
+        baseline_rows: usize,
+        pad: usize,
+    ) -> Result<IntervalModel, String> {
         let n = y.len();
-        let k = x.ncols();
+        let k = design.ncols();
         if n <= k {
-            return Err(insufficient_df_error("reference", n, k));
+            return Err(insufficient_df_error(group, n, k));
         }
-        let residuals = y - x * beta;
+        let residuals = y - design * beta;
         let rss = residuals.dot(&residuals);
         let dof = n - k;
         let sigma_squared = rss / dof as f64;
-        let cov = (x.transpose() * x)
+        let cov = (design.transpose() * design)
             .try_inverse()
             .ok_or("Covariance matrix is singular, likely due to perfect multicollinearity.")?;
-        let leverage = Leverage::with_cov(x, cov);
+        let leverage = Leverage::with_cov_rows(design, cov, baseline_rows, pad);
         let alpha = 1.0 - confidence;
         let critical = StudentsT::new(0.0, 1.0, dof as f64)
             .map_err(|e| format!("Student t quantile: {e}"))?
@@ -196,6 +238,64 @@ impl IntervalModel {
     }
 }
 
+/// The pooled regression WITH a target-group indicator (T8): `y ~ x + group`, where `group` is 0
+/// for the reference rows and 1 for the target rows. It is the line the Pooled optimise target
+/// reads fair wages off (Jann 2008 `pooled`; the decomposition's `Pooled` line, whose group
+/// coefficient is the unexplained gap).
+///
+/// `beta` holds the coefficients of the model's own columns; the indicator's coefficient is
+/// dropped from it and reported as `group_coefficient`, so the fair wage of any row is its
+/// prediction at indicator 0 (`predict.lm(fit, newdata = row with group = reference)`).
+/// `interval` is built from this same fit: `sigma^2 = RSS / (n - k - 1)`, `(Z'Z)^-1` of the design
+/// with the indicator, `n - k - 1` degrees of freedom, and leverage `h = (x, 0)' (Z'Z)^-1 (x, 0)`.
+/// A row is extrapolated when `h` exceeds the largest leverage among the reference rows of that
+/// design, the pooled line's own baseline range.
+pub struct PooledFit {
+    pub beta: DVector<f64>,
+    pub group_coefficient: f64,
+    pub interval: IntervalModel,
+}
+
+impl PooledFit {
+    /// Refuses with `INSUFFICIENT_RESIDUAL_DF: group=pooled` when the pooled regression has no
+    /// residual degrees of freedom.
+    pub fn new(
+        x_reference: &DMatrix<f64>,
+        y_reference: &DVector<f64>,
+        x_target: &DMatrix<f64>,
+        y_target: &DVector<f64>,
+        confidence: f64,
+    ) -> Result<PooledFit, String> {
+        let n_ref = x_reference.nrows();
+        let n_tgt = x_target.nrows();
+        let k = x_reference.ncols();
+        let n = n_ref + n_tgt;
+        if n <= k + 1 {
+            return Err(insufficient_df_error("pooled", n, k + 1));
+        }
+        // Reference rows first, so the leading `n_ref` rows are the baseline of the leverage.
+        let mut design = DMatrix::<f64>::zeros(n, k + 1);
+        design.view_mut((0, 0), (n_ref, k)).copy_from(x_reference);
+        design.view_mut((n_ref, 0), (n_tgt, k)).copy_from(x_target);
+        design.view_mut((n_ref, k), (n_tgt, 1)).fill(1.0);
+        let mut y = DVector::<f64>::zeros(n);
+        y.rows_mut(0, n_ref).copy_from(y_reference);
+        y.rows_mut(n_ref, n_tgt).copy_from(y_target);
+        let full = design
+            .clone()
+            .svd(true, true)
+            .solve(&y, 1e-9)
+            .map_err(|e| format!("SVD Solve Error (Pooled): {}", e))?;
+        let interval =
+            IntervalModel::from_design(&design, &y, &full, confidence, "pooled", n_ref, 1)?;
+        Ok(PooledFit {
+            beta: full.rows(0, k).into_owned(),
+            group_coefficient: full[k],
+            interval,
+        })
+    }
+}
+
 /// Which groups the result's regression fits. Only fitted groups are judged on residual df.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Fitted {
@@ -203,6 +303,10 @@ pub enum Fitted {
     Reference,
     /// Both groups (decompose, verify).
     Both,
+    /// The pooled regression with a group indicator (optimise, Pooled target). Judged as one
+    /// fit on `n_reference + n_target - model_columns - 1` residual df, subject `pooled`; neither
+    /// group is fitted alone, so neither group's own df is a reason to refuse.
+    Pooled,
 }
 
 /// Support diagnostics for one result, plus the warnings they raise.
@@ -222,11 +326,18 @@ pub fn support_diagnostics(
     let k = x_reference.ncols();
     let ref_df = n_ref as i64 - k as i64;
     let tgt_df = n_tgt as i64 - k as i64;
-    if ref_df <= 0 {
-        return Err(insufficient_df_error("reference", n_ref, k));
-    }
-    if fitted == Fitted::Both && tgt_df <= 0 {
-        return Err(insufficient_df_error("target", n_tgt, k));
+    let pooled_df = (n_ref + n_tgt) as i64 - k as i64 - 1;
+    if fitted == Fitted::Pooled {
+        if pooled_df <= 0 {
+            return Err(insufficient_df_error("pooled", n_ref + n_tgt, k + 1));
+        }
+    } else {
+        if ref_df <= 0 {
+            return Err(insufficient_df_error("reference", n_ref, k));
+        }
+        if fitted == Fitted::Both && tgt_df <= 0 {
+            return Err(insufficient_df_error("target", n_tgt, k));
+        }
     }
 
     let mut warnings = Vec::new();
@@ -299,8 +410,9 @@ pub fn support_diagnostics(
     }
 
     for (group, df, fits) in [
-        ("reference", ref_df, true),
+        ("reference", ref_df, fitted != Fitted::Pooled),
         ("target", tgt_df, fitted == Fitted::Both),
+        ("pooled", pooled_df, fitted == Fitted::Pooled),
     ] {
         if fits && df < SUPPORT_MIN_RESIDUAL_DF {
             warnings.push(DiagnosticWarning {

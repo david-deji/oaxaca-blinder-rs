@@ -48,13 +48,13 @@ Calculates required wage adjustments to close identified gaps.
 - **Parameters**:
     - `budget`: Maximum available budget.
     - `strategy`: "Greedy" (max gap first) or "Equitable" (shared distribution).
-    - `target`: "Reference" or "Pooled" coefficients.
+    - `target`: "Reference" (the reference group's own pay line) or "Pooled" (the pooled line with a target-group indicator, read at indicator 0: the decomposition's `Pooled` line). Under Pooled the interval, `extrapolated` and `few_residual_df` (subject `pooled`) come from that pooled fit.
 - **Result**: `model_coefficients` and each adjustment's `contributions` are RAW terms of the fair-wage model fitted on the reference group (treatment-coded: each categorical level against the alphabetically first one, whose level has no row). They are not drivers and must not be ranked or labelled as findings; the constant is the entry named `__ob_intercept__`.
 
 - **Result** (all tools above that return a decomposition or a remedy): `support` and `warnings` say how far the compared group's characteristics sit from the baseline group's and how many residual degrees of freedom each fitted regression has; each remedy row carries `extrapolated`; `interval` states the Student t prediction interval behind the bounds. `docs/DIAGNOSTICS.md` maps every field. With `quantile` set, `quantile_report` holds the actual percentile gap beside `rif_total` (the model total `total_gap` carries) and the tie diagnostics.
 
 ### `check_defensibility`
-Scores each proposed adjustment against the prediction range of comparable reference-group employees (`confidence_level`, default 0.95, Student t on the reference regression's residual degrees of freedom; one cent of slack). It reports the share of adjusted wages inside that range; it does not certify legal compliance.
+Scores each proposed adjustment against the prediction range of comparable reference-group employees (`confidence_level`, default 0.95, Student t on the residual degrees of freedom of the fit the fair wage is read off; one cent of slack). `target` is `Reference` (default: the baseline group's own regression) or `Pooled` (the pooled regression with a target-group indicator, read at indicator 0): the line the remedy was priced against, so the bounds, `extrapolated` flags and `few_residual_df` warning describe the same fit as the remedy's rows. It reports the share of adjusted wages inside that range; it does not certify legal compliance.
 
 ### `generate_efficient_frontier`
 Simulates the trade-off between Remediation Budget and remaining Statistical Significance of the gap. Each point carries the pooled regression's group coefficient, its t statistic and its two-sided p-value on the pooled residual degrees of freedom (`confidence_level` sets `is_significant`).

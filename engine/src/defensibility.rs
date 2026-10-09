@@ -30,6 +30,17 @@ struct MergedAdjustment {
 /// Scalar defensibility scoring over the decompose output (the scoring arithmetic below) —
 /// trivial and serial; no solve, no fan-out site.
 pub fn check_defensibility_inner(req: VerificationRequest) -> Result<OptimizationResult, String> {
+    check_defensibility_on(req, &OptimizationTarget::Reference)
+}
+
+/// `check_defensibility` against the pay line the remedy targeted (review N8). `Reference` is
+/// `check_defensibility_inner` exactly; `Pooled` reads every fair wage, bound, `extrapolated` flag
+/// and df warning off the pooled regression with a group indicator (`support::PooledFit`), the same
+/// fit `optimize_inner` uses for its Pooled target.
+pub fn check_defensibility_on(
+    req: VerificationRequest,
+    target: &OptimizationTarget,
+) -> Result<OptimizationResult, String> {
     // 1. Load Data
     let mut df = read_csv(&req.decomposition_params.csv_data)?;
 
@@ -232,29 +243,40 @@ pub fn check_defensibility_inner(req: VerificationRequest) -> Result<Optimizatio
         feature_names.push(format!("Feature {}", feature_names.len()));
     }
 
-    // The baseline group's pay line is the standard every fair wage is read off. With no
-    // residual degrees of freedom there is no honest range (the old code returned a zero-width
-    // one), so it is refused by name before anything is solved (0120-MERIDIAN T13).
-    if y_a.len() <= x_a.ncols() {
-        return Err(support::insufficient_df_error(
-            "reference",
-            y_a.len(),
-            x_a.ncols(),
-        ));
-    }
-
-    // Calculate Fair Beta (Reference Target for "Defensibility")
-    let beta_fair = x_a
-        .clone()
-        .svd(true, true)
-        .solve(&y_a, 1e-9)
-        .map_err(|e| format!("SVD Solve Error: {}", e))?;
-
-    // --- Prediction intervals (0120-MERIDIAN T14) ---
-    // The same model `optimize` uses: Student t on the baseline regression's residual degrees of
-    // freedom, level from the request (default 95%, refused outside [50%, 99.9%]).
-    let confidence = support::resolve_confidence(req.confidence_level)?;
-    let interval_model = IntervalModel::new(&x_a, &y_a, &beta_fair, confidence)?;
+    // The pay line every fair wage is read off, and the prediction interval built from that same fit
+    // (0120-MERIDIAN T14, T8, N8). With no residual degrees of freedom there is no honest range (the
+    // old code returned a zero-width one), so it is refused by name before anything is solved (T13).
+    //
+    //  * Reference: the baseline group's own regression, its sigma^2, (X'X)^-1 and df.
+    //  * Pooled: the pooled regression WITH a target-group indicator, read at indicator 0, with that
+    //    regression's own sigma^2, (X'X)^-1 and df: the line the optimiser's Pooled target prices.
+    let (beta_fair, interval_model, fitted) = match target {
+        OptimizationTarget::Reference => {
+            if y_a.len() <= x_a.ncols() {
+                return Err(support::insufficient_df_error(
+                    "reference",
+                    y_a.len(),
+                    x_a.ncols(),
+                ));
+            }
+            // Calculate Fair Beta (Reference Target for "Defensibility")
+            let beta = x_a
+                .clone()
+                .svd(true, true)
+                .solve(&y_a, 1e-9)
+                .map_err(|e| format!("SVD Solve Error: {}", e))?;
+            // The level comes from the request (default 95%, refused outside [50%, 99.9%]).
+            let confidence = support::resolve_confidence(req.confidence_level)?;
+            let model = IntervalModel::new(&x_a, &y_a, &beta, confidence)?;
+            (beta, model, Fitted::Reference)
+        }
+        OptimizationTarget::Pooled => {
+            let confidence = support::resolve_confidence(req.confidence_level)?;
+            let fit =
+                support::PooledFit::new(&x_a, &y_a, &x_b, &target_group_matrices.y, confidence)?;
+            (fit.beta, fit.interval, Fitted::Pooled)
+        }
+    };
     let calculate_interval = |features: DVector<f64>, predicted_y: f64| -> (f64, f64) {
         interval_model.interval(&features, predicted_y)
     };
@@ -264,7 +286,7 @@ pub fn check_defensibility_inner(req: VerificationRequest) -> Result<Optimizatio
         &x_b,
         &feature_names,
         &req.decomposition_params.predictors,
-        Fitted::Reference,
+        fitted,
         Some(interval_model.leverage()),
     )?;
 

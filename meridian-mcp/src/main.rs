@@ -15,7 +15,7 @@ use governor::{Quota, RateLimiter};
 use pay_equity_engine::analysis::{
     calculate_efficient_frontier_inner, decompose_inner, optimize_inner, verify_inner,
 };
-use pay_equity_engine::defensibility::check_defensibility_inner;
+use pay_equity_engine::defensibility::check_defensibility_on;
 use pay_equity_engine::types::{
     AllocationStrategy, DecompositionRequest, EfficientFrontierRequest, OptimizationRequest,
     OptimizationTarget, ProposedAdjustment, RangeTarget, VerificationRequest,
@@ -156,6 +156,9 @@ struct McpVerificationParams {
     /// Level of the prediction interval `check_defensibility` scores against (0120 S7).
     #[serde(default)]
     pub confidence_level: Option<f64>,
+    /// The pay line the amounts are judged on: `Reference` (default) or `Pooled` (0120 review N8).
+    #[serde(default)]
+    pub target: Option<String>,
 }
 
 impl From<McpVerificationParams> for VerificationRequest {
@@ -575,7 +578,7 @@ async fn handle_protocol(req: JsonRpcRequest) -> Option<JsonRpcResponse> {
                 },
                 {
                     "name": "simulate_remediation",
-                    "description": "Simulate budget allocation to fix identified pay gaps.",
+                    "description": "Simulate budget allocation to fix identified pay gaps. target is Reference (the reference group's own pay line) or Pooled (the pooled line with a target-group indicator, the decomposition's Pooled line); the prediction interval, extrapolated flags and few_residual_df warning come from the same fit as the fair wage.",
                     "inputSchema": {
                         "type": "object",
                         "properties": {
@@ -622,7 +625,7 @@ async fn handle_protocol(req: JsonRpcRequest) -> Option<JsonRpcResponse> {
                 },
                 {
                     "name": "check_defensibility",
-                    "description": "Score each proposed adjustment against the 95% (or confidence_level) prediction range of comparable reference-group employees: the share of adjusted wages that land inside that range. Student t on the reference regression's residual degrees of freedom. Each row also says whether its fair wage extends the reference group's pay line beyond the range that group occupies (extrapolated). Predictor overrides are supported.",
+                    "description": "Score each proposed adjustment against the 95% (or confidence_level) prediction range of comparable reference-group employees: the share of adjusted wages that land inside that range. Student t on the residual degrees of freedom of the fit the fair wage is read off: the reference regression (target Reference, default) or the pooled regression with a group indicator (target Pooled, the line the remedy priced against). Each row also says whether its fair wage extends the reference group's pay line beyond the range that group occupies (extrapolated). Predictor overrides are supported.",
                     "inputSchema": {
                         "type": "object",
                         "properties": {
@@ -632,6 +635,7 @@ async fn handle_protocol(req: JsonRpcRequest) -> Option<JsonRpcResponse> {
                             "reference_group": { "type": "string" },
                             "predictors": { "type": "array", "items": { "type": "string" } },
                             "confidence_level": { "type": "number", "description": "Level of the prediction range, e.g. 0.90 (a fraction, not 90). A level outside 0.50-0.999 or not finite is refused with INVALID_CONFIDENCE_LEVEL; default 0.95." },
+                            "target": { "type": "string", "enum": ["Reference", "Pooled"], "description": "The pay line the amounts are judged on: the one the remedy was priced against. Default Reference." },
                             "adjustments": {
                                 "type": "array",
                                 "items": {
@@ -793,8 +797,12 @@ async fn handle_tool_call(params: Option<Value>) -> Result<Value> {
             if let Some(reps) = p.decomposition_params.bootstrap_reps {
                 p.decomposition_params.bootstrap_reps = Some(reps.min(10000));
             }
+            let target = match p.target.as_deref() {
+                Some("Pooled") => OptimizationTarget::Pooled,
+                _ => OptimizationTarget::Reference,
+            };
             let req = p.into();
-            let res = tokio::task::spawn_blocking(move || check_defensibility_inner(req))
+            let res = tokio::task::spawn_blocking(move || check_defensibility_on(req, &target))
                 .await
                 .map_err(|e| anyhow!(e))?
                 .map_err(|e| anyhow!(e))?;

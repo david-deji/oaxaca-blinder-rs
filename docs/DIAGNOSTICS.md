@@ -26,7 +26,7 @@ Warning codes and their lines (restated as literals in `engine/tests/support_dia
 |---|---|---|
 | `outside_range` | more than 5% of target rows lie outside the baseline [min, max] of a continuous predictor | the predictor |
 | `normalised_difference` | the absolute normalised difference of a continuous predictor exceeds 0.25 (Imbens and Rubin 2015, section 14.2) | the predictor |
-| `few_residual_df` | a FITTED group has fewer than 10 residual degrees of freedom | `reference` or `target` |
+| `few_residual_df` | a FITTED regression has fewer than 10 residual degrees of freedom | `reference` or `target`; `pooled` for the Pooled optimise target's pooled fit |
 | `tie_share`, `ecdf_offset` | percentile mode only, see below | `reference` or `target` |
 
 Decision (V6, orchestrator call): the engine keeps emitting all four warnings. The app shows the plain caveat
@@ -61,9 +61,19 @@ compared group too small to fit its own regression no longer blocks a remedy. Nu
 | `FrontierPoint.group_coefficient`, `FrontierPoint.degrees_of_freedom` | frontier | the pooled regression's group-indicator coefficient after the budget is paid, and its residual df |
 | `FrontierPoint.confidence_level` | frontier | the level `is_significant` was held against, echoed on every point |
 
-The interval is exact `predict.lm(interval = "prediction")` for the Reference optimise target. Under the
-Pooled target the fair wage comes from the pooled fit while the interval is still built on the reference
-regression, so it is an approximation there until T8 lands.
+The interval is exact `predict.lm(interval = "prediction")` on the fit the fair wage is read off, for both
+optimise targets. Reference: the baseline group's own regression, `n - k` residual df. Pooled (T8): the pooled
+regression with a target-group indicator, read at indicator 0, with that regression's sigma squared, `(Z'Z)^-1` and
+`n_reference + n_target - k - 1` residual df; `interval.degrees_of_freedom` and `critical_value` report that fit.
+`extrapolated` under Pooled compares the leverage `(x, 0)' (Z'Z)^-1 (x, 0)` with the largest among the reference rows
+of the pooled design. `check_defensibility` takes the same `target` (default Reference): under Pooled its fair wages,
+bounds, `extrapolated` flags and `few_residual_df` warning (subject `pooled`) come from the pooled fit, held to the same R
+golden as the optimiser's, so a remedy and the check that scores its amounts mark the same people.
+
+Pooled sigma squared assumes ONE residual variance for both groups: the regression has a group indicator and no
+group-specific slope or variance, so a baseline group much noisier or quieter than the compared group widens or narrows
+the compared group's prediction range by the pooled average. "Exact `predict.lm`" holds for that fit as written, not
+for a model with variance by group.
 
 CHANGED: intervals are Student t on the baseline regression's residual degrees of freedom
 (`predict.lm(interval = "prediction")`), not Normal. The frontier's `p_value` is `2 * pt(-|t|, df)`. At
@@ -120,6 +130,10 @@ row twice in the density); it now reads `sum(w)`. Unweighted runs are untouched.
 | V7 prediction intervals, three levels, 10 000 rows and 5 df | `predict.lm(interval = "prediction")` | 1e-9 | 2.9e-12, 2.1e-15 |
 | V7 t quantile and `pt` | `qt`, `pt` | 1e-10 | 2.4e-12 |
 | V7 frontier group test | pooled `lm` | 1e-9 | see `intervals_test` |
+| T8 Pooled target: `original_unexplained_gap` = group coefficient, 7 cases | `lm(y ~ x + group)`, `oaxaca` weight -2 | 1e-9 | 2.3e-10 |
+| T8 Pooled target: `optimize` against `decompose` `Pooled` unexplained, 5 cases | the same file through the decomposition | 1e-9 | 2.2e-10 |
+| T8 Pooled target: fair wage and bounds, three levels, 7 cases | `predict.lm(pooled_fit, interval = "prediction")` at indicator 0 | 1e-9 | 6.4e-12 |
+| T8 Pooled target: `extrapolated` ordinals | `hatvalues` of the pooled fit, leverage of `(x, 0)` | exact set | exact |
 | V8 percentile gap, ECDF, tie counts | `quantile(type = 7)` | 1e-12 | exact |
 | V9 relative quantile | `Hmisc::wtd.quantile(normwt = TRUE)`, 5 weight patterns x 5 taus | 1e-9 | see `weights_kind_test` |
 | V9 frequency quantile | `quantile(rep(y, w), type = 7)` | 1e-9 | exact |
