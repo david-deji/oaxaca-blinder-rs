@@ -432,6 +432,24 @@ pub struct VerificationRequest {
     pub confidence_level: Option<f64>,
 }
 
+/// The `check_defensibility` request: a verification request plus the pay line the amounts are
+/// judged on (0120-MERIDIAN review N8, "E2-c" in the Track A plan).
+///
+/// `target` is the one the remedy was priced against: `Reference` (the baseline group's own
+/// regression, the default and the only line before this field) or `Pooled` (the pooled regression
+/// with a target-group indicator read at indicator 0, the optimiser's Pooled line). With it, the
+/// bounds, the `extrapolated` flags and the `few_residual_df` warning describe the line the amounts
+/// were computed on, so a remedy and its check can never judge extension on two different designs.
+/// A separate struct, not a field of `VerificationRequest`, so `verify_adjustments` (which has no
+/// line to choose) does not carry a field it would ignore.
+#[derive(Deserialize, Debug)]
+pub struct DefensibilityRequest {
+    #[serde(flatten)]
+    pub verification: VerificationRequest,
+    #[serde(default)]
+    pub target: Option<OptimizationTarget>,
+}
+
 #[derive(Serialize, Debug)]
 pub struct FrontierPoint {
     pub budget: f64,

@@ -25,8 +25,16 @@
   (sha256 of the script and of seven fixtures checked on load). `null_free_regression_test` no longer compares
   `optimize/noisy/pooled_target` with the pre-0118 text (it pinned the no-indicator fit); that case is held to a pooled
   `lm` fitted from the fixture's own cells, and every Reference-target case still equals the golden at 1e-9.
-- Not in this change: `check_defensibility` still judges rows against the Reference line whatever target the remedy
-  used; a `target` field on that request is a separate change.
+- **`check_defensibility` takes the same `target`** (0120-MERIDIAN review N8, "E2-c" of the Track A plan). WASM and
+  MCP requests may carry `target: "Reference" | "Pooled"`; absent means Reference, byte-identical to before (an explicit
+  Reference equals the default byte for byte). Under Pooled the check reads fair wages, bounds, `extrapolated` and
+  `few_residual_df` (subject `pooled`) off the pooled fit, so the remedy's rows and the check's rows mark the same
+  people. Held to the same R golden as the optimiser: bounds at 0.90 / 0.95 / 0.99 against `predict.lm` (1e-9),
+  critical value and df, extrapolated ordinals against `hatvalues`, and equal to the remedy's set. New type
+  `DefensibilityRequest` (a flattened `VerificationRequest` plus `target`); `verify_adjustments` is unchanged.
+  `check_defensibility_inner` is `check_defensibility_on(req, &Reference)`.
+- Still not built: the exact `group_test` on the defensibility run (E2-c's second half, the group coefficient's own t
+  and p), and E2-e / E2-f (coefficients and group shares for a redo-by-hand table).
 
 ### Changed, BREAKING (0120-MERIDIAN S1-S4, Track E core, 2026-10-09)
 - **Per-level driver rows no longer depend on which level sorts first.** The engine (WASM `decompose` and

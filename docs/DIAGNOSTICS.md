@@ -66,7 +66,14 @@ optimise targets. Reference: the baseline group's own regression, `n - k` residu
 regression with a target-group indicator, read at indicator 0, with that regression's sigma squared, `(Z'Z)^-1` and
 `n_reference + n_target - k - 1` residual df; `interval.degrees_of_freedom` and `critical_value` report that fit.
 `extrapolated` under Pooled compares the leverage `(x, 0)' (Z'Z)^-1 (x, 0)` with the largest among the reference rows
-of the pooled design. `check_defensibility` still reads the Reference line (its `target` is a later change).
+of the pooled design. `check_defensibility` takes the same `target` (default Reference): under Pooled its fair wages,
+bounds, `extrapolated` flags and `few_residual_df` warning (subject `pooled`) come from the pooled fit, held to the same R
+golden as the optimiser's, so a remedy and the check that scores its amounts mark the same people.
+
+Pooled sigma squared assumes ONE residual variance for both groups: the regression has a group indicator and no
+group-specific slope or variance, so a baseline group much noisier or quieter than the compared group widens or narrows
+the compared group's prediction range by the pooled average. "Exact `predict.lm`" holds for that fit as written, not
+for a model with variance by group.
 
 CHANGED: intervals are Student t on the baseline regression's residual degrees of freedom
 (`predict.lm(interval = "prediction")`), not Normal. The frontier's `p_value` is `2 * pt(-|t|, df)`. At

@@ -19,6 +19,7 @@
 //! matches the file on disk: a stale golden is an error, not a pass.
 
 use pay_equity_engine::analysis::{decompose_inner, optimize_inner};
+use pay_equity_engine::defensibility::{check_defensibility_inner, check_defensibility_on};
 use pay_equity_engine::types::*;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -464,4 +465,210 @@ fn t8_a_pooled_fit_with_no_residual_df_is_refused_by_name_and_a_small_baseline_i
     );
     let ok = optimize_inner(tiny_request(tiny_csv(2, 6), OptimizationTarget::Pooled)).unwrap();
     assert_eq!(ok.interval.degrees_of_freedom, 5);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Review N8 ("E2-c"): `check_defensibility` judges the amounts on the line the remedy priced.
+//
+// Before, the remedy under `Pooled` read its bounds and extension marks off the pooled fit while
+// the check that scores the proposed amounts always read the Reference line, so the ledger chips
+// (the remedy's rows) and the "after adjustment" card (the check's rows) could disagree on one
+// screen. The oracle is the same R golden: every bound, fair wage, critical value, df and
+// extrapolated ordinal the optimiser is held to is held here too, on the check's own rows.
+// ---------------------------------------------------------------------------------------------
+
+fn verification(
+    name: &str,
+    confidence: Option<f64>,
+    rows: &OptimizationResult,
+) -> VerificationRequest {
+    VerificationRequest {
+        decomposition_params: decomposition(name),
+        adjustments: rows
+            .adjustments
+            .iter()
+            .map(|a| ProposedAdjustment {
+                index: a.index,
+                row_key: None,
+                value: a.adjustment,
+                predictor_overrides: None,
+            })
+            .collect(),
+        confidence_level: confidence,
+    }
+}
+
+fn defended(
+    name: &str,
+    target: &OptimizationTarget,
+    confidence: Option<f64>,
+) -> OptimizationResult {
+    // Every row is listed, with the amounts the Pooled optimiser proposes for it.
+    let opt = pooled(name, confidence);
+    check_defensibility_on(verification(name, confidence, &opt), target).unwrap()
+}
+
+#[test]
+fn n8_defensibility_on_the_pooled_target_equals_predict_lm_on_the_pooled_fit() {
+    let mut worst = 0.0_f64;
+    for name in CASES {
+        let c = case(name);
+        for (key, level) in LEVELS {
+            let res = defended(name, &OptimizationTarget::Pooled, Some(level));
+            let want = &c["levels"][key];
+            assert_eq!(
+                res.interval.degrees_of_freedom as u64,
+                c["residual_df"].as_u64().unwrap(),
+                "{name} {key}: the check's interval df is the pooled fit's n - k - 1"
+            );
+            assert_close(
+                &format!("{name} {key} check critical value"),
+                res.interval.critical_value,
+                f(want, "critical"),
+                TOL_CRITICAL,
+            );
+            let rows = by_index(&res);
+            worst = worst.max(check_rows(
+                &format!("{name} {key} check target"),
+                &want["target"],
+                &rows,
+            ));
+            worst = worst.max(check_rows(
+                &format!("{name} {key} check reference"),
+                &want["reference"],
+                &rows,
+            ));
+        }
+    }
+    println!("check_defensibility(Pooled) vs predict.lm(pooled fit), worst relative difference {worst:e}");
+}
+
+#[test]
+fn n8_the_checks_extension_marks_are_the_pooled_leverage_set_and_equal_the_remedys() {
+    for name in CASES {
+        let want: BTreeSet<usize> = case(name)["extrapolated_ordinals"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_u64().unwrap() as usize)
+            .collect();
+        let checked = defended(name, &OptimizationTarget::Pooled, None);
+        let got: BTreeSet<usize> = checked
+            .adjustments
+            .iter()
+            .filter(|a| a.extrapolated)
+            .map(|a| a.index)
+            .collect();
+        assert_eq!(
+            got, want,
+            "{name}: the check's extrapolated ordinals (R hatvalues)"
+        );
+        // The remedy and its check mark the same people: one screen, one set.
+        let remedy: BTreeSet<usize> = pooled(name, None)
+            .adjustments
+            .iter()
+            .filter(|a| a.extrapolated)
+            .map(|a| a.index)
+            .collect();
+        assert_eq!(
+            got, remedy,
+            "{name}: remedy and check disagree on extension"
+        );
+        assert_eq!(
+            checked.support.extrapolated_target_count as u64,
+            case(name)["extrapolated_target_count"].as_u64().unwrap(),
+            "{name}: support.extrapolated_target_count of the check"
+        );
+    }
+}
+
+#[test]
+fn n8_the_default_target_is_the_reference_line_and_changes_nothing() {
+    // df5: the baseline-only fit has 5 residual df, the pooled fit 10. The default (and an explicit
+    // Reference) stays on 5, as every caller before this field saw.
+    let opt = pooled("df5", None);
+    let by_default = check_defensibility_inner(verification("df5", None, &opt)).unwrap();
+    let explicit = check_defensibility_on(
+        verification("df5", None, &opt),
+        &OptimizationTarget::Reference,
+    )
+    .unwrap();
+    assert_eq!(by_default.interval.degrees_of_freedom, 5);
+    assert_eq!(explicit.interval.degrees_of_freedom, 5);
+    assert_eq!(
+        serde_json::to_string(&by_default).unwrap(),
+        serde_json::to_string(&explicit).unwrap(),
+        "an explicit Reference is the default, byte for byte"
+    );
+    let pooled_check =
+        check_defensibility_on(verification("df5", None, &opt), &OptimizationTarget::Pooled)
+            .unwrap();
+    assert_eq!(pooled_check.interval.degrees_of_freedom, 10);
+    assert!(
+        (pooled_check.interval.critical_value - by_default.interval.critical_value).abs() > 0.3,
+        "the gate can fail: 2.2281 against 2.5706"
+    );
+}
+
+#[test]
+fn n8_the_checks_few_df_warning_names_the_pooled_fit_and_a_pooled_fit_with_no_df_is_refused() {
+    let tiny = defended("tiny", &OptimizationTarget::Pooled, None);
+    let few: Vec<(String, f64)> = tiny
+        .warnings
+        .iter()
+        .filter(|w| w.code == WarningCode::FewResidualDf)
+        .map(|w| (w.subject.clone().unwrap_or_default(), w.value))
+        .collect();
+    assert_eq!(few, vec![("pooled".to_string(), 9.0)], "tiny: {few:?}");
+
+    let csv = tiny_csv(2, 1);
+    let req = VerificationRequest {
+        decomposition_params: DecompositionRequest {
+            csv_data: csv,
+            outcome_variable: "pay".to_string(),
+            group_variable: "grp".to_string(),
+            reference_group: "A".to_string(),
+            predictors: vec!["x".to_string()],
+            categorical_predictors: None,
+            three_fold: None,
+            quantile: None,
+            reference_coefficients: Some("Pooled".to_string()),
+            bootstrap_reps: Some(0),
+        },
+        adjustments: vec![],
+        confidence_level: None,
+    };
+    let e = check_defensibility_on(req, &OptimizationTarget::Pooled)
+        .err()
+        .unwrap();
+    assert!(
+        e.starts_with("INSUFFICIENT_RESIDUAL_DF: group=pooled, rows=3, model_columns=3"),
+        "{e}"
+    );
+}
+
+#[test]
+fn n8_the_request_carries_the_target_through_two_levels_of_flatten() {
+    // The WASM entry deserialises `DefensibilityRequest`, which flattens `VerificationRequest`, which
+    // flattens `DecompositionRequest`. A field lost in that nesting would silently run the Reference
+    // line, so the wire shape is pinned: the target rides beside the decomposition fields.
+    let body = r#"{
+        "csv_data": [112, 97, 121, 10],
+        "outcome_variable": "pay", "group_variable": "grp", "reference_group": "A",
+        "predictors": ["x"], "reference_coefficients": "Pooled",
+        "adjustments": [{"index": 3, "value": 10.0, "predictor_overrides": null}],
+        "confidence_level": 0.9,
+        "target": "Pooled"
+    }"#;
+    let req: DefensibilityRequest = serde_json::from_str(body).unwrap();
+    assert!(matches!(req.target, Some(OptimizationTarget::Pooled)));
+    assert_eq!(req.verification.confidence_level, Some(0.9));
+    assert_eq!(req.verification.adjustments.len(), 1);
+    assert_eq!(req.verification.decomposition_params.reference_group, "A");
+    let without = body.replace(r#""target": "Pooled""#, r#""unrelated": 1"#);
+    let req: DefensibilityRequest = serde_json::from_str(&without).unwrap();
+    assert!(
+        req.target.is_none(),
+        "absent means the default Reference line"
+    );
 }
