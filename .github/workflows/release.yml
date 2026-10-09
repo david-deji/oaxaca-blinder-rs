@@ -5,21 +5,25 @@ on:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+*'
 
+# Read-only by default; the one job that publishes a release raises its own token below.
 permissions:
-  contents: write
-  id-token: write
+  contents: read
 
 jobs:
   github-release:
     name: GitHub Release
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Generate a changelog
-        uses: orhun/git-cliff-action@v3
+        uses: orhun/git-cliff-action@b946ed27a675d653b308f29a7bbad813b85bf7aa # v3.3.0
         id: git-cliff
         with:
           config: cliff.toml
@@ -27,14 +31,29 @@ jobs:
         env:
           OUTPUT: CHANGES.md
 
+      # A pinned release whose sha256 is checked, instead of piping the install script from the
+      # `main` branch into a shell (0119 S2). To bump: change SYFT_VERSION and SYFT_SHA256 together
+      # from the release's syft_<version>_checksums.txt.
+      - name: Install syft (pinned release, sha256-verified)
+        env:
+          SYFT_VERSION: "1.52.0"
+          SYFT_SHA256: "caeedb81fb0491615f1ebd1761e4145d41ee86dd2cc7bf80669f9f5ad9d6133d"
+        run: |
+          curl -sSfL -o syft.tar.gz "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_linux_amd64.tar.gz"
+          echo "${SYFT_SHA256}  syft.tar.gz" | sha256sum --check -
+          mkdir -p "$RUNNER_TEMP/syft"
+          tar -xzf syft.tar.gz -C "$RUNNER_TEMP/syft" syft
+          echo "$RUNNER_TEMP/syft" >> "$GITHUB_PATH"
+          rm syft.tar.gz
+
       - name: Generate SBOM (cyclonedx & spdx)
         run: |
-          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+          syft --version
           syft . -o cyclonedx-json > sbom-cyclonedx.json
           syft . -o spdx-json > sbom-spdx.json
 
       - name: Upload SBOMs as workflow artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: sboms
           path: |
@@ -42,7 +61,7 @@ jobs:
             sbom-spdx.json
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@5be0e66d93ac7ed76da52eca8bb058f665c3a5fe # v2.4.2
         with:
           body_path: CHANGES.md
           files: |

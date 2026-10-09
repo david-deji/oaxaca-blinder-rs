@@ -1,8 +1,9 @@
 import { test, expect } from '@playwright/test';
-import { readFileSync, statSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { diffNativeWasm, DEFAULT_TOLERANCE } from './native-wasm-diff.mjs';
+import { diffNativeWasm, coverageProblems, DEFAULT_TOLERANCE } from './native-wasm-diff.mjs';
+import { BASELINE_FILE, STAMP_FILE, stampProblems } from './baseline-stamp.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -20,9 +21,12 @@ const THREAD_COUNTS = [1, 2, 4];
 // agree within a small float tolerance (compiling to a different target is allowed to perturb the last few
 // ULPs; it must not diverge). `engine/examples/native_baseline.rs` emits the native side for the SAME
 // fixture/request/seed this file already drives at threads=1; the browser-parity CI job writes it to
-// NATIVE_BASELINE_PATH before this spec runs (`.github/workflows/ci.yml`); `npm run pretest` does the same
-// for a local `npm test`. The comparator itself lives in `native-wasm-diff.mjs` (see that file for why).
-const NATIVE_BASELINE_PATH = join(__dirname, 'native-baseline.json');
+// NATIVE_BASELINE_PATH (with its stamp) before this spec runs (`.github/workflows/ci.yml`, job
+// native-baseline); `npm run pretest` does the same for a local `npm test`. The comparator itself lives in
+// `native-wasm-diff.mjs` (see that file for why), and is unit-tested by `native-wasm-diff.test.mjs`.
+const REPO_ROOT = join(__dirname, '..', '..');
+const NATIVE_BASELINE_PATH = join(__dirname, BASELINE_FILE);
+const NATIVE_STAMP_PATH = join(__dirname, STAMP_FILE);
 
 test('COI + byte-identical decompose across thread counts (AC-2/AC-3, E3 nested spawn)', async ({ page }) => {
   const json = {};
@@ -62,28 +66,24 @@ test('native <-> wasm(threads=1) decompose agree within 1e-6 per numeric field (
 
   expect(parity.ok, `wasm threads=1 compute failed: ${parity.error || '(no error text)'}`).toBe(true);
 
-  // `pretest` regenerates the baseline, but only `npm test` fires it — a direct
-  // `npx playwright test` would silently compare against whatever gitignored
-  // baseline happens to be on disk. Refuse a baseline older than the engine
-  // source it is supposed to describe, rather than reporting a false pass.
-  const baselineStat = statSync(NATIVE_BASELINE_PATH);
-  const enginePaths = [
-    join(__dirname, '..', '..', 'oaxaca_blinder', 'src'),
-    join(__dirname, '..', '..', 'engine', 'src'),
-    join(__dirname, '..', '..', 'engine', 'examples', 'native_baseline.rs'),
-  ];
-  const newestEngineMtime = Math.max(...enginePaths.map((p) => statSync(p).mtimeMs));
-  expect(
-    baselineStat.mtimeMs,
-    `native-baseline.json is older than the engine source it describes — regenerate it with \`npm test\` (which runs the pretest generator) instead of invoking playwright directly.`
-  ).toBeGreaterThan(newestEngineMtime);
+  // The generator step stamps the baseline with a hash of the engine source it was built from and the
+  // sha256 of its bytes. A baseline from other source, or edited after generation, is refused here
+  // instead of being compared (this replaces the old mtime check, which a checkout can rewrite).
+  const stale = stampProblems({ root: REPO_ROOT, baselinePath: NATIVE_BASELINE_PATH, stampPath: NATIVE_STAMP_PATH });
+  expect(stale, `native baseline is not trustworthy:\n${stale.join('\n')}`).toEqual([]);
 
   const native = JSON.parse(readFileSync(NATIVE_BASELINE_PATH, 'utf8'));
   const wasm = JSON.parse(parity.json);
 
-  const mismatches = diffNativeWasm(native, wasm);
+  const result = diffNativeWasm(native, wasm);
   expect(
-    mismatches,
-    `native vs wasm(threads=1) exceeded ${DEFAULT_TOLERANCE} tolerance on ${mismatches.length} field(s):\n${mismatches.join('\n')}`
+    result.mismatches,
+    `native vs wasm(threads=1) exceeded ${DEFAULT_TOLERANCE} tolerance on ${result.mismatches.length} field(s):\n${result.mismatches.join('\n')}`
   ).toEqual([]);
+
+  // An agreeing comparison only counts if it compared real numbers: floor on the leaf count and a named
+  // list of paths that must have been compared.
+  const coverage = coverageProblems(result);
+  expect(coverage, `comparison covered too little:\n${coverage.join('\n')}`).toEqual([]);
+  console.log(`native <-> wasm: ${result.numericLeafCount} numeric leaves compared within ${DEFAULT_TOLERANCE}`);
 });

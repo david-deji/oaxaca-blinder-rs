@@ -1,0 +1,12 @@
+# Keeps the pinned action SHAs in .github/workflows current (0119-MERIDIAN S2). Each update PR bumps the
+# commit SHA and the version comment together, and runs the full CI gate before it can merge.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci"

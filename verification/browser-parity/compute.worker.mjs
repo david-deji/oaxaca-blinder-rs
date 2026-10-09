@@ -24,20 +24,22 @@ self.onmessage = async ({ data }) => {
     if (!csvResp.ok) throw new Error('fixture fetch ' + csvResp.status);
     const csvBytes = Array.from(new Uint8Array(await csvResp.arrayBuffer()));
 
-    // Same request as engine/tests/mode_parity_test.rs (the native leg) so the two legs prove the same run.
-    const req = {
+    // Same request as engine/tests/mode_parity_test.rs (the native leg) so the two legs prove the same run,
+    // run twice: three_fold (interaction term, no detail rows) and two_fold (detail rows and the bootstrap
+    // standard error). engine/examples/native_baseline.rs runs the same pair; keep them in step.
+    const request = (threeFold) => ({
       csv_data: csvBytes,
       outcome_variable: 'log_wage',
       group_variable: 'gender',
       reference_group: 'F',
       predictors: ['education', 'experience', 'tenure'],
       categorical_predictors: null,
-      three_fold: true,
+      three_fold: threeFold,
       quantile: null,
       reference_coefficients: null,
       bootstrap_reps: 64, // enough bootstrap work that a non-ordered reduction would diverge
-    };
-    const result = decompose(req);
+    });
+    const result = { three_fold: decompose(request(true)), two_fold: decompose(request(false)) };
     // The engine serializes the u64 seed as a string and all counts as plain JS Numbers, so the
     // result is directly JSON-stringifiable and deterministic across thread counts (byte-parity).
     const json = JSON.stringify(result);

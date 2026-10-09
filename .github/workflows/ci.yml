@@ -1,5 +1,11 @@
 name: CI
 
+# Gating model (0119-MERIDIAN S2): every job below except `benchmark-speedup` is gating, and the final
+# `gate` job needs all of them and fails unless each one is `success` (a skipped or cancelled job counts
+# as a failure, because a skipped required check would otherwise read as passing). Jobs do not `need`
+# each other except where data flows (browser-parity needs the threaded pkg and the native baseline),
+# so one red job cannot hide another. scripts/check-ci-invariants.py (run by `gate`) enforces this shape.
+
 on:
   push:
     branches: ["main"]
@@ -7,8 +13,12 @@ on:
     branches: ["main"]
   workflow_dispatch:
   schedule:
-    # Monday 06:00 UTC — non-blocking perf-drift benchmark (benchmark-speedup job self-gates on this).
+    # Monday 06:00 UTC: non-blocking perf-drift benchmark (benchmark-speedup self-gates on this) and a
+    # fresh cargo-audit against newly published advisories.
     - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -18,16 +28,20 @@ jobs:
   quality:
     name: Quality Gates (Lint, Test, Fmt)
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
+      # Same version as rust-toolchain.toml (wasm-recipe.sh preflight fails on a mismatch).
       - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        # No toolchain override, no components list here: rust-toolchain.toml governs
-        # the channel, the rustfmt + clippy components, and the wasm32 target.
+        uses: dtolnay/rust-toolchain@4aab473fa1157d90c6dc14f879ca54797e16fea0 # 1.90.0 branch
+        with:
+          components: rustfmt, clippy
 
       - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2.8.0
         with:
           shared-key: "rust-stable"
 
@@ -35,129 +49,74 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Run Clippy
-        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+        run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
 
       - name: Run Tests
-        run: cargo test --workspace --all-features
+        run: cargo test --locked --workspace --all-features
 
-  wasm-verify:
-    name: WASM Build + Verify (dual-artifact, Strategy A)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      # Pinned nightly for the THREADED pass (build-std + atomics); stable (rust-toolchain.toml)
-      # for the SEQUENTIAL pass. INV-01: native/seq stays on stable, only the threaded pass is nightly.
-      - name: Setup pinned nightly (rust-src + wasm target)
-        uses: dtolnay/rust-toolchain@nightly
-        with:
-          toolchain: nightly-2025-06-27
-          components: rust-src
-          targets: wasm32-unknown-unknown
-
-      - name: Setup stable (reads rust-toolchain.toml for the sequential pass)
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: "rust-wasm-threaded"
-          # Caches ./target only. The threaded repro double-build below uses non-default
-          # CARGO_TARGET_DIRs (target-repro-a / -b), which this action never restores, so both
-          # repro builds recompile std from source under -Zbuild-std — no cache masking (W8).
-
-      - name: Install prebuilt wasm-bindgen-cli (pinned)
-        uses: taiki-e/install-action@v2
-        with:
-          tool: wasm-bindgen-cli@0.2.106
-
-      - name: Build + verify SEQUENTIAL artifact (stable, --target web)
-        run: |
-          RUSTFLAGS="--remap-path-prefix $HOME/.cargo=/cargo --remap-path-prefix $PWD=/src --remap-path-prefix $HOME/.rustup=/rustup" \
-            cargo build -p pay-equity-engine --features wasm --target wasm32-unknown-unknown --release
-          # Smoke the binding step (output NOT hashed — wasm-bindgen is nondeterministic).
-          wasm-bindgen target/wasm32-unknown-unknown/release/pay_equity_engine.wasm \
-            --out-dir engine/pkg --target web --remove-name-section --remove-producers-section
-          EXPECTED=$(cut -d' ' -f1 engine/pay_equity_engine.wasm.sha256)
-          ACTUAL=$(sha256sum target/wasm32-unknown-unknown/release/pay_equity_engine.wasm | cut -d' ' -f1)
-          if [ "$EXPECTED" != "$ACTUAL" ]; then
-            echo "Sequential raw WASM sha256 mismatch! Expected $EXPECTED Actual $ACTUAL"
-            echo "If intentional, run scripts/build-wasm.sh and commit engine/pay_equity_engine.wasm.sha256."
-            exit 1
-          fi
-          echo "Sequential raw WASM sha256 verified: $ACTUAL"
-
-      - name: Build + verify THREADED artifact (nightly, build-std, atomics, --target web)
-        run: |
-          RUSTFLAGS="-C target-feature=+atomics,+bulk-memory,+mutable-globals \
-            -C link-arg=--max-memory=342228992 -C link-arg=-zstack-size=1048576 \
-            --remap-path-prefix $HOME/.cargo=/cargo --remap-path-prefix $PWD=/src \
-            --remap-path-prefix $HOME/.rustup=/rustup" \
-            cargo +nightly-2025-06-27 build -p pay-equity-engine \
-              --features wasm-threads --target wasm32-unknown-unknown --release \
-              -Zbuild-std=panic_abort,std --locked
-          wasm-bindgen target/wasm32-unknown-unknown/release/pay_equity_engine.wasm \
-            --out-dir engine/pkg-threaded --target web \
-            --remove-name-section --remove-producers-section
-          EXPECTED=$(cut -d' ' -f1 engine/pay_equity_engine.threaded.wasm.sha256)
-          ACTUAL=$(sha256sum target/wasm32-unknown-unknown/release/pay_equity_engine.wasm | cut -d' ' -f1)
-          if [ "$EXPECTED" != "$ACTUAL" ]; then
-            echo "Threaded raw WASM sha256 mismatch! Expected $EXPECTED Actual $ACTUAL"
-            echo "If intentional, run scripts/build-wasm.sh (pinned container) and commit"
-            echo "engine/pay_equity_engine.threaded.wasm.sha256."
-            exit 1
-          fi
-          echo "Threaded raw WASM sha256 verified: $ACTUAL"
-
-      - name: Upload threaded WASM pkg artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: wasm-pkg-threaded
-          path: engine/pkg-threaded/
-
-      - name: Threaded reproducibility double-build (two non-default target dirs — no cache masking, W8)
-        run: |
-          FLAGS="-C target-feature=+atomics,+bulk-memory,+mutable-globals \
-            -C link-arg=--max-memory=342228992 -C link-arg=-zstack-size=1048576 \
-            --remap-path-prefix $HOME/.cargo=/cargo --remap-path-prefix $PWD=/src \
-            --remap-path-prefix $HOME/.rustup=/rustup"
-          RUSTFLAGS="$FLAGS" CARGO_TARGET_DIR=target-repro-a \
-            cargo +nightly-2025-06-27 build -p pay-equity-engine \
-              --features wasm-threads --target wasm32-unknown-unknown --release \
-              -Zbuild-std=panic_abort,std --locked
-          RUSTFLAGS="$FLAGS" CARGO_TARGET_DIR=target-repro-b \
-            cargo +nightly-2025-06-27 build -p pay-equity-engine \
-              --features wasm-threads --target wasm32-unknown-unknown --release \
-              -Zbuild-std=panic_abort,std --locked
-          A=$(sha256sum target-repro-a/wasm32-unknown-unknown/release/pay_equity_engine.wasm | cut -d' ' -f1)
-          B=$(sha256sum target-repro-b/wasm32-unknown-unknown/release/pay_equity_engine.wasm | cut -d' ' -f1)
-          if [ "$A" != "$B" ]; then
-            echo "build-std threaded output not byte-reproducible across fresh recompiles: $A vs $B"; exit 1
-          fi
-          echo "Threaded double-build reproducibility verified: $A"
+      # ground.sh and verify-live.sh feed the dev loop; a regression in their probes or validator would
+      # otherwise change no CI result (0119 review F4). These cases need no wasm build and no app checkout.
+      - name: Test the loop scripts (ground.sh without gh/cargo; its validator; verify-live's app-tree check and receipt scrub)
+        run: python3 scripts/test-loop-scripts.py ground-nopath ground-validator verify-live-app-tree verify-live-scrub
 
   security:
     name: Security Audit
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Run cargo-audit
-        uses: rustsec/audit-check@v1.4.1
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: false
+
+      # cargo tree (ignore validator) resolves the workspace under the toolchain rust-toolchain.toml pins.
+      - name: Setup Rust toolchain (1.90.0, matches rust-toolchain.toml)
+        uses: dtolnay/rust-toolchain@4aab473fa1157d90c6dc14f879ca54797e16fea0 # 1.90.0 branch
+
+      # Prebuilt binary, exact version. Building cargo-audit from source needs a newer rustc than the
+      # pinned 1.90.0, which is why rustsec/audit-check audited nothing from the day the toolchain was pinned.
+      - name: Install cargo-audit (pinned prebuilt)
+        uses: taiki-e/install-action@fa23953489c080190314742a9b907f8e97c6767c # v2.87.10
+        with:
+          tool: cargo-audit@0.22.2
+
+      # A new advisory against any of ~490 locked crates must not turn every unrelated pull request red, so a
+      # pull request fails only on vulnerabilities; `--deny warnings` (unmaintained, unsound, yanked) runs on
+      # main, the Monday cron and manual runs, where the triage path in CLAUDE.md applies. The branching is in
+      # the script, not in a step `if`, because scripts/check-ci-invariants.py refuses step-level `if`s here.
+      - name: cargo audit (--deny warnings; vulnerabilities only on pull requests)
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" = "pull_request" ]; then
+            cargo audit
+          else
+            cargo audit --deny warnings
+          fi
+
+      # Every ignore in .cargo/audit.toml must be dated, unexpired, matched to a locked package, and
+      # classified (lock-only with an empty cargo tree, or risk-accepted with a reason).
+      - name: Validate .cargo/audit.toml ignores
+        if: ${{ !cancelled() }}
+        run: python3 scripts/validate-audit-ignores.py --no-fetch
+
+      # The validator is tested before it is trusted: one failure class per case, against the real lockfile.
+      - name: Test the ignore validator (every failure class must be reported)
+        run: python3 scripts/test-audit-validator.py
 
   memory-ceiling:
     name: Memory Ceiling (50k @ N=8 < 326 MiB)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
       - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@4aab473fa1157d90c6dc14f879ca54797e16fea0 # 1.90.0 branch
 
       - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2.8.0
         with:
           shared-key: "rust-stable"
 
@@ -165,44 +124,281 @@ jobs:
       # `--all-features` in the quality job does NOT isolate this crate-scoped feature, so the ceiling
       # gets its own job. Fails if peak live bytes at 50k / N_max_const=8 reach the --max-memory budget.
       - name: Memory-ceiling test (tracking allocator)
-        run: cargo test -p oaxaca_blinder --features mem-profile --test memory_ceiling_test -- --nocapture
+        run: cargo test --locked -p oaxaca_blinder --features mem-profile --test memory_ceiling_test -- --nocapture
 
-  browser-parity:
-    name: Browser Byte-Parity (COI, threaded WASM, seq/t2/t4)
-    needs: [wasm-verify]
+  wasm-seq:
+    name: WASM Sequential (build, bindgen, baseline compare)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
-      # Setup stable for native baseline build
-      - name: Setup stable (reads rust-toolchain.toml for the native baseline build)
-        uses: dtolnay/rust-toolchain@stable
+      # Stable (rust-toolchain.toml) builds the SEQUENTIAL pass; INV-01: only the threaded pass is nightly.
+      - name: Setup stable (matches rust-toolchain.toml)
+        uses: dtolnay/rust-toolchain@4aab473fa1157d90c6dc14f879ca54797e16fea0 # 1.90.0 branch
+        with:
+          targets: wasm32-unknown-unknown
 
       - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2.8.0
+        with:
+          shared-key: "rust-wasm-seq"
+
+      - name: Install prebuilt wasm-bindgen-cli (pinned)
+        uses: taiki-e/install-action@fa23953489c080190314742a9b907f8e97c6767c # v2.87.10
+        with:
+          tool: wasm-bindgen-cli@0.2.106
+
+      - name: Preflight (toolchain, target, wasm-bindgen)
+        run: |
+          source scripts/wasm-recipe.sh
+          wasm_preflight seq
+
+      - name: Build SEQUENTIAL artifact (stable, --target web)
+        run: |
+          source scripts/wasm-recipe.sh
+          mkdir -p wasm-out
+          wasm_build_seq wasm-out/seq.wasm
+          # Smoke the binding step (output NOT hashed: wasm-bindgen output is not the hashed unit).
+          wasm-bindgen wasm-out/seq.wasm \
+            --out-dir engine/pkg --out-name pay_equity_engine --target web --remove-name-section --remove-producers-section
+
+      # Uploaded before the compare, so a hash mismatch still leaves the bytes to inspect (0119 S1).
+      - name: Record raw WASM hash and toolchain
+        if: ${{ !cancelled() }}
+        run: |
+          cd wasm-out
+          sha256sum seq.wasm | tee raw-sha256.txt
+          rustc --version --verbose > toolchain-stable.txt
+          rustup component list --installed > components-stable.txt
+
+      - name: Upload raw sequential WASM
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: wasm-raw-seq
+          path: wasm-out/
+          retention-days: 30
+
+      # Last step, so nothing after a mismatch is skipped.
+      - name: Compare SEQUENTIAL raw WASM to baseline
+        run: |
+          EXPECTED=$(cut -d' ' -f1 engine/pay_equity_engine.wasm.sha256)
+          ACTUAL=$(sha256sum wasm-out/seq.wasm | cut -d' ' -f1)
+          if [ "$EXPECTED" != "$ACTUAL" ]; then
+            echo "Sequential raw WASM sha256 mismatch! Expected $EXPECTED Actual $ACTUAL"
+            echo "If intentional, run scripts/build-wasm.sh --record and commit engine/pay_equity_engine.wasm.sha256."
+            exit 1
+          fi
+          echo "Sequential raw WASM sha256 verified: $ACTUAL"
+
+  wasm-threaded:
+    name: WASM Threaded (build, bindgen, baseline compare)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      # Pinned nightly for the THREADED pass (build-std + atomics).
+      - name: Setup pinned nightly (rust-src + wasm target)
+        uses: dtolnay/rust-toolchain@f0d5300ba8908d942c808f4d31c08471d7798ba3 # nightly branch (takes the toolchain input)
+        with:
+          toolchain: nightly-2025-06-27
+          components: rust-src
+          targets: wasm32-unknown-unknown
+
+      - name: Setup stable (default toolchain, as rust-toolchain.toml says)
+        uses: dtolnay/rust-toolchain@4aab473fa1157d90c6dc14f879ca54797e16fea0 # 1.90.0 branch
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2.8.0
         with:
           shared-key: "rust-wasm-threaded"
 
+      - name: Install prebuilt wasm-bindgen-cli (pinned)
+        uses: taiki-e/install-action@fa23953489c080190314742a9b907f8e97c6767c # v2.87.10
+        with:
+          tool: wasm-bindgen-cli@0.2.106
+
+      - name: Preflight (nightly, rust-src, target, wasm-bindgen)
+        run: |
+          source scripts/wasm-recipe.sh
+          wasm_preflight threaded
+
+      - name: Build THREADED artifact (nightly, build-std, atomics, --target web)
+        run: |
+          source scripts/wasm-recipe.sh
+          mkdir -p wasm-out
+          wasm_build_threaded wasm-out/threaded.wasm
+          wasm-bindgen wasm-out/threaded.wasm \
+            --out-dir engine/pkg-threaded --out-name pay_equity_engine --target web \
+            --remove-name-section --remove-producers-section
+
+      - name: Record raw WASM hash and toolchain
+        if: ${{ !cancelled() }}
+        run: |
+          cd wasm-out
+          sha256sum threaded.wasm | tee raw-sha256.txt
+          rustc +nightly-2025-06-27 --version --verbose > toolchain-nightly.txt
+          rustup component list --installed --toolchain nightly-2025-06-27 > components-nightly.txt
+
+      - name: Upload raw threaded WASM
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: wasm-raw-threaded
+          path: wasm-out/
+          retention-days: 30
+
+      - name: Upload threaded WASM pkg (input of browser-parity)
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: wasm-pkg-threaded
+          path: engine/pkg-threaded/
+          retention-days: 30
+
+      # Last step, so nothing after a mismatch is skipped.
+      - name: Compare THREADED raw WASM to baseline
+        run: |
+          EXPECTED=$(cut -d' ' -f1 engine/pay_equity_engine.threaded.wasm.sha256)
+          ACTUAL=$(sha256sum wasm-out/threaded.wasm | cut -d' ' -f1)
+          if [ "$EXPECTED" != "$ACTUAL" ]; then
+            echo "Threaded raw WASM sha256 mismatch! Expected $EXPECTED Actual $ACTUAL"
+            echo "If intentional, run scripts/build-wasm.sh --record and commit"
+            echo "engine/pay_equity_engine.threaded.wasm.sha256."
+            exit 1
+          fi
+          echo "Threaded raw WASM sha256 verified: $ACTUAL"
+
+  wasm-repro:
+    name: WASM Threaded Reproducibility (double-build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Setup pinned nightly (rust-src + wasm target)
+        uses: dtolnay/rust-toolchain@f0d5300ba8908d942c808f4d31c08471d7798ba3 # nightly branch (takes the toolchain input)
+        with:
+          toolchain: nightly-2025-06-27
+          components: rust-src
+          targets: wasm32-unknown-unknown
+
+      - name: Setup stable (default toolchain, as rust-toolchain.toml says)
+        uses: dtolnay/rust-toolchain@4aab473fa1157d90c6dc14f879ca54797e16fea0 # 1.90.0 branch
+
+      # No rust-cache on purpose: both builds below use non-default CARGO_TARGET_DIRs and must recompile
+      # std from source under -Zbuild-std, so a restored cache cannot mask nondeterminism (W8).
+      - name: Preflight (nightly, rust-src, target; this job never runs wasm-bindgen)
+        run: |
+          source scripts/wasm-recipe.sh
+          wasm_preflight threaded --no-bindgen
+
+      - name: Threaded double-build (two fresh target dirs)
+        run: |
+          source scripts/wasm-recipe.sh
+          mkdir -p wasm-out
+          CARGO_TARGET_DIR=target-repro-a wasm_build_threaded wasm-out/repro-a.wasm
+          CARGO_TARGET_DIR=target-repro-b wasm_build_threaded wasm-out/repro-b.wasm
+
+      - name: Record hashes
+        if: ${{ !cancelled() }}
+        run: sha256sum wasm-out/repro-a.wasm wasm-out/repro-b.wasm | tee wasm-out/repro-sha256.txt
+
+      - name: Upload both builds
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: wasm-repro
+          path: wasm-out/
+          retention-days: 7
+
+      - name: Both builds must be byte-identical
+        run: |
+          A=$(sha256sum wasm-out/repro-a.wasm | cut -d' ' -f1)
+          B=$(sha256sum wasm-out/repro-b.wasm | cut -d' ' -f1)
+          if [ "$A" != "$B" ]; then
+            echo "build-std threaded output not byte-reproducible across fresh recompiles: $A vs $B"; exit 1
+          fi
+          echo "Threaded double-build reproducibility verified: $A"
+
+  native-baseline:
+    name: Native Baseline (parity input)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@4aab473fa1157d90c6dc14f879ca54797e16fea0 # 1.90.0 branch
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2.8.0
+        with:
+          shared-key: "rust-stable"
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "20"
+
+      # D3 (0014-close round-1) / INV-02 cross-platform leg: the native decompose_inner() output for the
+      # SAME fixture/request/seed the threaded-WASM run uses. The generator also writes the stamp (hash of
+      # the engine source + sha256 of these bytes) that parity.spec.mjs checks (0119 S3).
+      - name: Generate native baseline JSON and stamp
+        working-directory: verification/browser-parity
+        run: node gen-native-baseline.mjs
+
+      - name: Upload native baseline
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: native-baseline
+          path: |
+            verification/browser-parity/native-baseline.json
+            verification/browser-parity/native-baseline.stamp.json
+          retention-days: 30
+
+  browser-parity:
+    name: Browser Byte-Parity (COI, threaded WASM, seq/t2/t4)
+    needs: [wasm-threaded, native-baseline]
+    # A hash mismatch in wasm-threaded must not skip parity (the pkg is uploaded before the compare); only a
+    # cancelled build does. `gate` still turns any failed need into a red run.
+    if: ${{ always() && needs.wasm-threaded.result != 'cancelled' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
       - name: Download threaded WASM pkg artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: wasm-pkg-threaded
           path: engine/pkg-threaded/
 
-      # D3 (0014-close round-1) / INV-02 cross-platform leg: native decompose_inner() baseline for the
-      # SAME fixture/request/seed the threaded-WASM run above uses, so parity.spec.mjs can diff native
-      # vs wasm(threads=1) at a per-numeric-field <=1e-6 tolerance. Native (host-target) build, so this
-      # runs on stable, not the pinned wasm nightly.
-      - name: Generate native baseline JSON (D3, INV-02 native<->wasm leg)
-        run: cargo run -p pay-equity-engine --example native_baseline > verification/browser-parity/native-baseline.json
+      - name: Download native baseline + stamp
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: native-baseline
+          path: verification/browser-parity/
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "20"
 
       - name: Cache Playwright Browsers
-        uses: actions/cache@v4
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('verification/browser-parity/package-lock.json') }}
@@ -210,8 +406,13 @@ jobs:
       - name: Install Playwright + Chromium
         working-directory: verification/browser-parity
         run: |
-          npm install --no-audit --no-fund
+          npm ci --no-audit --no-fund
           npx playwright install --with-deps chromium
+
+      # The comparator and the baseline stamp are tested before they are trusted (0119 S3).
+      - name: Unit-test the comparator and the baseline stamp
+        working-directory: verification/browser-parity
+        run: node --test native-wasm-diff.test.mjs baseline-stamp.test.mjs
 
       - name: Run browser byte-parity (COI + nested worker spawn)
         working-directory: verification/browser-parity
@@ -219,22 +420,85 @@ jobs:
           CI: "1"
         run: npx playwright test
 
+  gate:
+    name: gate
+    # The one required check (S5). Runs even when a need failed or was skipped, and fails then.
+    if: ${{ always() }}
+    needs:
+      - quality
+      - security
+      - memory-ceiling
+      - wasm-seq
+      - wasm-threaded
+      - wasm-repro
+      - native-baseline
+      - browser-parity
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # actions: read lets the second step list this run's jobs and steps through the API.
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Every gating job must be success (skipped and cancelled are failures)
+        if: ${{ always() }}
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          BAD=$(echo "$NEEDS" | jq -r 'to_entries[] | select(.value.result != "success") | "\(.key)=\(.value.result)"')
+          if [ -n "$BAD" ]; then
+            echo "gate: not success:"; echo "$BAD"; exit 1
+          fi
+          echo "gate: all $(echo "$NEEDS" | jq 'length') gating jobs succeeded"
+
+      # Independent of the workflow text: a job can be `success` while one of its steps was skipped (a step
+      # `if` that is false), and no `needs` result shows that. Read the finished jobs from the API.
+      - name: No step of a successful job was skipped or cancelled (the run's jobs API)
+        if: ${{ always() }}
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          gh api "repos/${REPO}/actions/runs/${RUN_ID}/jobs?per_page=100" --paginate > run-jobs.json
+          python3 scripts/gate-step-audit.py run-jobs.json --expect-jobs "$(echo "$NEEDS" | jq 'length')"
+
+      # continue-on-error, a job-level `if`, a step-level `if`, `|| true`, `set +e`, a missing timeout, an
+      # unpinned action, widened permissions, `npm install`, or a gate whose `needs` or steps drifted from the
+      # reviewed shape would make a green gate mean less.
+      - name: Workflow invariants (scripts/check-ci-invariants.py)
+        if: ${{ always() }}
+        run: python3 scripts/check-ci-invariants.py
+
+      - name: Tests of the workflow guard (mutated copies must fail)
+        if: ${{ always() }}
+        run: python3 scripts/test-ci-invariants.py
+
   benchmark-speedup:
     name: Benchmark (Rust methods, non-blocking)
     # Perf-trend job, not a gate: schedule/dispatch only, and never fails the run.
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
       - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@4aab473fa1157d90c6dc14f879ca54797e16fea0 # 1.90.0 branch
 
       - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2.8.0
         with:
           shared-key: "rust-stable"
 
       - name: Rust method benchmark (release, median, serial)
-        run: cargo run -p oaxaca_blinder --release --example bench_methods
+        run: cargo run --locked -p oaxaca_blinder --release --example bench_methods
