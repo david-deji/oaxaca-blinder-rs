@@ -66,9 +66,11 @@ The app's freshness gate reads `engine_commit` from each `engine-manifest.json` 
 the engine checkout. A branch commit that a squash-merge leaves out of `main` makes the gate red in every
 fresh clone until the blobs are republished. So, in this order:
 
-1. Merge the engine PR into `main` with a **merge commit or a rebase merge, never a squash** (or squash, and
-   then do step 2 from the merged `main` commit; the manifests must name a commit that exists on `main`).
-2. From a clean `main` checkout: `bash scripts/build-wasm.sh`. It writes the blobs and both manifests into the app.
+1. Merge the engine PR into `main`. A squash keeps the branch's early, since-scrubbed receipts out of `main`'s
+   history but leaves the manifests naming a branch commit; a merge or rebase merge keeps the commit and that
+   history. Whichever you pick, step 2 is what makes the manifests name a commit that exists on `main`.
+2. From a clean `main` checkout of the merged commit: `bash scripts/build-wasm.sh`. It writes the blobs and both
+   manifests into the app.
 3. In the app: `git add -f frontend/src/wasm/engine-manifest.json` together with the blobs (the directory's own
    `.gitignore` is `*`, so a plain `git add` skips the sequential manifest). Check with
    `git ls-files frontend/src/wasm | grep manifest`. Commit the app.
