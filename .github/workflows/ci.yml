@@ -71,23 +71,17 @@ jobs:
         with:
           tool: wasm-bindgen-cli@0.2.106
 
-      - name: Build + verify SEQUENTIAL artifact (stable, --target web)
+      - name: Build SEQUENTIAL artifact (stable, --target web)
         run: |
+          mkdir -p wasm-out
           RUSTFLAGS="--remap-path-prefix $HOME/.cargo=/cargo --remap-path-prefix $PWD=/src --remap-path-prefix $HOME/.rustup=/rustup" \
             cargo build -p pay-equity-engine --features wasm --target wasm32-unknown-unknown --release
-          # Smoke the binding step (output NOT hashed — wasm-bindgen is nondeterministic).
-          wasm-bindgen target/wasm32-unknown-unknown/release/pay_equity_engine.wasm \
+          cp target/wasm32-unknown-unknown/release/pay_equity_engine.wasm wasm-out/seq.wasm
+          # Smoke the binding step (output NOT hashed: wasm-bindgen output is not the hashed unit).
+          wasm-bindgen wasm-out/seq.wasm \
             --out-dir engine/pkg --target web --remove-name-section --remove-producers-section
-          EXPECTED=$(cut -d' ' -f1 engine/pay_equity_engine.wasm.sha256)
-          ACTUAL=$(sha256sum target/wasm32-unknown-unknown/release/pay_equity_engine.wasm | cut -d' ' -f1)
-          if [ "$EXPECTED" != "$ACTUAL" ]; then
-            echo "Sequential raw WASM sha256 mismatch! Expected $EXPECTED Actual $ACTUAL"
-            echo "If intentional, run scripts/build-wasm.sh and commit engine/pay_equity_engine.wasm.sha256."
-            exit 1
-          fi
-          echo "Sequential raw WASM sha256 verified: $ACTUAL"
 
-      - name: Build + verify THREADED artifact (nightly, build-std, atomics, --target web)
+      - name: Build THREADED artifact (nightly, build-std, atomics, --target web)
         run: |
           RUSTFLAGS="-C target-feature=+atomics,+bulk-memory,+mutable-globals \
             -C link-arg=--max-memory=342228992 -C link-arg=-zstack-size=1048576 \
@@ -96,26 +90,63 @@ jobs:
             cargo +nightly-2025-06-27 build -p pay-equity-engine \
               --features wasm-threads --target wasm32-unknown-unknown --release \
               -Zbuild-std=panic_abort,std --locked
-          wasm-bindgen target/wasm32-unknown-unknown/release/pay_equity_engine.wasm \
+          cp target/wasm32-unknown-unknown/release/pay_equity_engine.wasm wasm-out/threaded.wasm
+          wasm-bindgen wasm-out/threaded.wasm \
             --out-dir engine/pkg-threaded --target web \
             --remove-name-section --remove-producers-section
-          EXPECTED=$(cut -d' ' -f1 engine/pay_equity_engine.threaded.wasm.sha256)
-          ACTUAL=$(sha256sum target/wasm32-unknown-unknown/release/pay_equity_engine.wasm | cut -d' ' -f1)
-          if [ "$EXPECTED" != "$ACTUAL" ]; then
-            echo "Threaded raw WASM sha256 mismatch! Expected $EXPECTED Actual $ACTUAL"
-            echo "If intentional, run scripts/build-wasm.sh (pinned container) and commit"
-            echo "engine/pay_equity_engine.threaded.wasm.sha256."
-            exit 1
-          fi
-          echo "Threaded raw WASM sha256 verified: $ACTUAL"
+
+      # Uploaded before any compare, so a hash mismatch still leaves the bytes to inspect (0119 S1).
+      - name: Record raw WASM hashes
+        if: ${{ !cancelled() }}
+        run: |
+          cd wasm-out
+          sha256sum seq.wasm threaded.wasm | tee raw-sha256.txt
+          rustc --version --verbose > toolchain-stable.txt
+          rustc +nightly-2025-06-27 --version --verbose > toolchain-nightly.txt
+          rustup component list --installed > components-stable.txt
+          rustup component list --installed --toolchain nightly-2025-06-27 > components-nightly.txt
+
+      - name: Upload raw WASM artifacts
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasm-raw
+          path: wasm-out/
 
       - name: Upload threaded WASM pkg artifact
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: wasm-pkg-threaded
           path: engine/pkg-threaded/
 
+      - name: Compare SEQUENTIAL raw WASM to baseline
+        if: ${{ !cancelled() }}
+        run: |
+          EXPECTED=$(cut -d' ' -f1 engine/pay_equity_engine.wasm.sha256)
+          ACTUAL=$(sha256sum wasm-out/seq.wasm | cut -d' ' -f1)
+          if [ "$EXPECTED" != "$ACTUAL" ]; then
+            echo "Sequential raw WASM sha256 mismatch! Expected $EXPECTED Actual $ACTUAL"
+            echo "If intentional, run scripts/build-wasm.sh --record and commit engine/pay_equity_engine.wasm.sha256."
+            exit 1
+          fi
+          echo "Sequential raw WASM sha256 verified: $ACTUAL"
+
+      - name: Compare THREADED raw WASM to baseline
+        if: ${{ !cancelled() }}
+        run: |
+          EXPECTED=$(cut -d' ' -f1 engine/pay_equity_engine.threaded.wasm.sha256)
+          ACTUAL=$(sha256sum wasm-out/threaded.wasm | cut -d' ' -f1)
+          if [ "$EXPECTED" != "$ACTUAL" ]; then
+            echo "Threaded raw WASM sha256 mismatch! Expected $EXPECTED Actual $ACTUAL"
+            echo "If intentional, run scripts/build-wasm.sh --record and commit"
+            echo "engine/pay_equity_engine.threaded.wasm.sha256."
+            exit 1
+          fi
+          echo "Threaded raw WASM sha256 verified: $ACTUAL"
+
       - name: Threaded reproducibility double-build (two non-default target dirs — no cache masking, W8)
+        if: ${{ !cancelled() }}
         run: |
           FLAGS="-C target-feature=+atomics,+bulk-memory,+mutable-globals \
             -C link-arg=--max-memory=342228992 -C link-arg=-zstack-size=1048576 \
