@@ -1,0 +1,124 @@
+{
+  "epic": "0119",
+  "started_at": "2026-10-09T09:34:15Z",
+  "ran_at": "2026-10-09T09:41:02Z",
+  "commit": "6ec23be",
+  "commit_full": "6ec23be3d0a52feb0ab4d322109fb26aeb527913",
+  "result": "pass",
+  "halted_at": null,
+  "copied_or_published": false,
+  "checks": [
+    {
+      "name": "wasm_verify",
+      "result": "pass",
+      "detail": "raw sequential e70dcee6bb56 and threaded a80a9d807963 equal HEAD's baselines (exit 0)",
+      "exit_code": 0
+    },
+    {
+      "name": "published_vs_pkg",
+      "result": "pass",
+      "detail": "published blobs, glue and manifests equal engine pkg byte for byte, and each manifest's raw sha256 equals the raw blob built from this source",
+      "published_dir": "frontend/src of the app checkout",
+      "artifacts": {
+        "sequential": {
+          "published_bg_wasm": "d6fb6657b41990d332e620da9362cc8f4b713e619f697ea16d8d5caf0897262d",
+          "manifest_raw": "e70dcee6bb56d53d9100c6c34885b74d42e80f58d8ae2498a031aba8aeb7e360",
+          "manifest_commit": "6ec23be3d0a52feb0ab4d322109fb26aeb527913"
+        },
+        "threaded": {
+          "published_bg_wasm": "f78f6190e8691106fcf6d87dbaacbff2145a3991d7551bfb699a58c18f68e6ba",
+          "manifest_raw": "a80a9d807963996ace3721ad143d50e71f4cf31d32851db0abaaa62b72919f9c",
+          "manifest_commit": "6ec23be3d0a52feb0ab4d322109fb26aeb527913"
+        }
+      }
+    },
+    {
+      "name": "app_real_blob_specs",
+      "result": "pass",
+      "detail": "exit 0; {'passed': 63, 'failed': 0, 'pending': 0}",
+      "exit_code": 0,
+      "counts": {
+        "passed": 63,
+        "failed": 0,
+        "pending": 0
+      }
+    },
+    {
+      "name": "app_verify_live",
+      "result": "pass",
+      "detail": "exit 0; app receipt pass (embedded: ran_at after this run's start and commit equals the app HEAD)",
+      "exit_code": 0
+    },
+    {
+      "name": "app_tree_committed",
+      "result": "pass",
+      "detail": "the app receipt's tree is clean, nothing under the published directories or scripts/ is uncommitted, each published engine-manifest.json is tracked"
+    }
+  ],
+  "app_receipt": {
+    "epic": "0119",
+    "ran_at": "2026-10-09T09:41:02.149Z",
+    "commit": "aac33ef5",
+    "result": "pass",
+    "tested_tree": {
+      "base_commit": "aac33ef5562fa774954e83f1f95ef7639b4db914",
+      "dirty": false,
+      "file_count": 0
+    },
+    "checks": [
+      {
+        "name": "fresh_build",
+        "result": "pass"
+      },
+      {
+        "name": "wasm_freshness",
+        "result": "pass"
+      },
+      {
+        "name": "i18n_lint",
+        "result": "pass"
+      },
+      {
+        "name": "preview_server",
+        "result": "pass"
+      },
+      {
+        "name": "chromium_launch",
+        "result": "pass"
+      },
+      {
+        "name": "create_record_through_ui",
+        "result": "pass"
+      },
+      {
+        "name": "seed_record_depth",
+        "result": "pass"
+      },
+      {
+        "name": "render_sweep",
+        "result": "pass"
+      },
+      {
+        "name": "interactive_coverage",
+        "result": "pass"
+      },
+      {
+        "name": "no_uncaught_errors",
+        "result": "pass"
+      },
+      {
+        "name": "remedy_dollars_land_on_own_employee",
+        "result": "pass"
+      }
+    ]
+  },
+  "app_receipt_note": "embedded: ran_at after this run's start and commit equals the app HEAD",
+  "app_git_status": {
+    "head": "aac33ef5",
+    "clean": false,
+    "uncommitted_entries": 2
+  },
+  "engine_git_status": [
+    "?? ground/raw/2026-10-08-ground.json"
+  ]
+}

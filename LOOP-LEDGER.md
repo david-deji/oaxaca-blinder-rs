@@ -4,8 +4,8 @@
 > Schema: `internal-ops-bureau/knowledge/dev-loop.md` § LOOP-LEDGER.md schema (telos-machina, 0724-OPS).
 > Issues live in the app repo (`pay-equity-app/issues/`, prefix MERIDIAN). The app's own ledger is
 > `pay-equity-app/LOOP-LEDGER.md`; this one tracks engine-only cycles. Cross-repo cycles are recorded in both.
-> Setup state: no `scripts/ground.sh` and no `scripts/verify-live.sh` in this repo yet. GROUND runs by
-> hand (dispatched lanes + verifiers), and every probe-derived claim without a file:line is UNVERIFIED.
+> Setup state (since 0119): `scripts/ground.sh` (probes JSON, exit 0, errors[] validator) and
+> `scripts/verify-live.sh <epic>` (engine receipt embedding the app receipt) exist; main is protected by the `gate` check.
 
 ## Carried seams
 | Seam | First seen (epic) | Still open? | Evidence |
@@ -23,9 +23,12 @@
 ## Dark-gate registry
 | Gate | What it guards | Last-ran receipt | Age |
 |---|---|---|---|
-| CI `WASM Build + Verify` | Shipped WASM bytes match the committed sha256 baselines; threaded build reproducible | red on every main run since 2026-08-20 (sequential sha256 mismatch) | 49 days red as of 2026-10-08 |
-| CI `Browser Byte-Parity` | native <-> WASM agreement at 1e-6 across seq/t2/t4 | skipped on main since 2026-09-21 (depends on the red WASM job) | 17+ days |
-| CI `Security Audit` | RUSTSEC advisories | red: latest cargo-audit needs rustc 1.96, toolchain pinned 1.90.0 | unknown start |
+| CI `WASM Sequential` / `WASM Threaded` | Shipped WASM bytes equal the committed baselines; CI and the dev box now build byte-identical blobs (0119 S1: rust-src remapped to /rustc/<hash>) | main run 37911861290 success (2026-10-09); was red on every main run 2026-07-19..2026-10-05 | re-armed 2026-10-09 |
+| CI `WASM Threaded Reproducibility` | threaded build-std double-build byte-identical | first CI execution ever: 0119, main run 37911861290 success | re-armed 2026-10-09 |
+| CI `Browser Byte-Parity` | native <-> WASM at 1e-6 across seq/t2/t4, 75 numeric leaves | main run 37911861290 success; independent of the hash jobs since 0119 S2 (mutant M3 37908856468) | re-armed 2026-10-09 (last green before: 2026-08-20) |
+| CI `Security Audit` | `cargo audit --deny warnings` + dated-ignore validator | main run 37911861290 success; mutants A1-A3 red | re-armed 2026-10-09 |
+| CI `gate` | every gating job `success`; the only required check on main (protection applied 2026-10-09, owner bypass on) | main run 37911861290 success; mutant M4 red on a skipped job | new 2026-10-09 |
+| Golden generators (R `gen_trust_goldens.R`, Python `gen_parity_golden.py`) | committed goldens still match their generators | never run in CI (0097 § Not done, TRUST-12) | carried |
 
 ## Open issues by age
 | Issue | Filed | Days open | Named as declined option (count) |
@@ -41,6 +44,7 @@
 | Epic | verify-live receipt | Result | Commit |
 |---|---|---|---|
 | 0117 (PR triage) | none: no `verify-live.sh` in this repo. Local gates: fmt clean, clippy -D warnings clean, 211/211 tests; CI Quality Gates pass on #96. App receipt `pay-equity-app/ground/receipts/0117-live.json` pass 10/10 | pass | 9e4bd97 |
+| 0119 (CI carries a signal) | `ground/receipts/0119-live.json` pass 5/5 (first engine-side receipt: wasm_verify, published_vs_pkg, app real-blob specs 63/63, app verify-live embedded, app tree committed); main CI 37911861290 all green incl. gate; 7 CI mutants red at the expected step | pass | engine 6ec23be, app aac33ef5 |
 | 0118 (rows land on own employee) | `pay-equity-app/ground/receipts/0118-live.json` pass 11/11, new permanent check `remedy_dollars_land_on_own_employee` (red, 239 violations, on a build from the pre-fix blobs); engine CI Quality Gates pass on #97; V8 mutation table (a)-(h) all red-then-restored | pass | engine cf7a2af, app 1fc7143a |
 
 ## Cost log
