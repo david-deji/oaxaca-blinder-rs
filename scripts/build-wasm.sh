@@ -66,7 +66,7 @@ echo "== [seq] building sequential wasm (stable, --features wasm) =="
 wasm_build_seq target/seq.raw.wasm
 SEQ_HASH=$(sha256sum target/seq.raw.wasm | cut -d' ' -f1)
 echo "$SEQ_HASH  pay_equity_engine.wasm" > "$SEQ_BASELINE"
-wasm-bindgen target/seq.raw.wasm --out-dir engine/pkg --target web \
+wasm-bindgen target/seq.raw.wasm --out-dir engine/pkg --out-name pay_equity_engine --target web \
     --remove-name-section --remove-producers-section
 
 # ---------------------------------------------------------------------------
@@ -76,7 +76,7 @@ echo "== [threaded] building threaded wasm (build-std + atomics + link args) =="
 wasm_build_threaded target/threaded.raw.wasm
 THREADED_HASH=$(sha256sum target/threaded.raw.wasm | cut -d' ' -f1)
 echo "$THREADED_HASH  pay_equity_engine.threaded.wasm" > "$THREADED_BASELINE"
-wasm-bindgen target/threaded.raw.wasm --out-dir engine/pkg-threaded --target web \
+wasm-bindgen target/threaded.raw.wasm --out-dir engine/pkg-threaded --out-name pay_equity_engine --target web \
     --remove-name-section --remove-producers-section
 
 # wasm-bindgen does not emit a package.json for the threaded (--target web + rayon snippets)

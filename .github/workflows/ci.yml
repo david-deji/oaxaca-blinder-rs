@@ -83,14 +83,14 @@ jobs:
           wasm_build_seq wasm-out/seq.wasm
           # Smoke the binding step (output NOT hashed: wasm-bindgen output is not the hashed unit).
           wasm-bindgen wasm-out/seq.wasm \
-            --out-dir engine/pkg --target web --remove-name-section --remove-producers-section
+            --out-dir engine/pkg --out-name pay_equity_engine --target web --remove-name-section --remove-producers-section
 
       - name: Build THREADED artifact (nightly, build-std, atomics, --target web)
         run: |
           source scripts/wasm-recipe.sh
           wasm_build_threaded wasm-out/threaded.wasm
           wasm-bindgen wasm-out/threaded.wasm \
-            --out-dir engine/pkg-threaded --target web \
+            --out-dir engine/pkg-threaded --out-name pay_equity_engine --target web \
             --remove-name-section --remove-producers-section
 
       # Uploaded before any compare, so a hash mismatch still leaves the bytes to inspect (0119 S1).
