@@ -403,3 +403,87 @@ fn the_wire_names_are_exact() {
         assert!(WeightsKind::parse_name(bad).is_err(), "{bad:?}");
     }
 }
+
+// ---- the RIF the quantile decomposition regresses on -----------------------------------------
+
+/// The percentile the RIF transform used, recovered from the exported RIF column. A RIF value is
+/// `q + (tau - 1{y <= q}) / f`, so the two levels it takes are `q + (tau - 1)/f` and `q + tau/f`
+/// and `q = hi - tau * (hi - lo)`.
+fn percentile_used_by_the_rif(y: &[f64], w: &[f64], kind: WeightsKind, tau: f64) -> f64 {
+    let n = y.len();
+    let mut wage = y.to_vec();
+    let mut group = vec!["A"; n];
+    let mut weight = w.to_vec();
+    // A second group so the builder has two to compare; its own RIF is not read.
+    for i in 0..8 {
+        wage.push(100.0 + i as f64);
+        group.push("B");
+        weight.push(1.0);
+    }
+    let x: Vec<f64> = (0..wage.len()).map(|i| (i % 5) as f64).collect();
+    let df = df![
+        "wage" => wage,
+        "group" => group,
+        "x" => x,
+        "hc" => weight,
+    ]
+    .unwrap();
+    let mut b = OaxacaBuilder::new(df, "wage", "group", "B");
+    b.predictors(vec!["x"]).weights("hc").weights_kind(kind);
+    let frame = b.rif_outcome_frame(tau).unwrap();
+    // `rif_outcome_frame` lists the non-reference group (A) first.
+    let rif: Vec<f64> = frame
+        .column("wage")
+        .unwrap()
+        .f64()
+        .unwrap()
+        .into_no_null_iter()
+        .take(n)
+        .collect();
+    let lo = rif.iter().cloned().fold(f64::INFINITY, f64::min);
+    let hi = rif.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+    if hi == lo {
+        // Every row is at or below the percentile (it is the sample maximum): one RIF level, and
+        // the percentile cannot be read back. Report the maximum; the caller's oracle must agree.
+        return y.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+    }
+    hi - tau * (hi - lo)
+}
+
+#[test]
+fn v9_the_relative_rif_is_built_on_the_hmisc_percentile() {
+    // The public `weighted_quantile` is one function; the RIF transform the decomposition
+    // regresses on is another path to it. This pins the second against R.
+    let g = golden();
+    for case in g.block(&["weights", "relative"]).as_array().unwrap() {
+        let (y, w) = (vec_of(&case["y"]), vec_of(&case["w"]));
+        for (key, tau) in TAUS {
+            let want = f(&case["relative"], key);
+            let got = percentile_used_by_the_rif(&y, &w, WeightsKind::Relative, tau);
+            assert_close(
+                &format!("{} RIF percentile at tau={tau}", case["name"]),
+                got,
+                want,
+                1e-9,
+            );
+        }
+    }
+}
+
+#[test]
+fn v9_the_frequency_rif_is_built_on_the_repeated_rows_percentile() {
+    let g = golden();
+    for case in g.block(&["weights", "frequency"]).as_array().unwrap() {
+        let (y, w) = (vec_of(&case["y"]), vec_of(&case["w"]));
+        for (key, tau) in TAUS {
+            let want = f(&case["frequency"], key);
+            let got = percentile_used_by_the_rif(&y, &w, WeightsKind::Frequency, tau);
+            assert_close(
+                &format!("{} RIF percentile at tau={tau}", case["name"]),
+                got,
+                want,
+                1e-9,
+            );
+        }
+    }
+}
