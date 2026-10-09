@@ -28,6 +28,7 @@ the packages (they implement only the equal-share restriction).
 | File | Status | Oracle |
 |---|---|---|
 | `oaxaca_blinder/tests/fixtures/trust_goldens_r.json` | existing blocks byte-identical, one block ADDED (`quantile_detail_normalized`) | `ddecompose(rifreg_statistic = "quantiles", normalize_factors = TRUE)`; shift compared at a measured tolerance |
-| `engine/tests/fixtures/0118-null-free-golden.txt` | NOT regenerated | field-scoped comparator in `null_free_regression_test.rs` |
+| `engine/tests/fixtures/0118-null-free-golden.txt` | NOT regenerated | field-scoped comparator in `null_free_regression_test.rs`; S7 recomputes the t-based bounds, verdicts and p-values from the golden's own numbers, S6-S8 blocks must be present with the right shape |
 | `oaxaca_blinder/tests/fixtures/norm_goldens_r.json` (+ `norm_skewed_fixture.csv`, `norm_balanced_fixture.csv`, `norm_skewed_rif.csv`) | NEW | base-R `lm()` weighted-effect-coding refit, `ddecompose`, R `oaxaca`; `verification/regen_norm_goldens.sh` |
+| `oaxaca_blinder/tests/fixtures/diag_goldens_r.json` (+ `diag_*.csv`) | NEW (S6-S9) | base-R `lm` / `predict.lm` / `quantile`, `ddecompose`, `Hmisc`; `verification/gen_diag_goldens.R`; see `docs/DIAGNOSTICS.md` |
 | `engine/pay_equity_engine*.wasm.sha256` | re-recorded with `scripts/build-wasm.sh --record --no-publish` | n/a |

@@ -41,6 +41,38 @@
   outcome so an external package can check the quantile path's normalisation.
 - Crate versions: `oaxaca_blinder` 0.3.0, `pay-equity-engine` 0.2.0.
 
+### Changed, BREAKING (0120-MERIDIAN S6-S9, Track E diagnostics, 2026-10-09)
+- **A weights column needs a kind.** `OaxacaBuilder::weights_kind(WeightsKind::Frequency | Relative)` and CLI
+  `--weights-kind frequency|relative`, each required with `--weights` (a run without it fails with
+  `WEIGHTS_KIND_REQUIRED`). `frequency`: whole-number counts, `w = 2` is the row twice; a fractional, negative or
+  non-finite value fails with `INVALID_WEIGHT: column=, row=, value=` (the original 0-based data-row ordinal).
+  `relative`: FTE / design weights, rescaled so each regression's weights sum to its row count; the RIF percentile
+  is `Hmisc::wtd.quantile(type = "quantile", normwt = TRUE)`; uniform weights change nothing.
+  `oaxaca_blinder::weighted_quantile(values, weights, tau, kind)` is public. An integer-typed weights column (a
+  headcount read from CSV) is accepted. Under `frequency` the RIF density bandwidth now reads `sum(w)` instead of
+  Kish's effective n, so a run with `w = 2` equals the run on the row twice, density included.
+- **Prediction intervals and the frontier p-value are Student t**, on the baseline regression's residual degrees of
+  freedom (`predict.lm(interval = "prediction")`, `pt`), not Normal. `is_defensible` allows one cent below the
+  interval floor, not one dollar. `confidence_level` is now read by `check_defensibility` and
+  `calculate_efficient_frontier` (default 0.95, clamped to [0.50, 0.999]; for the frontier it sets
+  `is_significant`). MCP `check_defensibility` and `generate_efficient_frontier` accept it.
+- **A fitted group with no residual degrees of freedom is refused** on every entry point:
+  `INSUFFICIENT_RESIDUAL_DF: group=reference|target, rows=, model_columns=, residual_df=` (it was a zero-width
+  interval, an anonymous estimator error, or the frontier's `t = 0, p = 1` sentinel).
+- `optimize` no longer fits a regression to the compared group to obtain `original_gap`; it is the difference of
+  the analysed group means (what `total_gap` is). Numbers are unchanged.
+
+### Added (0120-MERIDIAN S6-S8)
+- Result fields (documented in `engine/src/types.rs`, mapped in `docs/DIAGNOSTICS.md`), all additive: `support`
+  and `warnings` on decompose, verify, optimize and defensibility results; `adjustments[].extrapolated` and
+  `interval` on optimize and defensibility; `quantile_report` on a percentile decompose (omitted otherwise);
+  `group_coefficient` and `degrees_of_freedom` on every frontier point.
+- `warnings[]` is `{code, subject, value, threshold}` with codes `outside_range` (> 5% of compared rows beyond the
+  baseline range), `normalised_difference` (|Imbens-Rubin| > 0.25), `few_residual_df` (< 10), `tie_share` (> 5%)
+  and `ecdf_offset` (|F_n(q) - tau| > 0.01). The engine carries no wording.
+- `verification/gen_diag_goldens.R` -> `diag_goldens_r.json` (base R `lm` / `predict.lm` / `quantile`, `ddecompose`,
+  `Hmisc`), fixtures `diag_*.csv`; sha256 of the generator and every fixture are recorded and checked.
+
 ### Added (0120-MERIDIAN oracles)
 - `verification/gen_norm_goldens.R` + `regen_norm_goldens.sh`: base-R `lm()` weighted-effect-coding refit (population
   share), `ddecompose(normalize_factors = TRUE)` and R `oaxaca` (equal share) goldens in `norm_goldens_r.json`,

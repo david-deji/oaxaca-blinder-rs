@@ -555,7 +555,7 @@ async fn handle_protocol(req: JsonRpcRequest) -> Option<JsonRpcResponse> {
             "tools": [
                 {
                     "name": "forensic_decomposition",
-                    "description": "Perform Oaxaca-Blinder pay equity decomposition. reference_coefficients is required and names the counterfactual the headline is computed under. Per-level rows of categorical predictors in detailed_explained / detailed_unexplained are deviations from the pooled-sample share-weighted average of all levels (every level, the alphabetically first included); the constant is the entry named \"__ob_intercept__\" and is not a driver. result.run_metadata records the scheme, the normalisation convention and its level shares.",
+                    "description": "Perform Oaxaca-Blinder pay equity decomposition. reference_coefficients is required and names the counterfactual the headline is computed under. Per-level rows of categorical predictors in detailed_explained / detailed_unexplained are deviations from the pooled-sample share-weighted average of all levels (every level, the alphabetically first included); the constant is the entry named \"__ob_intercept__\" and is not a driver. result.run_metadata records the scheme, the normalisation convention and its level shares. result.support and result.warnings report how far the compared group's characteristics sit from the baseline group's and the residual degrees of freedom of each fitted regression; with quantile set, result.quantile_report holds the actual percentile gap, the RIF model total and the tie diagnostics.",
                     "inputSchema": {
                         "type": "object",
                         "properties": {

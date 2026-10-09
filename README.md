@@ -94,8 +94,10 @@ oaxaca-cli --data wage.csv --group gender --reference F \
 ```bash
 oaxaca-cli --data wage.csv --outcome wage --group gender --reference F \
     --predictors education experience \
-    --weights sampling_weight
+    --weights sampling_weight --weights-kind relative
 ```
+`--weights-kind` is required with `--weights`: `frequency` for whole-number counts (`2` is the row twice; a
+fractional value is refused, naming the row), `relative` for FTE or survey weights (rescaled to the row count).
 
 **With Heckman Correction (Selection Bias):**
 ```bash
