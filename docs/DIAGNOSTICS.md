@@ -29,12 +29,11 @@ Warning codes and their lines (restated as literals in `engine/tests/support_dia
 | `few_residual_df` | a FITTED group has fewer than 10 residual degrees of freedom | `reference` or `target` |
 | `tie_share`, `ecdf_offset` | percentile mode only, see below | `reference` or `target` |
 
-Open decision (V6, founder): the re-ground says the support check is silent on `parity`, but T12's
-`normalised_difference` line also fires there (education and experience are 0.45 and 0.39 pooled SDs apart), so
-`parity` carries two `normalised_difference` warnings and no `outside_range`, `few_residual_df` or extrapolation
-(pinned in `support_diagnostics_test`). Either the app renders only `outside_range`, extrapolation and
-`few_residual_df` as caveats and treats `normalised_difference` as information, or the T12 trigger changes. The
-engine emits all four and decides nothing. The 50 000-row memory-profile file is git-ignored, so its silence check
+Decision (V6, orchestrator call): the engine keeps emitting all four warnings. The app shows the plain caveat
+(D3) only for `outside_range`, extrapolated rows and `few_residual_df`. `normalised_difference` is shown as
+information, because it fires on the ordinary `parity` fixture (education and experience are 0.45 and 0.39 pooled
+SDs apart) where no amount rests on an extension; `parity` carries two `normalised_difference` warnings and no
+`outside_range`, `few_residual_df` or extrapolation (pinned in `support_diagnostics_test`). The 50 000-row memory-profile file is git-ignored, so its silence check
 runs on `employers_trust_fixture.csv` (same shape, 10 000 rows) and is not tested on the 50k file.
 
 Normalised difference is `(mean_target - mean_reference) / sqrt((var_target + var_reference) / 2)` with
@@ -58,8 +57,13 @@ compared group too small to fit its own regression no longer blocks a remedy. Nu
 | Field | On | What it is |
 |---|---|---|
 | `interval.confidence_level`, `interval.degrees_of_freedom`, `interval.critical_value` | optimize, defensibility | the prediction interval behind `fair_wage_lower_bound` / `fair_wage_upper_bound` |
-| `confidence_level` (request) | optimize (existing), check_defensibility, calculate_efficient_frontier | clamped to [0.50, 0.999], default 0.95; for the frontier it sets `is_significant` to `p < 1 - level` |
+| `confidence_level` (request) | optimize (existing), check_defensibility, calculate_efficient_frontier | a fraction in [0.50, 0.999], default 0.95; anything else (95, NaN, 0.4) is refused: `INVALID_CONFIDENCE_LEVEL: confidence_level=`; for the frontier it sets `is_significant` to `p < 1 - level` |
 | `FrontierPoint.group_coefficient`, `FrontierPoint.degrees_of_freedom` | frontier | the pooled regression's group-indicator coefficient after the budget is paid, and its residual df |
+| `FrontierPoint.confidence_level` | frontier | the level `is_significant` was held against, echoed on every point |
+
+The interval is exact `predict.lm(interval = "prediction")` for the Reference optimise target. Under the
+Pooled target the fair wage comes from the pooled fit while the interval is still built on the reference
+regression, so it is an approximation there until T8 lands.
 
 CHANGED: intervals are Student t on the baseline regression's residual degrees of freedom
 (`predict.lm(interval = "prediction")`), not Normal. The frontier's `p_value` is `2 * pt(-|t|, df)`. At

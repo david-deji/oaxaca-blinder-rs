@@ -662,9 +662,9 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
 
     // --- Prediction intervals (0120-MERIDIAN T14) ---
     // Student t on the baseline regression's residual degrees of freedom, with the level taken
-    // from the request (default 95%, clamped to [50%, 99.9%]). `IntervalModel` also carries the
+    // from the request (default 95%, refused outside [50%, 99.9%]). `IntervalModel` also carries the
     // baseline group's leverage, which decides each row's `extrapolated` flag.
-    let confidence = support::clamp_confidence(req.confidence_level);
+    let confidence = support::resolve_confidence(req.confidence_level)?;
     let interval_model = IntervalModel::new(&x_a, &y_a, &beta_fair, confidence)?;
     let calculate_interval = |features: DVector<f64>, predicted_y: f64| -> (f64, f64) {
         interval_model.interval(&features, predicted_y)
@@ -1065,6 +1065,9 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
 pub fn calculate_efficient_frontier_inner(
     req: EfficientFrontierRequest,
 ) -> Result<Vec<FrontierPoint>, String> {
+    // Refuse a bad level before reading any data; every point echoes the level used.
+    let confidence = support::resolve_confidence(req.confidence_level)?;
+
     // 1. Load Data
     let mut df = read_csv(&req.decomposition_params.csv_data)?;
 
@@ -1292,7 +1295,7 @@ pub fn calculate_efficient_frontier_inner(
             x_pooled.ncols(),
         ));
     }
-    let significance_threshold = 1.0 - support::clamp_confidence(req.confidence_level);
+    let significance_threshold = 1.0 - confidence;
 
     // (t, p, significant, group coefficient) of the pooled regression for one outcome vector.
     let compute_t_stat = |current_y: &DMatrix<f64>| -> (f64, f64, bool, f64) {
@@ -1320,6 +1323,7 @@ pub fn calculate_efficient_frontier_inner(
         is_significant: s0,
         group_coefficient: g0,
         degrees_of_freedom: dof as usize,
+        confidence_level: confidence,
     });
 
     // Degenerate case: no positive adjustment budget (e.g. a zero-gap dataset where total_need
@@ -1370,6 +1374,7 @@ pub fn calculate_efficient_frontier_inner(
             is_significant: s,
             group_coefficient: g,
             degrees_of_freedom: dof as usize,
+            confidence_level: confidence,
         });
     }
 

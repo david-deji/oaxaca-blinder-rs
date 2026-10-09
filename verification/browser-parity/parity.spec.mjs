@@ -87,3 +87,41 @@ test('native <-> wasm(threads=1) decompose agree within 1e-6 per numeric field (
   expect(coverage, `comparison covered too little:\n${coverage.join('\n')}`).toEqual([]);
   console.log(`native <-> wasm: ${result.numericLeafCount} numeric leaves compared within ${DEFAULT_TOLERANCE}`);
 });
+
+// 0120-MERIDIAN contract F4: serde-wasm-bindgen is a different serializer from serde_json, and only
+// `decompose` was ever driven through it here. verify_adjustments (with a categorical),
+// check_defensibility and calculate_efficient_frontier must carry the same diagnostic keys in the browser.
+// `normalised_difference` and `subject` are Option fields: undefined in JS, null over MCP, so the
+// assertions read key presence from the live object and never compare those two values.
+test('verify_adjustments, check_defensibility and the frontier carry their diagnostic keys through the WASM serializer (F4)', async ({
+  page,
+}) => {
+  await page.goto('/verification/browser-parity/?threads=1');
+  const parity = await page
+    .waitForFunction(() => window.__PARITY__ || null, null, { timeout: 90000 })
+    .then((h) => h.jsonValue());
+  expect(parity.ok, `wasm compute failed: ${parity.error || '(no error text)'}`).toBe(true);
+  const { verify_adjustments: v, check_defensibility: c, calculate_efficient_frontier: f } = parity.shapes;
+
+  const supportKeys = [
+    'extrapolated_target_count', 'model_columns', 'predictors', 'reference_count',
+    'reference_residual_df', 'target_count', 'target_residual_df',
+  ];
+  expect(v.support).toEqual(supportKeys);
+  expect(c.support).toEqual(supportKeys);
+  expect(v.top).toEqual(expect.arrayContaining(['support', 'warnings', 'run_metadata']));
+  expect(c.top).toEqual(expect.arrayContaining(['support', 'warnings', 'interval', 'adjustments']));
+  expect(v.warnings).toBe(true);
+  expect(c.warnings).toBe(true);
+  expect(v.predictor).toEqual(expect.arrayContaining(['name', 'normalised_difference', 'target_outside_range_share']));
+  expect(v.normalization).toEqual(
+    expect.arrayContaining(['applied', 'convention', 'share_basis', 'variables'])
+  );
+  expect(c.interval).toEqual(['confidence_level', 'critical_value', 'degrees_of_freedom']);
+  expect(c.adjustment).toContain('extrapolated');
+  expect(f.points).toBeGreaterThan(1);
+  expect(f.point).toEqual([
+    'budget', 'confidence_level', 'degrees_of_freedom', 'group_coefficient',
+    'is_significant', 'p_value', 't_statistic',
+  ]);
+});

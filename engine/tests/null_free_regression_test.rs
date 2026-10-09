@@ -43,8 +43,8 @@
 //! named below and each held to an independent check instead of being skipped:
 //!
 //!   * the fields S6-S8 ADD (`support`, `warnings`, `quantile_report`, `interval`, each
-//!     adjustment's `extrapolated`, each frontier point's `group_coefficient` and
-//!     `degrees_of_freedom`): must be PRESENT with the right shape, then dropped. Their values are
+//!     adjustment's `extrapolated`, each frontier point's `group_coefficient`,
+//!     `degrees_of_freedom` and `confidence_level`): must be PRESENT with the right shape, then dropped. Their values are
 //!     pinned against R in `support_diagnostics_test`, `intervals_test` and `quantile_report_test`.
 //!   * the interval-derived fields, because the interval is Student t now, not z (S7): lower and
 //!     upper bound, `is_defensible` and its message, frontier `p_value` / `is_significant`. They
@@ -492,9 +492,15 @@ fn scope_s6_to_s8(name: &str, want: &mut Value, got: &mut Value) -> Result<(), S
                     "frontier[{i}]: is_significant disagrees with p {p:e}"
                 ));
             }
+            if g["confidence_level"].as_f64() != Some(0.95) {
+                return Err(format!(
+                    "frontier[{i}]: confidence_level is not the 0.95 default"
+                ));
+            }
             for k in [
                 "group_coefficient",
                 "degrees_of_freedom",
+                "confidence_level",
                 "p_value",
                 "is_significant",
             ] {
@@ -936,7 +942,8 @@ fn s7_comparator_refuses_a_frontier_p_value_that_is_not_student_t() {
     let point = |p: f64| {
         serde_json::json!([{
             "budget": 0.0, "t_statistic": t, "p_value": p, "is_significant": p < 0.05,
-            "group_coefficient": 1.0, "degrees_of_freedom": dof as i64
+            "group_coefficient": 1.0, "degrees_of_freedom": dof as i64,
+            "confidence_level": 0.95
         }])
     };
     let want = serde_json::json!([{"budget": 0.0, "t_statistic": t, "p_value": p_z, "is_significant": true}]);

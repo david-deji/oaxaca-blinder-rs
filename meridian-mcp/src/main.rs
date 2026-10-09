@@ -544,7 +544,7 @@ async fn handle_protocol(req: JsonRpcRequest) -> Option<JsonRpcResponse> {
             },
             "serverInfo": {
                 "name": "meridian-mcp",
-                "version": "0.1.0"
+                "version": "0.2.0"
             }
         })),
         "notifications/initialized" => {
@@ -631,7 +631,7 @@ async fn handle_protocol(req: JsonRpcRequest) -> Option<JsonRpcResponse> {
                             "group_variable": { "type": "string" },
                             "reference_group": { "type": "string" },
                             "predictors": { "type": "array", "items": { "type": "string" } },
-                            "confidence_level": { "type": "number", "description": "Level of the prediction range, e.g. 0.90. Clamped to 0.50-0.999; default 0.95." },
+                            "confidence_level": { "type": "number", "description": "Level of the prediction range, e.g. 0.90 (a fraction, not 90). A level outside 0.50-0.999 or not finite is refused with INVALID_CONFIDENCE_LEVEL; default 0.95." },
                             "adjustments": {
                                 "type": "array",
                                 "items": {
@@ -659,7 +659,7 @@ async fn handle_protocol(req: JsonRpcRequest) -> Option<JsonRpcResponse> {
                             "group_variable": { "type": "string" },
                             "reference_group": { "type": "string" },
                             "predictors": { "type": "array", "items": { "type": "string" } },
-                            "confidence_level": { "type": "number", "description": "A point is significant when its p-value is below 1 minus this level. Clamped to 0.50-0.999; default 0.95." }
+                            "confidence_level": { "type": "number", "description": "A point is significant when its p-value is below 1 minus this level. A fraction, not a percentage: a level outside 0.50-0.999 or not finite is refused with INVALID_CONFIDENCE_LEVEL; default 0.95. Each point echoes the level used as confidence_level." }
                         },
                         "required": ["csv_content", "outcome_variable", "group_variable", "reference_group", "predictors"]
                     }

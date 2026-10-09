@@ -16,11 +16,22 @@ pub const DEFENSIBLE_TOLERANCE: f64 = 0.01;
 /// The interval level when a request gives none.
 pub const DEFAULT_CONFIDENCE: f64 = 0.95;
 
-/// Clamps a requested level to [0.50, 0.999]; an absent or non-finite value is 0.95.
-pub fn clamp_confidence(requested: Option<f64>) -> f64 {
+/// Lowest accepted `confidence_level`.
+pub const MIN_CONFIDENCE: f64 = 0.50;
+/// Highest accepted `confidence_level`.
+pub const MAX_CONFIDENCE: f64 = 0.999;
+
+/// The level a request asks for: absent is 0.95; a value that is not finite or lies outside
+/// [0.50, 0.999] is refused by name (`INVALID_CONFIDENCE_LEVEL`). A level given as a percentage
+/// (95) used to clamp silently to 0.999, a far wider claim than the one asked for.
+pub fn resolve_confidence(requested: Option<f64>) -> Result<f64, String> {
     match requested {
-        Some(c) if c.is_finite() => c.clamp(0.50, 0.999),
-        _ => DEFAULT_CONFIDENCE,
+        None => Ok(DEFAULT_CONFIDENCE),
+        Some(c) if c.is_finite() && (MIN_CONFIDENCE..=MAX_CONFIDENCE).contains(&c) => Ok(c),
+        Some(c) => Err(format!(
+            "INVALID_CONFIDENCE_LEVEL: confidence_level={c}; give a fraction between \
+             {MIN_CONFIDENCE} and {MAX_CONFIDENCE} (0.95 for 95%), or leave it out for 0.95"
+        )),
     }
 }
 
@@ -424,12 +435,15 @@ mod tests {
     }
 
     #[test]
-    fn confidence_is_clamped_and_defaults_to_95() {
-        assert_eq!(clamp_confidence(None), 0.95);
-        assert_eq!(clamp_confidence(Some(0.99)), 0.99);
-        assert_eq!(clamp_confidence(Some(0.2)), 0.50);
-        assert_eq!(clamp_confidence(Some(1.5)), 0.999);
-        assert_eq!(clamp_confidence(Some(f64::NAN)), 0.95);
+    fn confidence_is_refused_when_out_of_range_and_defaults_to_95() {
+        assert_eq!(resolve_confidence(None), Ok(0.95));
+        assert_eq!(resolve_confidence(Some(0.99)), Ok(0.99));
+        assert_eq!(resolve_confidence(Some(0.50)), Ok(0.50));
+        assert_eq!(resolve_confidence(Some(0.999)), Ok(0.999));
+        for bad in [95.0, f64::NAN, f64::INFINITY, 0.4, 1.0, -0.5] {
+            let e = resolve_confidence(Some(bad)).unwrap_err();
+            assert!(e.starts_with("INVALID_CONFIDENCE_LEVEL"), "{bad}: {e}");
+        }
     }
 
     #[test]

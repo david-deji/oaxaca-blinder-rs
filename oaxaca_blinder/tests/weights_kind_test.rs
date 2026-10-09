@@ -487,3 +487,100 @@ fn v9_the_frequency_rif_is_built_on_the_repeated_rows_percentile() {
         }
     }
 }
+
+// ---- Relative weights and the Weighted / Cotton mix (E-REV-4) -----------------------------------
+
+/// Weighted least squares of `y` on a constant and `x`: (weighted mean x, weighted mean y, slope).
+fn wls_line(x: &[f64], y: &[f64], w: &[f64]) -> (f64, f64, f64) {
+    let sw: f64 = w.iter().sum();
+    let mx = x.iter().zip(w).map(|(a, b)| a * b).sum::<f64>() / sw;
+    let my = y.iter().zip(w).map(|(a, b)| a * b).sum::<f64>() / sw;
+    let sxy: f64 = (0..x.len()).map(|i| w[i] * (x[i] - mx) * (y[i] - my)).sum();
+    let sxx: f64 = (0..x.len()).map(|i| w[i] * (x[i] - mx).powi(2)).sum();
+    (mx, my, sxy / sxx)
+}
+
+/// Groups with different education ranges and different pay slopes, so the mix matters.
+fn mix_frame(weights: Vec<f64>) -> DataFrame {
+    df![
+        "wage"  => [10.0f64, 12.0, 15.0, 16.0, 19.0, 21.0, 26.0, 30.0,
+                    20.0, 22.0, 22.0, 30.0, 35.0, 45.0, 50.0, 62.0],
+        "educ"  => [1.0f64, 2.0, 3.0, 4.0, 4.0, 5.0, 6.0, 7.0,
+                    2.0, 3.0, 3.0, 5.0, 6.0, 7.0, 8.0, 9.0],
+        "group" => ["A", "A", "A", "A", "A", "A", "A", "A",
+                    "B", "B", "B", "B", "B", "B", "B", "B"],
+        "hc"    => weights,
+    ]
+    .unwrap()
+}
+
+fn mix_explained(
+    df: DataFrame,
+    kind: WeightsKind,
+    scheme: oaxaca_blinder::ReferenceCoefficients,
+) -> f64 {
+    let mut b = OaxacaBuilder::new(df, "wage", "group", "B");
+    b.predictors(vec!["educ"])
+        .bootstrap_reps(0)
+        .reference_coefficients(scheme)
+        .weights("hc")
+        .weights_kind(kind);
+    let r = b.run().unwrap();
+    let two = r.two_fold();
+    let agg = two.aggregate();
+    *agg.iter()
+        .find(|c| c.name() == "explained")
+        .unwrap()
+        .estimate()
+}
+
+#[test]
+fn relative_weights_mix_the_weighted_scheme_by_pooled_weight_not_row_count() {
+    // Eight rows per group, so a row-count mix is 50/50; the design weights make group A carry
+    // 16 of 24 units of weight. The mix must be sum(w_A) / sum(w).
+    let w: Vec<f64> = vec![
+        1.0, 1.0, 1.0, 1.0, 3.0, 3.0, 3.0, 3.0, // A
+        1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, // B
+    ];
+    let df = mix_frame(w.clone());
+    let wage: Vec<f64> = df
+        .column("wage")
+        .unwrap()
+        .f64()
+        .unwrap()
+        .into_no_null_iter()
+        .collect();
+    let educ: Vec<f64> = df
+        .column("educ")
+        .unwrap()
+        .f64()
+        .unwrap()
+        .into_no_null_iter()
+        .collect();
+    // Independent oracle: per-group WLS by closed form, mixed by raw weight share.
+    let (xa, _, sa) = wls_line(&educ[..8], &wage[..8], &w[..8]);
+    let (xb, _, sb) = wls_line(&educ[8..], &wage[8..], &w[8..]);
+    let share_a = 16.0 / 24.0;
+    let oracle = (xa - xb) * (share_a * sa + (1.0 - share_a) * sb);
+    let row_count_mix = (xa - xb) * (0.5 * sa + 0.5 * sb);
+    assert!(
+        (oracle - row_count_mix).abs() > 0.05,
+        "the fixture must tell the two mixes apart: {oracle} vs {row_count_mix}"
+    );
+    for scheme in [
+        oaxaca_blinder::ReferenceCoefficients::Weighted,
+        oaxaca_blinder::ReferenceCoefficients::Cotton,
+    ] {
+        let relative = mix_explained(mix_frame(w.clone()), WeightsKind::Relative, scheme);
+        assert!(
+            (relative - oracle).abs() < 1e-9,
+            "{scheme:?}: relative {relative} vs oracle {oracle}"
+        );
+        // Whole-number weights mean the same under both kinds, so frequency agrees too.
+        let frequency = mix_explained(mix_frame(w.clone()), WeightsKind::Frequency, scheme);
+        assert!(
+            (frequency - oracle).abs() < 1e-9,
+            "{scheme:?}: frequency {frequency}"
+        );
+    }
+}

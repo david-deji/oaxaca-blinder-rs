@@ -176,13 +176,43 @@ fn v7_the_five_df_fixture_is_where_t_and_z_part() {
 }
 
 #[test]
-fn v7_the_level_is_clamped_and_defaults_to_95() {
+fn v7_the_level_defaults_to_95_and_a_bad_level_is_refused_by_name_on_every_entry() {
     let default = optimize_inner(optimisation("df5", None)).unwrap();
     assert_eq!(default.interval.confidence_level, 0.95);
-    let low = optimize_inner(optimisation("df5", Some(0.2))).unwrap();
-    assert_eq!(low.interval.confidence_level, 0.50);
-    let high = optimize_inner(optimisation("df5", Some(2.0))).unwrap();
-    assert_eq!(high.interval.confidence_level, 0.999);
+    for bad in [95.0, f64::NAN, 0.4] {
+        let e = optimize_inner(optimisation("df5", Some(bad))).unwrap_err();
+        assert!(
+            e.starts_with("INVALID_CONFIDENCE_LEVEL"),
+            "optimize {bad}: {e}"
+        );
+        let e = check_defensibility_inner(defensibility_request("df5", Some(bad), &[(0, 1.0)]))
+            .unwrap_err();
+        assert!(
+            e.starts_with("INVALID_CONFIDENCE_LEVEL"),
+            "defensibility {bad}: {e}"
+        );
+        let e = calculate_efficient_frontier_inner(EfficientFrontierRequest {
+            decomposition_params: decomposition("df5"),
+            steps: Some(4),
+            max_budget: Some(5000.0),
+            confidence_level: Some(bad),
+        })
+        .unwrap_err();
+        assert!(
+            e.starts_with("INVALID_CONFIDENCE_LEVEL"),
+            "frontier {bad}: {e}"
+        );
+    }
+}
+
+#[test]
+fn v7_the_frontier_echoes_the_level_it_used_on_every_point() {
+    assert!(frontier("df5", None)
+        .iter()
+        .all(|p| p.confidence_level == 0.95));
+    assert!(frontier("df5", Some(0.9))
+        .iter()
+        .all(|p| p.confidence_level == 0.9));
 }
 
 /// E-REV F1 (contract): under `range_target` LowerBound / UpperBound the payment IS the interval

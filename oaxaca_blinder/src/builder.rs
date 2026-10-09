@@ -1180,16 +1180,24 @@ impl OaxacaBuilder {
                 &beta_star_owned
             }
             ReferenceCoefficients::Weighted | ReferenceCoefficients::Cotton => {
-                let n_a = if let Some(w) = &w_a {
-                    w.sum()
-                } else {
-                    df_a.height() as f64
-                };
-                let n_b = if let Some(w) = &w_b {
-                    w.sum()
-                } else {
-                    df_b.height() as f64
-                };
+                // The mix weight is each group's share of the pooled population. Under Relative
+                // weights `w_a` / `w_b` were rescaled per group to sum to their row counts, which
+                // would turn the share into a share of ROWS while the level shares
+                // (`compute_shares`) use the raw design weights: two populations in one run. Both
+                // use the raw weights here (sum w_A / sum w) (0120-MERIDIAN E-REV-4).
+                let group_mass =
+                    |w: &Option<DVector<f64>>, group_df: &DataFrame| -> Result<f64, OaxacaError> {
+                        match (&self.weights_col, w) {
+                            (Some(col), Some(_)) => Ok(weight_values(group_df, col)?
+                                .into_iter()
+                                .map(|v| v.unwrap_or(0.0))
+                                .sum()),
+                            (_, Some(w)) => Ok(w.sum()),
+                            _ => Ok(group_df.height() as f64),
+                        }
+                    };
+                let n_a = group_mass(&w_a, &df_a)?;
+                let n_b = group_mass(&w_b, &df_b)?;
                 let total_n = n_a + n_b;
                 if total_n == 0.0 {
                     return Err(OaxacaError::InvalidGroupVariable(

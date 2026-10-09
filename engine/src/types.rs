@@ -168,6 +168,7 @@ pub const QUANTILE_ECDF_OFFSET: f64 = 0.01;
 pub struct DiagnosticWarning {
     pub code: WarningCode,
     /// The predictor or group the warning is about; `None` when it is about the whole result.
+    /// `None` arrives as `undefined` in JS and as `null` over MCP, like `normalised_difference`.
     pub subject: Option<String>,
     pub value: f64,
     pub threshold: f64,
@@ -193,6 +194,9 @@ pub struct PredictorSupport {
     /// Imbens-Rubin normalised difference `(mean_target - mean_reference) /
     /// sqrt((var_target + var_reference) / 2)` with sample variances. `None` when both groups
     /// have zero variance. (`ddecompose` prints the same quantity divided by sqrt(2).)
+    ///
+    /// `None` arrives as `undefined` in JS (serde-wasm-bindgen) and as `null` over MCP and native
+    /// JSON; a consumer must treat both as absent. Pinned by the browser-parity serializer case.
     pub normalised_difference: Option<f64>,
 }
 
@@ -335,9 +339,13 @@ pub struct Adjustment {
 /// The prediction interval behind `fair_wage_lower_bound` / `fair_wage_upper_bound` and
 /// `is_defensible` (0120-MERIDIAN S7 / T14): Student t on the baseline regression's residual
 /// degrees of freedom, `predict.lm(interval = "prediction")`.
+///
+/// Exact `predict.lm` for the Reference optimise target. Under the Pooled target the fair wage
+/// comes from the pooled fit while the interval is still built on the reference regression, so
+/// it is an approximation there until T8 lands.
 #[derive(Serialize, Debug, Clone, PartialEq)]
 pub struct IntervalBasis {
-    /// The level used, after the engine's clamp to [0.50, 0.999]; 0.95 when the request gave none.
+    /// The level used; 0.95 when the request gave none. A level outside [0.50, 0.999] is refused.
     pub confidence_level: f64,
     /// Residual degrees of freedom of the baseline regression (`n - k`), always positive here.
     pub degrees_of_freedom: usize,
@@ -407,7 +415,7 @@ pub struct VerificationRequest {
     pub decomposition_params: DecompositionRequest,
     pub adjustments: Vec<ProposedAdjustment>,
     /// Level of the prediction interval `check_defensibility` scores against, e.g. `0.90`.
-    /// Clamped to [0.50, 0.999]; `None` means 0.95 (0120-MERIDIAN S7). `verify_adjustments`
+    /// Refused outside [0.50, 0.999]; `None` means 0.95 (0120-MERIDIAN S7). `verify_adjustments`
     /// builds no interval and ignores it.
     #[serde(default)]
     pub confidence_level: Option<f64>,
@@ -427,6 +435,8 @@ pub struct FrontierPoint {
     pub group_coefficient: f64,
     /// Residual degrees of freedom of the pooled regression (`n - k`).
     pub degrees_of_freedom: usize,
+    /// The level `is_significant` was held against: the request's, or 0.95 when it gave none.
+    pub confidence_level: f64,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -436,7 +446,7 @@ pub struct EfficientFrontierRequest {
     pub steps: Option<usize>,    // Default 50
     pub max_budget: Option<f64>, // If None, auto-detect
     /// Level whose complement is the significance threshold of `FrontierPoint::is_significant`.
-    /// Clamped to [0.50, 0.999]; `None` means 0.95 (0120-MERIDIAN S7).
+    /// Refused outside [0.50, 0.999]; `None` means 0.95 (0120-MERIDIAN S7).
     #[serde(default)]
     pub confidence_level: Option<f64>,
 }

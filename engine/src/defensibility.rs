@@ -252,8 +252,8 @@ pub fn check_defensibility_inner(req: VerificationRequest) -> Result<Optimizatio
 
     // --- Prediction intervals (0120-MERIDIAN T14) ---
     // The same model `optimize` uses: Student t on the baseline regression's residual degrees of
-    // freedom, level from the request (default 95%, clamped to [50%, 99.9%]).
-    let confidence = support::clamp_confidence(req.confidence_level);
+    // freedom, level from the request (default 95%, refused outside [50%, 99.9%]).
+    let confidence = support::resolve_confidence(req.confidence_level)?;
     let interval_model = IntervalModel::new(&x_a, &y_a, &beta_fair, confidence)?;
     let calculate_interval = |features: DVector<f64>, predicted_y: f64| -> (f64, f64) {
         interval_model.interval(&features, predicted_y)

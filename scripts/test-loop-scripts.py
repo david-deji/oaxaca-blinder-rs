@@ -139,16 +139,22 @@ def test_ground_validator():
         fake_node.write_text('#!/bin/sh\nprintf "# tests 0\\n# pass 0\\n# fail 0\\n# skipped 0\\n"\n')
         fake_node.chmod(0o755)
 
-        def go(label, passed, listed, previous=None):
+        def go_report(label, passed, listed, previous=None, previous_node=None):
             gdir = tmp / label
             gdir.mkdir()
             if previous is not None:
-                (gdir / "2026-01-01-probes.json").write_text(json.dumps({"suites": {"cargo": {"passed": previous, "failed": 0, "skipped": 0}}}))
+                suites = {"cargo": {"passed": previous, "failed": 0, "skipped": 0}}
+                if previous_node is not None:
+                    suites["node_unit"] = {"passed": previous_node, "failed": 0, "skipped": 0}
+                (gdir / "2026-01-01-probes.json").write_text(json.dumps({"suites": suites}))
             env = dict(os.environ, PATH=f"{bindir}:{os.environ['PATH']}", GROUND_DIR=str(gdir), GROUND_SKIP_WASM_VERIFY="1",
                        FAKE_PASSED=str(passed), FAKE_LISTED=str(listed))
             p = subprocess.run(["bash", str(ROOT / "scripts" / "ground.sh")], cwd=ROOT, env=env, capture_output=True, text=True, timeout=900)
             check(p.returncode == 0, f"{label}: ground.sh still exits 0")
-            return json.loads(p.stdout)["errors"]
+            return json.loads(p.stdout)
+
+        def go(label, passed, listed, previous=None):
+            return go_report(label, passed, listed, previous)["errors"]
 
         errs = go("zero", 0, 0)
         check(any("validator: total tests is 0" in e for e in errs), "a run that executed zero tests is an error")
@@ -156,6 +162,15 @@ def test_ground_validator():
         check(any("below the previous probes file (9999)" in e for e in errs), "a total below the previous probes file is an error")
         errs = go("disagree", 3, 5)
         check(any("names 5" in e for e in errs), "a summed count that disagrees with `cargo test -- --list` is an error")
+        # coverage_delta compares the cargo suite with the PREVIOUS cargo suite, never with the previous
+        # combined total (cargo + node_unit), which reported a false shrink (carried from 0119).
+        rep = go_report("delta-same-measure", 100, 100, previous=100, previous_node=18)
+        cd = rep["suites"]["cargo"]["coverage_delta"]
+        check(cd["previous_total"] == 100 and cd["total"] == 100 and cd["shrank"] is False,
+              f"an unchanged cargo count beside a node suite is not a shrink (got {cd})")
+        rep = go_report("delta-real-shrink", 90, 90, previous=100, previous_node=18)
+        cd = rep["suites"]["cargo"]["coverage_delta"]
+        check(cd["previous_total"] == 100 and cd["shrank"] is True, f"a real cargo shrink is still reported (got {cd})")
         errs = go("agree", 3, 3)
         check(not any(e.startswith("suites.cargo") for e in errs) and not any("validator: total tests" in e for e in errs),
               "control: matching counts and no previous file give neither error (so the three above could have stayed quiet)")
