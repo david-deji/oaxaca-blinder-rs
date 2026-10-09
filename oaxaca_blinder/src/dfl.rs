@@ -73,7 +73,7 @@ pub fn run_dfl(
     // For this implementation, let's assume numeric predictors for the MVP.
 
     let mut x_cols = Vec::new();
-    let intercept = Series::new("__ob_intercept__".into(), vec![1.0; df.height()]);
+    let intercept = Series::new(crate::INTERCEPT_NAME.into(), vec![1.0; df.height()]);
     x_cols.push(Column::Series(intercept));
 
     for pred in predictors {

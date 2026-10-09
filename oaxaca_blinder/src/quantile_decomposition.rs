@@ -165,12 +165,12 @@ impl QuantileDecompositionBuilder {
             .collect::<Result<Vec<_>, _>>()?;
         let y = Array1::from_vec(y_vec);
 
-        let mut final_predictors: Vec<String> = vec!["__ob_intercept__".to_string()];
+        let mut final_predictors: Vec<String> = vec![crate::INTERCEPT_NAME.to_string()];
         final_predictors.extend_from_slice(&self.predictors);
         final_predictors.extend_from_slice(all_dummy_names);
 
         let mut x_df = df.select(&self.predictors)?;
-        let intercept_series = Series::new("__ob_intercept__".into(), vec![1.0; df.height()]);
+        let intercept_series = Series::new(crate::INTERCEPT_NAME.into(), vec![1.0; df.height()]);
         x_df.with_column(intercept_series)?;
 
         for name in all_dummy_names {

@@ -25,7 +25,7 @@ pub fn decomposition_request(csv: Vec<u8>, categorical: bool) -> DecompositionRe
         },
         three_fold: None,
         quantile: None,
-        reference_coefficients: None,
+        reference_coefficients: Some("Pooled".to_string()),
         bootstrap_reps: Some(2),
     }
 }

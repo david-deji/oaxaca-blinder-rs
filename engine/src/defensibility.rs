@@ -223,19 +223,10 @@ pub fn check_defensibility_inner(req: VerificationRequest) -> Result<Optimizatio
         target_rows.len(),
     )?;
 
-    let cols_a = raw_x_a.ncols();
-    let predictors_count = predictors.len();
-
-    // Strategy for Intercept
-    let (x_a, x_b) = if cols_a > predictors_count {
-        (raw_x_a.clone(), raw_x_b.clone())
-    } else {
-        feature_names.push("Base Rate (Intercept)".to_string());
-        (
-            raw_x_a.clone().insert_column(cols_a, 1.0),
-            raw_x_b.clone().insert_column(raw_x_b.ncols(), 1.0),
-        )
-    };
+    // The builder's matrices always start with the reserved intercept column
+    // (`oaxaca_blinder::INTERCEPT_NAME`); see the same note in `optimize_inner`. The unreachable
+    // "Base Rate (Intercept)" fallback that used to sit here is removed (0120-MERIDIAN S3).
+    let (x_a, x_b) = (raw_x_a, raw_x_b);
 
     while feature_names.len() < x_b.ncols() {
         feature_names.push(format!("Feature {}", feature_names.len()));

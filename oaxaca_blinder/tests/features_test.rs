@@ -24,14 +24,47 @@ fn test_reference_groups() {
 
     assert!(results_cotton.total_gap() > &0.0);
 
-    // Test Neumark
+    // Neumark: a deprecated alias that still computes `Pooled` (pooled regression WITH a group
+    // indicator), so existing callers keep their numbers (0120-MERIDIAN T7).
+    #[allow(deprecated)]
+    let neumark = ReferenceCoefficients::Neumark;
     let mut builder_neumark = OaxacaBuilder::new(df.clone(), "wage", "gender", "F");
     builder_neumark
         .predictors(vec!["education", "experience"])
-        .reference_coefficients(ReferenceCoefficients::Neumark);
+        .reference_coefficients(neumark);
     let results_neumark = builder_neumark.run().expect("Neumark decomposition failed");
-
     assert!(results_neumark.total_gap() > &0.0);
+
+    let mut builder_pooled = OaxacaBuilder::new(df.clone(), "wage", "gender", "F");
+    builder_pooled
+        .predictors(vec!["education", "experience"])
+        .reference_coefficients(ReferenceCoefficients::Pooled);
+    let results_pooled = builder_pooled.run().expect("Pooled decomposition failed");
+    assert_eq!(
+        results_neumark.unexplained().unwrap().estimate,
+        results_pooled.unexplained().unwrap().estimate,
+        "the Neumark alias must keep computing Pooled"
+    );
+
+    // PooledNoIndicator is the estimator Neumark's name promised: same data, different number.
+    let mut builder_omega = OaxacaBuilder::new(df, "wage", "gender", "F");
+    builder_omega
+        .predictors(vec!["education", "experience"])
+        .reference_coefficients(ReferenceCoefficients::PooledNoIndicator);
+    let results_omega = builder_omega.run().expect("PooledNoIndicator failed");
+    let (omega, pooled) = (
+        results_omega.unexplained().unwrap().estimate,
+        results_pooled.unexplained().unwrap().estimate,
+    );
+    assert!(
+        (omega - pooled).abs() > 1e-6,
+        "PooledNoIndicator ({omega}) must differ from Pooled ({pooled})"
+    );
+    // Both are valid two-folds: explained + unexplained == gap.
+    assert!(
+        (results_omega.explained().unwrap().estimate + omega - results_omega.total_gap).abs()
+            < 1e-9
+    );
 }
 
 #[test]

@@ -36,7 +36,7 @@ self.onmessage = async ({ data }) => {
       categorical_predictors: null,
       three_fold: threeFold,
       quantile: null,
-      reference_coefficients: null,
+      reference_coefficients: "Pooled",
       bootstrap_reps: 64, // enough bootstrap work that a non-ordered reduction would diverge
     });
     const result = { three_fold: decompose(request(true)), two_fold: decompose(request(false)) };

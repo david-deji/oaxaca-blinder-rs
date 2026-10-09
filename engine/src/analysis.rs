@@ -5,7 +5,33 @@ use oaxaca_blinder::{OaxacaBuilder, ReferenceCoefficients, RowAccounting};
 use polars::prelude::*;
 use statrs::distribution::{ContinuousCDF, Normal};
 
+/// The scheme a decomposition request names. Strict (0120-MERIDIAN S4): an absent value or any
+/// string other than `GroupA`, `GroupB`, `Pooled`, `PooledNoIndicator`, `Weighted` is an error.
+/// It used to fall back to `Pooled`, which made the scheme with the least external
+/// verification the silent default for every caller that forgot the field.
+fn parse_reference_coefficients(
+    req: &DecompositionRequest,
+) -> Result<ReferenceCoefficients, String> {
+    ReferenceCoefficients::parse_name(req.reference_coefficients.as_deref())
+        .map_err(|e| e.to_string())
+}
+
+/// Stamps the engine-layer provenance fields on a result's `run_metadata`. Set here and not in
+/// the library so a raw library run keeps the bytes it always had.
+fn stamp_engine_metadata(
+    meta: &mut oaxaca_blinder::RunMetadata,
+    scheme: ReferenceCoefficients,
+    method: &str,
+) {
+    meta.reference_coefficients_used = Some(scheme.canonical_name().to_string());
+    meta.engine_version = Some(env!("CARGO_PKG_VERSION").to_string());
+    meta.method = Some(method.to_string());
+}
+
 pub fn decompose_inner(req: DecompositionRequest) -> Result<DecompositionResult, String> {
+    // Refuse a missing or unknown scheme before reading any data.
+    parse_reference_coefficients(&req)?;
+
     // 1. Load Data
     let mut df = read_csv(&req.csv_data)?;
 
@@ -57,6 +83,9 @@ fn row_accounting(df: &DataFrame, req: &DecompositionRequest) -> Result<RowAccou
 }
 
 pub fn verify_inner(req: VerificationRequest) -> Result<DecompositionResult, String> {
+    // Refuse a missing or unknown scheme before reading any data.
+    parse_reference_coefficients(&req.decomposition_params)?;
+
     // 1. Load Data
     let mut df = read_csv(&req.decomposition_params.csv_data)?;
 
@@ -196,13 +225,7 @@ fn run_decomposition_on_df(
         .map(|c| c.iter().map(|s| s.as_str()).collect());
     let reps = req.bootstrap_reps.unwrap_or(100);
 
-    // Parse Reference Coefficients
-    let ref_coef = match req.reference_coefficients.as_deref() {
-        Some("GroupA") => ReferenceCoefficients::GroupA,
-        Some("GroupB") => ReferenceCoefficients::GroupB,
-        Some("Weighted") => ReferenceCoefficients::Weighted,
-        _ => ReferenceCoefficients::Pooled, // Default
-    };
+    let ref_coef = parse_reference_coefficients(req)?;
 
     // 2. Build and Run Oaxaca or Quantile Decomposition
     let (
@@ -234,6 +257,10 @@ fn run_decomposition_on_df(
         if let Some(cats) = &cats_vec {
             builder.categorical_predictors(cats.iter().copied());
         }
+        // Every categorical predictor is normalised on every run (0120-MERIDIAN T1), under the
+        // pooled-sample population shares (D1): a level's driver row is its deviation from
+        // the company-wide average employee, not from whichever level sorts first.
+        builder.normalize_all_categoricals();
 
         builder.bootstrap_reps(reps);
 
@@ -286,7 +313,11 @@ fn run_decomposition_on_df(
             d_exp,
             d_unexp,
             unexplained_std_err,
-            results.run_metadata().clone(),
+            {
+                let mut meta = results.run_metadata().clone();
+                stamp_engine_metadata(&mut meta, ref_coef, "rif-quantile");
+                meta
+            },
         )
     } else {
         // STANDARD OLS DECOMPOSITION
@@ -303,6 +334,8 @@ fn run_decomposition_on_df(
         if let Some(cats) = &cats_vec {
             builder.categorical_predictors(cats.iter().copied());
         }
+        // Same rule as the quantile branch above.
+        builder.normalize_all_categoricals();
 
         builder.bootstrap_reps(reps);
 
@@ -372,7 +405,11 @@ fn run_decomposition_on_df(
             d_exp,
             d_unexp,
             unexplained_std_err,
-            results.run_metadata().clone(),
+            {
+                let mut meta = results.run_metadata().clone();
+                stamp_engine_metadata(&mut meta, ref_coef, "oaxaca-blinder-mean");
+                meta
+            },
         )
     };
 
@@ -527,20 +564,11 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
     )?;
     check_alignment("target", raw_x_b.nrows(), y_b.len(), target_rows.len())?;
 
-    let cols_a = raw_x_a.ncols();
-    let predictors_count = req.predictors.len();
-
-    // Strategy for Intercept:
-    // If the matrices don't have an intercept (column of 1s), we add it.
-    let (x_a, x_b) = if cols_a > predictors_count {
-        (raw_x_a.clone(), raw_x_b.clone())
-    } else {
-        feature_names.push("Base Rate (Intercept)".to_string());
-        (
-            raw_x_a.clone().insert_column(cols_a, 1.0),
-            raw_x_b.clone().insert_column(raw_x_b.ncols(), 1.0),
-        )
-    };
+    // The builder's matrices always start with the reserved intercept column
+    // (`oaxaca_blinder::INTERCEPT_NAME`), so there is nothing to add. A second code path here
+    // used to push an extra "Base Rate (Intercept)" column and name when the matrix looked too
+    // narrow; it was unreachable, and a name nobody could filter on (0120-MERIDIAN S3).
+    let (x_a, x_b) = (raw_x_a, raw_x_b);
 
     // Safety fallback for feature names
     while feature_names.len() < x_b.ncols() {
@@ -1127,7 +1155,9 @@ pub fn calculate_efficient_frontier_inner(
     // column `__ob_intercept__` injected by OaxacaBuilder::prepare_data — match only that name.
     // A fuzzy "intercept"/"const" match would misclassify a user predictor literally named
     // `intercept` or `const` as the intercept and silently drop it from the pooled design matrix.
-    let intercept_idx = _feature_names.iter().position(|f| f == "__ob_intercept__");
+    let intercept_idx = _feature_names
+        .iter()
+        .position(|f| f == oaxaca_blinder::INTERCEPT_NAME);
 
     let cols_a = x_a.ncols();
 
@@ -1346,7 +1376,7 @@ mod tests {
             categorical_predictors: Some(vec!["department".to_string()]),
             three_fold: Some(false),
             quantile: None,
-            reference_coefficients: None,
+            reference_coefficients: Some("Pooled".to_string()),
             bootstrap_reps: Some(10), // Fast test
         };
 
@@ -1444,7 +1474,7 @@ mod tests {
             categorical_predictors: None,
             three_fold: None,
             quantile: Some(0.5), // Median
-            reference_coefficients: None,
+            reference_coefficients: Some("Pooled".to_string()),
             bootstrap_reps: Some(10),
         };
 
@@ -1526,7 +1556,7 @@ mod tests {
                 categorical_predictors: None,
                 three_fold: None,
                 quantile: None,
-                reference_coefficients: None,
+                reference_coefficients: Some("Pooled".to_string()),
                 bootstrap_reps: None,
             },
             steps: Some(10),
@@ -1574,7 +1604,7 @@ mod tests {
             categorical_predictors: None,
             three_fold: None,
             quantile: None,
-            reference_coefficients: None,
+            reference_coefficients: Some("Pooled".to_string()),
             bootstrap_reps: Some(10),
         };
 
@@ -1598,7 +1628,7 @@ mod tests {
             categorical_predictors: None,
             three_fold: None,
             quantile: None,
-            reference_coefficients: None,
+            reference_coefficients: Some("Pooled".to_string()),
             bootstrap_reps: Some(10),
         };
 

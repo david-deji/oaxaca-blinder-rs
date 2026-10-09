@@ -542,7 +542,7 @@ async fn handle_protocol(req: JsonRpcRequest) -> Option<JsonRpcResponse> {
             "tools": [
                 {
                     "name": "forensic_decomposition",
-                    "description": "Perform Oaxaca-Blinder pay equity decomposition.",
+                    "description": "Perform Oaxaca-Blinder pay equity decomposition. reference_coefficients is required and names the counterfactual the headline is computed under. Per-level rows of categorical predictors in detailed_explained / detailed_unexplained are deviations from the pooled-sample share-weighted average of all levels (every level, the alphabetically first included); the constant is the entry named \"__ob_intercept__\" and is not a driver. result.run_metadata records the scheme, the normalisation convention and its level shares.",
                     "inputSchema": {
                         "type": "object",
                         "properties": {
@@ -554,10 +554,10 @@ async fn handle_protocol(req: JsonRpcRequest) -> Option<JsonRpcResponse> {
                             "categorical_predictors": { "type": "array", "items": { "type": "string" } },
                             "three_fold": { "type": "boolean" },
                             "quantile": { "type": "number" },
-                            "reference_coefficients": { "type": "string", "enum": ["Pooled", "GroupA", "GroupB", "Weighted"] },
+                            "reference_coefficients": { "type": "string", "enum": ["GroupA", "GroupB", "Pooled", "PooledNoIndicator", "Weighted"], "description": "Whose pay structure prices the characteristics gap. GroupB: the reference group's own coefficients (the compared group is priced as if paid under the reference group's pay structure). GroupA: the compared (non-reference) group's own coefficients. Pooled: one regression on both groups with a group indicator; the unexplained gap equals the indicator's coefficient (Jann 2008 pooled). PooledNoIndicator: one regression on both groups without an indicator (Neumark 1988, Stata omega). Weighted: the sample-share-weighted average of the two groups' coefficients (Cotton 1988). Exact, case-sensitive; any other value, or none, is an error." },
                             "bootstrap_reps": { "type": "integer" }
                         },
-                        "required": ["csv_content", "outcome_variable", "group_variable", "reference_group", "predictors"]
+                        "required": ["csv_content", "outcome_variable", "group_variable", "reference_group", "predictors", "reference_coefficients"]
                     }
                 },
                 {
@@ -581,7 +581,7 @@ async fn handle_protocol(req: JsonRpcRequest) -> Option<JsonRpcResponse> {
                 },
                 {
                     "name": "verify_adjustments",
-                    "description": "Validate a set of proposed wage adjustments by re-running the decomposition.",
+                    "description": "Validate a set of proposed wage adjustments by re-running the decomposition under reference_coefficients (required; same meaning as in forensic_decomposition).",
                     "inputSchema": {
                         "type": "object",
                         "properties": {
@@ -590,6 +590,8 @@ async fn handle_protocol(req: JsonRpcRequest) -> Option<JsonRpcResponse> {
                             "group_variable": { "type": "string" },
                             "reference_group": { "type": "string" },
                             "predictors": { "type": "array", "items": { "type": "string" } },
+                            "categorical_predictors": { "type": "array", "items": { "type": "string" } },
+                            "reference_coefficients": { "type": "string", "enum": ["GroupA", "GroupB", "Pooled", "PooledNoIndicator", "Weighted"], "description": "Whose pay structure prices the characteristics gap. GroupB: the reference group's own coefficients (the compared group is priced as if paid under the reference group's pay structure). GroupA: the compared (non-reference) group's own coefficients. Pooled: one regression on both groups with a group indicator; the unexplained gap equals the indicator's coefficient (Jann 2008 pooled). PooledNoIndicator: one regression on both groups without an indicator (Neumark 1988, Stata omega). Weighted: the sample-share-weighted average of the two groups' coefficients (Cotton 1988). Exact, case-sensitive; any other value, or none, is an error." },
                             "adjustments": {
                                 "type": "array",
                                 "items": {
@@ -602,7 +604,7 @@ async fn handle_protocol(req: JsonRpcRequest) -> Option<JsonRpcResponse> {
                                 }
                             }
                         },
-                        "required": ["csv_content", "outcome_variable", "group_variable", "reference_group", "predictors", "adjustments"]
+                        "required": ["csv_content", "outcome_variable", "group_variable", "reference_group", "predictors", "reference_coefficients", "adjustments"]
                     }
                 },
                 {

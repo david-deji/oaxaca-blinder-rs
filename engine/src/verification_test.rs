@@ -328,7 +328,7 @@ mod tests {
                 categorical_predictors: Some(vec!["department".to_string()]),
                 three_fold: None,
                 quantile: None,
-                reference_coefficients: None,
+                reference_coefficients: Some("Pooled".to_string()),
                 bootstrap_reps: None,
             },
             adjustments: vec![ProposedAdjustment {
@@ -374,7 +374,7 @@ mod tests {
                 categorical_predictors: Some(vec!["department".to_string()]),
                 three_fold: None,
                 quantile: None,
-                reference_coefficients: None,
+                reference_coefficients: Some("Pooled".to_string()),
                 bootstrap_reps: None,
             },
             adjustments: vec![ProposedAdjustment {
@@ -668,7 +668,7 @@ mod tests {
             categorical_predictors: Some(vec!["department".to_string()]),
             three_fold: None,
             quantile: None,
-            reference_coefficients: None,
+            reference_coefficients: Some("Pooled".to_string()),
             bootstrap_reps: None,
         }
     }

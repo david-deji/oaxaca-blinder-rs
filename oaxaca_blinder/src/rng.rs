@@ -108,6 +108,29 @@ pub struct RunMetadata {
     /// serialization there so the mean-path bytes are unchanged (AC-9/AC-6 baselines hold).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fixed_rif: Option<bool>,
+    /// Categorical-coefficient normalisation actually requested for this run (0120-MERIDIAN
+    /// S1): the convention, the share basis and the restriction weights of the POINT-estimate
+    /// sample (bootstrap replicates recompute theirs from each replicate's pooled resample).
+    /// `None` when the caller did not call `normalize()`, and omitted from serialization then,
+    /// so the raw-library bytes (AC-9 / AC-6 baselines) are unchanged.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub normalization: Option<crate::math::normalization::NormalizationRecord>,
+    /// The `reference_coefficients` scheme the headline was computed under. Set by the engine
+    /// layer (the library leaves it `None`, so raw-library bytes are unchanged). 0120 T11.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reference_coefficients_used: Option<String>,
+    /// Version of the `pay-equity-engine` crate that produced the result. Engine layer only.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub engine_version: Option<String>,
+    /// Method marker set by the engine layer: `"oaxaca-blinder-mean"` or `"rif-quantile"`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub method: Option<String>,
+    /// `variable=level` entries for every categorical level that was absent from a bootstrap
+    /// resample of a group and so made that replicate fail (the replicate is discarded and
+    /// counted in `bootstrap_reps_discarded`). Sorted, de-duplicated; omitted when empty. A
+    /// level listed here is estimated from fewer replicates than the others.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub bootstrap_discard_levels: Vec<String>,
 }
 
 impl RunMetadata {
@@ -122,6 +145,11 @@ impl RunMetadata {
             bootstrap_reps_succeeded: succeeded,
             bootstrap_reps_discarded: discarded,
             fixed_rif: None,
+            normalization: None,
+            reference_coefficients_used: None,
+            engine_version: None,
+            method: None,
+            bootstrap_discard_levels: Vec::new(),
         }
     }
 

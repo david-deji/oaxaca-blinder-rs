@@ -124,7 +124,7 @@ mod tests {
                 categorical_predictors: None,
                 three_fold: Some(false),
                 quantile: None,
-                reference_coefficients: None,
+                reference_coefficients: Some("Pooled".to_string()),
                 bootstrap_reps: None,
             },
             steps: Some(10),
@@ -168,7 +168,7 @@ mod tests {
                 categorical_predictors: None,
                 three_fold: Some(false),
                 quantile: None,
-                reference_coefficients: None,
+                reference_coefficients: Some("Pooled".to_string()),
                 bootstrap_reps: None,
             },
             adjustments: vec![

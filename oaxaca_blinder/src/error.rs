@@ -46,6 +46,15 @@ pub enum OaxacaError {
         group_column: String,
         reference_group: String,
     },
+    /// A `reference_coefficients` name that is not one of the accepted schemes, or none at all
+    /// (0120-MERIDIAN S4). The shipped surfaces used to fall back to `Pooled` for anything
+    /// unrecognised, which made the least-verified scheme the silent default.
+    UnknownReferenceCoefficients {
+        /// What the caller sent; `None` when the field was absent.
+        given: Option<String>,
+    },
+    /// A normalisation request the data cannot satisfy (0120-MERIDIAN S1).
+    NormalizationError(String),
 }
 
 impl From<PolarsError> for OaxacaError {
@@ -107,6 +116,22 @@ impl fmt::Display for OaxacaError {
                 "REFERENCE_GROUP_ABSENT: column={}, reference_group={:?}",
                 group_column, reference_group
             ),
+            OaxacaError::UnknownReferenceCoefficients { given } => {
+                let valid = crate::decomposition::ReferenceCoefficients::ACCEPTED_NAMES.join(", ");
+                match given {
+                    Some(g) => write!(
+                        f,
+                        "UNKNOWN_REFERENCE_COEFFICIENTS: got {:?}; reference_coefficients must be exactly one of: {}",
+                        g, valid
+                    ),
+                    None => write!(
+                        f,
+                        "UNKNOWN_REFERENCE_COEFFICIENTS: reference_coefficients is required and was absent; it must be exactly one of: {}",
+                        valid
+                    ),
+                }
+            }
+            OaxacaError::NormalizationError(s) => write!(f, "Normalization error: {}", s),
         }
     }
 }

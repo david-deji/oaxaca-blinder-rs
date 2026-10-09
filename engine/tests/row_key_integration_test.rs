@@ -100,7 +100,7 @@ fn decomposition_params(csv: &str) -> DecompositionRequest {
         categorical_predictors: None,
         three_fold: None,
         quantile: None,
-        reference_coefficients: None,
+        reference_coefficients: Some("Pooled".to_string()),
         bootstrap_reps: Some(10),
     }
 }
