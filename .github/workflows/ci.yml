@@ -38,7 +38,6 @@ jobs:
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@4aab473fa1157d90c6dc14f879ca54797e16fea0 # 1.90.0 branch
         with:
-          toolchain: 1.90.0
           components: rustfmt, clippy
 
       - name: Rust Cache
@@ -67,8 +66,6 @@ jobs:
       # cargo tree (ignore validator) resolves the workspace under the toolchain rust-toolchain.toml pins.
       - name: Setup Rust toolchain (1.90.0, matches rust-toolchain.toml)
         uses: dtolnay/rust-toolchain@4aab473fa1157d90c6dc14f879ca54797e16fea0 # 1.90.0 branch
-        with:
-          toolchain: 1.90.0
 
       # Prebuilt binary, exact version. Building cargo-audit from source needs a newer rustc than the
       # pinned 1.90.0, which is why rustsec/audit-check audited nothing from the day the toolchain was pinned.
@@ -97,8 +94,6 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@4aab473fa1157d90c6dc14f879ca54797e16fea0 # 1.90.0 branch
-        with:
-          toolchain: 1.90.0
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2.8.0
@@ -124,7 +119,6 @@ jobs:
       - name: Setup stable (matches rust-toolchain.toml)
         uses: dtolnay/rust-toolchain@4aab473fa1157d90c6dc14f879ca54797e16fea0 # 1.90.0 branch
         with:
-          toolchain: 1.90.0
           targets: wasm32-unknown-unknown
 
       - name: Rust Cache
@@ -191,7 +185,7 @@ jobs:
 
       # Pinned nightly for the THREADED pass (build-std + atomics).
       - name: Setup pinned nightly (rust-src + wasm target)
-        uses: dtolnay/rust-toolchain@4aab473fa1157d90c6dc14f879ca54797e16fea0 # 1.90.0 branch
+        uses: dtolnay/rust-toolchain@f0d5300ba8908d942c808f4d31c08471d7798ba3 # nightly branch (takes the toolchain input)
         with:
           toolchain: nightly-2025-06-27
           components: rust-src
@@ -199,8 +193,6 @@ jobs:
 
       - name: Setup stable (default toolchain, as rust-toolchain.toml says)
         uses: dtolnay/rust-toolchain@4aab473fa1157d90c6dc14f879ca54797e16fea0 # 1.90.0 branch
-        with:
-          toolchain: 1.90.0
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2.8.0
@@ -273,7 +265,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup pinned nightly (rust-src + wasm target)
-        uses: dtolnay/rust-toolchain@4aab473fa1157d90c6dc14f879ca54797e16fea0 # 1.90.0 branch
+        uses: dtolnay/rust-toolchain@f0d5300ba8908d942c808f4d31c08471d7798ba3 # nightly branch (takes the toolchain input)
         with:
           toolchain: nightly-2025-06-27
           components: rust-src
@@ -281,8 +273,6 @@ jobs:
 
       - name: Setup stable (default toolchain, as rust-toolchain.toml says)
         uses: dtolnay/rust-toolchain@4aab473fa1157d90c6dc14f879ca54797e16fea0 # 1.90.0 branch
-        with:
-          toolchain: 1.90.0
 
       # No rust-cache on purpose: both builds below use non-default CARGO_TARGET_DIRs and must recompile
       # std from source under -Zbuild-std, so a restored cache cannot mask nondeterminism (W8).
@@ -330,8 +320,6 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@4aab473fa1157d90c6dc14f879ca54797e16fea0 # 1.90.0 branch
-        with:
-          toolchain: 1.90.0
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2.8.0
@@ -464,8 +452,6 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@4aab473fa1157d90c6dc14f879ca54797e16fea0 # 1.90.0 branch
-        with:
-          toolchain: 1.90.0
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2.8.0
