@@ -2,7 +2,7 @@
 """Tests for scripts/ground.sh and scripts/verify-live.sh (0119-MERIDIAN S6, verification V6).
 
     python3 scripts/test-loop-scripts.py                 # all
-    python3 scripts/test-loop-scripts.py ground-nopath   # one of: ground-nopath ground-normal verify-live-corrupt
+    python3 scripts/test-loop-scripts.py ground-nopath   # one of: ground-nopath ground-normal ground-validator verify-live-corrupt verify-live-dirty
 
 Each test writes its output under target/ (never /tmp: disk is tight) and removes it afterwards.
   ground-nopath         ground.sh with `gh` and `cargo` removed from PATH exits 0, and errors[] names both.
@@ -158,7 +158,23 @@ def test_ground_validator():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
-TESTS = {"ground-nopath": test_ground_nopath, "ground-normal": test_ground_normal, "ground-validator": test_ground_validator, "verify-live-corrupt": test_verify_live_corrupt}
+def test_verify_live_dirty():
+    print("verify-live-dirty: a dirty tree is refused")
+    tmp = scratch("vldirty")
+    probe = ROOT / "scripts" / ".dirty-probe"
+    try:
+        probe.write_text("untracked\n")
+        env = dict(os.environ, GROUND_DIR=str(tmp / "ground"))
+        p = subprocess.run(["bash", str(ROOT / "scripts" / "verify-live.sh"), "0119-dirty"], cwd=ROOT, env=env, capture_output=True, text=True, timeout=120)
+        check(p.returncode == 2, f"exit code is 2 (got {p.returncode})")
+        check("refusing to run on a dirty tree" in p.stderr and ".dirty-probe" in p.stderr, "stderr names the dirty path")
+        check(not (tmp / "ground" / "receipts").exists(), "no receipt was written")
+    finally:
+        probe.unlink(missing_ok=True)
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+TESTS = {"ground-nopath": test_ground_nopath, "ground-normal": test_ground_normal, "ground-validator": test_ground_validator, "verify-live-corrupt": test_verify_live_corrupt, "verify-live-dirty": test_verify_live_dirty}
 
 if __name__ == "__main__":
     wanted = sys.argv[1:] or list(TESTS)

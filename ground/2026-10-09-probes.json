@@ -1,0 +1,171 @@
+{
+  "ran_at": "2026-10-09T06:57:19Z",
+  "commit": "7db5e60",
+  "suites": {
+    "cargo": {
+      "passed": 278,
+      "failed": 0,
+      "skipped": 2,
+      "files": 41,
+      "measured": 0,
+      "listed_total": 280,
+      "listed_binaries": 41,
+      "exit_code": 0,
+      "elapsed_seconds": 24,
+      "failed_tests": [],
+      "coverage_delta": {
+        "previous_total": 298,
+        "total": 280,
+        "shrank": true
+      }
+    },
+    "node_unit": {
+      "passed": 18,
+      "failed": 0,
+      "skipped": 0,
+      "files": 2,
+      "exit_code": 0
+    }
+  },
+  "gate_receipts": {
+    "WASM Build + Verify (dual-artifact, Strategy A)": {
+      "last_ran": "2026-10-09T03:37:18Z",
+      "age_hours": 3.34,
+      "conclusion": "failure",
+      "dark": false,
+      "run_id": 37879682968
+    },
+    "Security Audit": {
+      "last_ran": "2026-10-09T03:32:00Z",
+      "age_hours": 3.43,
+      "conclusion": "failure",
+      "dark": false,
+      "run_id": 37879682968
+    },
+    "Memory Ceiling (50k @ N=8 < 326 MiB)": {
+      "last_ran": "2026-10-09T03:32:27Z",
+      "age_hours": 3.42,
+      "conclusion": "success",
+      "dark": false,
+      "run_id": 37879682968
+    },
+    "Quality Gates (Lint, Test, Fmt)": {
+      "last_ran": "2026-10-09T03:47:43Z",
+      "age_hours": 3.17,
+      "conclusion": "success",
+      "dark": false,
+      "run_id": 37879682968
+    },
+    "Benchmark (Rust methods, non-blocking)": {
+      "last_ran": "2026-10-09T03:31:40Z",
+      "age_hours": 3.43,
+      "conclusion": "skipped",
+      "dark": true,
+      "run_id": 37879682968
+    },
+    "Browser Byte-Parity (COI, threaded WASM, seq/t2/t4)": {
+      "last_ran": "2026-10-09T03:37:18Z",
+      "age_hours": 3.34,
+      "conclusion": "skipped",
+      "dark": true,
+      "run_id": 37879682968
+    }
+  },
+  "verify_live": {
+    "last_receipt": "ground/receipts/0119-live.json",
+    "ran_at": "2026-10-09T06:55:50Z",
+    "age_hours": 0.03,
+    "result": "pass"
+  },
+  "register_drift": {
+    "counter": null,
+    "highest_file": null,
+    "rows_missing": [],
+    "applicable": false,
+    "reason": "oaxaca-blinder-rs has no REGISTER.md; its issues live in pay-equity-app/issues and its GitHub issues are listed in open_issues"
+  },
+  "open_issues": [],
+  "flake_recurrence": [],
+  "app_specific": {
+    "probe_reasons": {},
+    "ci_main_run": {
+      "run_id": 37879682968,
+      "conclusion": "failure",
+      "head_sha": "1b9a3e584141dcb993c29b85f73a3b9944d8bf4e",
+      "event": "push",
+      "created_at": "2026-10-09T03:31:39Z",
+      "age_hours": 3.17
+    },
+    "wasm_verify": {
+      "ran_at": "2026-10-09T06:57:53Z",
+      "commit": "7db5e607982c7e1b6f47bd1eab1cdf9af628da43",
+      "dirty_paths": 0,
+      "sequential": {
+        "built": "e70dcee6bb56d53d9100c6c34885b74d42e80f58d8ae2498a031aba8aeb7e360",
+        "head_baseline": "e70dcee6bb56d53d9100c6c34885b74d42e80f58d8ae2498a031aba8aeb7e360",
+        "match": true
+      },
+      "threaded": {
+        "built": "a80a9d807963996ace3721ad143d50e71f4cf31d32851db0abaaa62b72919f9c",
+        "head_baseline": "a80a9d807963996ace3721ad143d50e71f4cf31d32851db0abaaa62b72919f9c",
+        "match": true
+      },
+      "match": true,
+      "exit_code": 0
+    },
+    "cargo_audit": {
+      "vulnerabilities": 0,
+      "warnings": 0,
+      "warnings_by_kind": {},
+      "exit_code": 0
+    },
+    "dependabot": {
+      "open": 2,
+      "alerts": [
+        {
+          "number": 15,
+          "package": "xxhash-rust"
+        },
+        {
+          "number": 8,
+          "package": "rand"
+        }
+      ]
+    },
+    "required_checks": {
+      "required": [],
+      "ci_job_names": [
+        "Benchmark (Rust methods, non-blocking)",
+        "Browser Byte-Parity (COI, threaded WASM, seq/t2/t4)",
+        "Memory Ceiling (50k @ N=8 < 326 MiB)",
+        "Native Baseline (parity input)",
+        "Quality Gates (Lint, Test, Fmt)",
+        "Security Audit",
+        "WASM Sequential (build, bindgen, baseline compare)",
+        "WASM Threaded (build, bindgen, baseline compare)",
+        "WASM Threaded Reproducibility (double-build)",
+        "gate"
+      ],
+      "missing_in_ci": [],
+      "protected": false,
+      "note": "main has no branch protection"
+    },
+    "ci_invariants": {
+      "exit_code": 0,
+      "ok": true,
+      "output": "workflow invariants: gating jobs = ['browser-parity', 'memory-ceiling', 'native-baseline', 'quality', 'security', 'wasm-repro', 'wasm-seq', 'wasm-threaded']\nworkflow invariants: ok"
+    },
+    "total_tests": {
+      "total": 298,
+      "previous": 298
+    }
+  },
+  "errors": [
+    "validator: gating job `WASM Sequential (build, bindgen, baseline compare)` (wasm-seq) has no entry in the latest completed main run (main's CI predates the gate)",
+    "validator: gating job `WASM Threaded (build, bindgen, baseline compare)` (wasm-threaded) has no entry in the latest completed main run (main's CI predates the gate)",
+    "validator: gating job `WASM Threaded Reproducibility (double-build)` (wasm-repro) has no entry in the latest completed main run (main's CI predates the gate)",
+    "validator: gating job `Native Baseline (parity input)` (native-baseline) has no entry in the latest completed main run (main's CI predates the gate)",
+    "validator: gating job `Browser Byte-Parity (COI, threaded WASM, seq/t2/t4)` has no completed conclusion in the latest main run (conclusion: skipped)",
+    "validator: gating job `gate` (gate) has no entry in the latest completed main run (main's CI predates the gate)"
+  ]
+}
