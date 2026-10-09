@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+### Added (0119-MERIDIAN S7 + S6, 2026-10-09)
+- `scripts/build-wasm.sh --verify` builds both raw blobs and compares them with `git show HEAD:engine/*.sha256`;
+  it never writes a baseline, never publishes, and exits 1 on a mismatch (result in `target/wasm-verify.json`).
+  `--record` is now the only mode that writes `engine/*.sha256`; the default build no longer rewrites them.
+- Publishing writes `engine-manifest.json` beside each shipped blob: raw sha256, shipped `_bg.wasm` sha256,
+  engine commit, dirty flag. wasm-bindgen output is not deterministic (two runs over one raw blob differ in
+  123 bytes of the `_bg.wasm`; the glue JS is identical), so the shipped blob can only be checked against its
+  manifest, never against a committed hash. The app's freshness gate compares content instead of mtimes.
+- The publish list no longer copies a stale `pay_equity_engine_bg.js` from an old bundler build, and the
+  sequential `package.json` is written by the script instead of existing only in the gitignored `engine/pkg/`.
+- `scripts/ground.sh` (deterministic probes, exit 0 always, `errors[]` plus a stderr banner) and
+  `scripts/verify-live.sh <epic>` (refuses a dirty tree, writes `ground/receipts/<epic>-live.json`) for the dev loop;
+  `scripts/test-loop-scripts.py` tests both, including `gh` and `cargo` removed from PATH.
+
 ### Changed (0119-MERIDIAN S2 + S3, 2026-10-09)
 - CI jobs can no longer silence each other. `wasm-verify` is split into `wasm-seq`, `wasm-threaded`, `wasm-repro`
   and `native-baseline`; `browser-parity` runs after `wasm-threaded` and `native-baseline` even when a hash
