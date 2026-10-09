@@ -18,6 +18,7 @@
 ## Flake registry
 | Test / gate | First seen | Epics carried | Last status | Root cause (or "unknown") |
 |---|---|---|---|---|
+| `null_free_regression_test` `decompose/parity_fixture` (CI only) | 0118 | 0 (fixed in-epic) | pass | last-bit float differences between machines on the largest design (CPU-dispatched matrix kernels, inferred); a bit-identity hash cannot hold across machines, so the golden is now the pre-0118 JSON compared at 1e-9 relative |
 
 ## Dark-gate registry
 | Gate | What it guards | Last-ran receipt | Age |
@@ -39,7 +40,8 @@
 ## Receipts
 | Epic | verify-live receipt | Result | Commit |
 |---|---|---|---|
-| 0117 (PR triage) | none: no `verify-live.sh` in this repo. Local gates: fmt clean, clippy -D warnings clean, 211/211 tests; CI Quality Gates pass on #96 | pass (gates only) | 9e4bd97 |
+| 0117 (PR triage) | none: no `verify-live.sh` in this repo. Local gates: fmt clean, clippy -D warnings clean, 211/211 tests; CI Quality Gates pass on #96. App receipt `pay-equity-app/ground/receipts/0117-live.json` pass 10/10 | pass | 9e4bd97 |
+| 0118 (rows land on own employee) | `pay-equity-app/ground/receipts/0118-live.json` pass 11/11, new permanent check `remedy_dollars_land_on_own_employee` (red, 239 violations, on a build from the pre-fix blobs); engine CI Quality Gates pass on #97; V8 mutation table (a)-(h) all red-then-restored | pass | engine cf7a2af, app 1fc7143a |
 
 ## Cost log
 | Epic | Output tokens by model | Orchestrator share | Wall-clock | Source |
