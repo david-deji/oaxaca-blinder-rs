@@ -68,7 +68,8 @@ def run(cmd: list, timeout: int, cwd: Path = ROOT) -> tuple:
 
 def git(args: list, cwd: Path = ROOT) -> str:
     rc, out = run(["git"] + args, 30, cwd)
-    return out.strip() if rc == 0 else ""
+    # rstrip("\n") only: `git status --porcelain` lines begin with a space, which strip() would eat
+    return out.rstrip("\n") if rc == 0 else ""
 
 
 def main() -> int:
