@@ -117,6 +117,7 @@ pub use matching::engine::MatchingEngine;
 pub use math::normalization::{
     FactorShares, LevelShare, NormalizationConvention, NormalizationRecord, ShareMap,
 };
+pub use math::weights::{weighted_quantile, WeightsKind};
 #[allow(deprecated)]
 pub use quantile_decomposition::QuantileDecompositionBuilder;
 pub use rng::{RunMetadata, DEFAULT_SEED};

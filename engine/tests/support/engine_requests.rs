@@ -64,6 +64,7 @@ pub fn verification_request(
     VerificationRequest {
         decomposition_params: decomposition_request(csv, categorical),
         adjustments,
+        confidence_level: None,
     }
 }
 
@@ -76,6 +77,7 @@ pub fn frontier_request(
         decomposition_params: decomposition_request(csv, false),
         steps: Some(steps),
         max_budget,
+        confidence_level: None,
     }
 }
 

@@ -153,6 +153,9 @@ struct McpVerificationParams {
     #[serde(flatten)]
     pub decomposition_params: McpDecompositionParams,
     pub adjustments: Vec<McpProposedAdjustment>,
+    /// Level of the prediction interval `check_defensibility` scores against (0120 S7).
+    #[serde(default)]
+    pub confidence_level: Option<f64>,
 }
 
 impl From<McpVerificationParams> for VerificationRequest {
@@ -160,8 +163,18 @@ impl From<McpVerificationParams> for VerificationRequest {
         Self {
             decomposition_params: p.decomposition_params.into(),
             adjustments: p.adjustments.into_iter().map(|a| a.into()).collect(),
+            confidence_level: p.confidence_level,
         }
     }
+}
+
+#[derive(Deserialize)]
+struct McpFrontierParams {
+    #[serde(flatten)]
+    pub decomposition_params: McpDecompositionParams,
+    /// Level whose complement is the significance threshold of each frontier point (0120 S7).
+    #[serde(default)]
+    pub confidence_level: Option<f64>,
 }
 
 #[tokio::main]
@@ -609,7 +622,7 @@ async fn handle_protocol(req: JsonRpcRequest) -> Option<JsonRpcResponse> {
                 },
                 {
                     "name": "check_defensibility",
-                    "description": "Audit specific adjustments for legal/statistical defensibility with predictor overrides.",
+                    "description": "Score each proposed adjustment against the 95% (or confidence_level) prediction range of comparable reference-group employees: the share of adjusted wages that land inside that range. Student t on the reference regression's residual degrees of freedom. Each row also says whether its fair wage extends the reference group's pay line beyond the range that group occupies (extrapolated). Predictor overrides are supported.",
                     "inputSchema": {
                         "type": "object",
                         "properties": {
@@ -618,6 +631,7 @@ async fn handle_protocol(req: JsonRpcRequest) -> Option<JsonRpcResponse> {
                             "group_variable": { "type": "string" },
                             "reference_group": { "type": "string" },
                             "predictors": { "type": "array", "items": { "type": "string" } },
+                            "confidence_level": { "type": "number", "description": "Level of the prediction range, e.g. 0.90. Clamped to 0.50-0.999; default 0.95." },
                             "adjustments": {
                                 "type": "array",
                                 "items": {
@@ -636,7 +650,7 @@ async fn handle_protocol(req: JsonRpcRequest) -> Option<JsonRpcResponse> {
                 },
                 {
                     "name": "generate_efficient_frontier",
-                    "description": "Calculate the Efficient Frontier curve (Budget vs Statistical Significance).",
+                    "description": "Calculate the Efficient Frontier curve (Budget vs Statistical Significance). Each point carries the pooled regression's group coefficient, its Student t statistic and two-sided p-value on the pooled residual degrees of freedom.",
                     "inputSchema": {
                         "type": "object",
                         "properties": {
@@ -644,7 +658,8 @@ async fn handle_protocol(req: JsonRpcRequest) -> Option<JsonRpcResponse> {
                             "outcome_variable": { "type": "string" },
                             "group_variable": { "type": "string" },
                             "reference_group": { "type": "string" },
-                            "predictors": { "type": "array", "items": { "type": "string" } }
+                            "predictors": { "type": "array", "items": { "type": "string" } },
+                            "confidence_level": { "type": "number", "description": "A point is significant when its p-value is below 1 minus this level. Clamped to 0.50-0.999; default 0.95." }
                         },
                         "required": ["csv_content", "outcome_variable", "group_variable", "reference_group", "predictors"]
                     }
@@ -786,12 +801,13 @@ async fn handle_tool_call(params: Option<Value>) -> Result<Value> {
             Ok(json!({ "content": [{ "type": "text", "text": serde_json::to_string(&res)? }] }))
         }
         "generate_efficient_frontier" => {
-            let mut mcp_params: McpDecompositionParams = serde_json::from_value(arguments)?;
-            if let Some(reps) = mcp_params.bootstrap_reps {
-                mcp_params.bootstrap_reps = Some(reps.min(10000));
+            let mut frontier_params: McpFrontierParams = serde_json::from_value(arguments)?;
+            if let Some(reps) = frontier_params.decomposition_params.bootstrap_reps {
+                frontier_params.decomposition_params.bootstrap_reps = Some(reps.min(10000));
             }
             let req = EfficientFrontierRequest {
-                decomposition_params: mcp_params.into(),
+                confidence_level: frontier_params.confidence_level,
+                decomposition_params: frontier_params.decomposition_params.into(),
                 steps: Some(50),
                 max_budget: None,
             };

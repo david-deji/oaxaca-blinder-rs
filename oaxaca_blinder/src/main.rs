@@ -1,5 +1,5 @@
 use clap::{CommandFactory, Parser, Subcommand};
-use oaxaca_blinder::{NormalizationConvention, OaxacaBuilder, ReferenceCoefficients};
+use oaxaca_blinder::{NormalizationConvention, OaxacaBuilder, ReferenceCoefficients, WeightsKind};
 use polars::prelude::*;
 
 use std::error::Error;
@@ -91,6 +91,37 @@ impl NormalizationArg {
     }
 }
 
+/// What a weights column means (0120-MERIDIAN S9 / T17).
+#[derive(Clone, Copy, Debug, clap::ValueEnum)]
+enum WeightsKindArg {
+    /// Whole-number replication counts (a headcount). `2` is the row twice; a fractional value is
+    /// refused, naming the row.
+    Frequency,
+    /// Relative importance (FTE, design weights), rescaled to sum to the row count. The weighted
+    /// quantile is `Hmisc::wtd.quantile(type = "quantile", normwt = TRUE)`. Uniform weights change
+    /// nothing.
+    Relative,
+}
+
+impl WeightsKindArg {
+    fn to_library(self) -> WeightsKind {
+        match self {
+            WeightsKindArg::Frequency => WeightsKind::Frequency,
+            WeightsKindArg::Relative => WeightsKind::Relative,
+        }
+    }
+}
+
+/// Applies `--weights` and `--weights-kind` to a builder. clap guarantees they come together.
+fn apply_weights(builder: &mut OaxacaBuilder, args: &RunArgs) {
+    if let Some(weights) = &args.weights {
+        builder.weights(weights);
+        if let Some(kind) = args.weights_kind {
+            builder.weights_kind(kind.to_library());
+        }
+    }
+}
+
 #[derive(Parser, Debug)]
 struct RunArgs {
     /// Path to the input CSV data file
@@ -145,9 +176,13 @@ struct RunArgs {
     #[arg(long)]
     formula: Option<String>,
 
-    /// Column name for sample weights (for WLS)
-    #[arg(long)]
+    /// Column name for sample weights (for WLS). Needs --weights-kind.
+    #[arg(long, requires = "weights_kind")]
     weights: Option<String>,
+
+    /// What the weights column means: `frequency` (whole-number counts) or `relative`
+    #[arg(long, value_enum, requires = "weights")]
+    weights_kind: Option<WeightsKindArg>,
 
     /// Outcome variable for the selection equation (Heckman correction)
     #[arg(long)]
@@ -250,9 +285,7 @@ fn run_mean_analysis(args: &RunArgs, df: DataFrame) -> Result<(), Box<dyn std::e
         .reference_coefficients(reference_coeffs);
     args.normalization.apply(&mut builder);
 
-    if let Some(weights) = &args.weights {
-        builder.weights(weights);
-    }
+    apply_weights(&mut builder, args);
 
     if let Some(sel_outcome) = &args.selection_outcome {
         if let Some(sel_predictors) = &args.selection_predictors {
@@ -310,9 +343,7 @@ fn run_quantile_analysis(args: &RunArgs, df: DataFrame) -> Result<(), Box<dyn Er
             .bootstrap_reps(args.bootstrap_reps)
             .reference_coefficients(reference_coeffs);
         args.normalization.apply(&mut builder);
-        if let Some(weights) = &args.weights {
-            builder.weights(weights);
-        }
+        apply_weights(&mut builder, args);
 
         let results = builder.decompose_quantile(q)?;
         println!("\n=== Quantile τ = {:.2} (RIF-regression) ===", q);

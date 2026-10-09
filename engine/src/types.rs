@@ -112,6 +112,135 @@ pub struct DecompositionResult {
     /// Inbound proposed adjustments addressed to an excluded or unknown row, skipped and
     /// counted rather than applied. `0` from `decompose`, which consumes none.
     pub adjustments_on_excluded_rows: usize,
+    /// Where the compared group's characteristics sit against the baseline group's, and how many
+    /// residual degrees of freedom each group's regression has (0120-MERIDIAN S6 / T12 / T13).
+    /// Numbers only; `warnings` says which of them crossed a threshold.
+    pub support: SupportDiagnostics,
+    /// Everything on this result a reader should be told about, machine-readable. Empty when
+    /// nothing crossed a threshold. See [`DiagnosticWarning`].
+    pub warnings: Vec<DiagnosticWarning>,
+    /// Percentile-mode report (0120-MERIDIAN S8 / T16): the actual percentile gap beside the
+    /// RIF model total, with the tie and ECDF diagnostics. `Some` only when `quantile` was
+    /// requested; omitted from the JSON otherwise, so a mean-mode result has no such key.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quantile_report: Option<QuantileReport>,
+}
+
+/// Why a [`DiagnosticWarning`] fired. Serialised as snake_case. The engine says WHAT crossed
+/// WHICH threshold; the words a reader sees belong to the app's copy.
+#[derive(Serialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum WarningCode {
+    /// More than [`SUPPORT_OUTSIDE_RANGE_SHARE`] of the compared rows lie outside the baseline
+    /// group's observed [min, max] of a continuous predictor (`subject` = the predictor).
+    OutsideRange,
+    /// The Imbens-Rubin normalised difference of a continuous predictor exceeds
+    /// [`SUPPORT_NORMALISED_DIFFERENCE`] in absolute value (`subject` = the predictor).
+    NormalisedDifference,
+    /// A fitted group has fewer than [`SUPPORT_MIN_RESIDUAL_DF`] residual degrees of freedom
+    /// (`subject` = `"reference"` or `"target"`). At zero or below the run is refused instead.
+    FewResidualDf,
+    /// In percentile mode, more than [`QUANTILE_TIE_SHARE`] of a group's rows equal the group's
+    /// own percentile value (`subject` = `"reference"` or `"target"`).
+    TieShare,
+    /// In percentile mode, a group's empirical CDF at its own percentile value is more than
+    /// [`QUANTILE_ECDF_OFFSET`] away from the requested percentile (`subject` as above).
+    EcdfOffset,
+}
+
+/// Share of compared rows outside the baseline range above which `OutsideRange` fires.
+pub const SUPPORT_OUTSIDE_RANGE_SHARE: f64 = 0.05;
+/// Absolute Imbens-Rubin normalised difference above which `NormalisedDifference` fires
+/// (Imbens & Rubin 2015, ch. 14.2 rule of thumb).
+pub const SUPPORT_NORMALISED_DIFFERENCE: f64 = 0.25;
+/// Residual degrees of freedom below which `FewResidualDf` fires.
+pub const SUPPORT_MIN_RESIDUAL_DF: i64 = 10;
+/// Tie share above which `TieShare` fires.
+pub const QUANTILE_TIE_SHARE: f64 = 0.05;
+/// Absolute `F_n(q_tau) - tau` above which `EcdfOffset` fires.
+pub const QUANTILE_ECDF_OFFSET: f64 = 0.01;
+
+/// One thing a reader should be told about a result. `value` is what was measured and
+/// `threshold` the line it crossed, so a screen can quote both without recomputing.
+#[derive(Serialize, Debug, Clone, PartialEq)]
+pub struct DiagnosticWarning {
+    pub code: WarningCode,
+    /// The predictor or group the warning is about; `None` when it is about the whole result.
+    pub subject: Option<String>,
+    pub value: f64,
+    pub threshold: f64,
+}
+
+/// How far the compared (target) group's values sit from the baseline (reference) group's for
+/// one continuous predictor. "Baseline" is the group whose pay line the fair wage extends: the
+/// reference group, the one `reference_group` names.
+#[derive(Serialize, Debug, Clone, PartialEq)]
+pub struct PredictorSupport {
+    pub name: String,
+    pub reference_min: f64,
+    pub reference_max: f64,
+    /// Type-7 1st and 99th percentiles of the reference group's values.
+    pub reference_p01: f64,
+    pub reference_p99: f64,
+    pub target_min: f64,
+    pub target_max: f64,
+    /// Share of target rows below the reference minimum or above the reference maximum.
+    pub target_outside_range_share: f64,
+    /// Share of target rows below the reference 1st percentile or above its 99th.
+    pub target_outside_p01_p99_share: f64,
+    /// Imbens-Rubin normalised difference `(mean_target - mean_reference) /
+    /// sqrt((var_target + var_reference) / 2)` with sample variances. `None` when both groups
+    /// have zero variance. (`ddecompose` prints the same quantity divided by sqrt(2).)
+    pub normalised_difference: Option<f64>,
+}
+
+/// Support and small-sample diagnostics of one result (0120-MERIDIAN S6 / T12 / T13).
+#[derive(Serialize, Debug, Clone, PartialEq)]
+pub struct SupportDiagnostics {
+    /// Analysed rows per group.
+    pub reference_count: usize,
+    pub target_count: usize,
+    /// Design columns of each group's regression, intercept and every level dummy included.
+    pub model_columns: usize,
+    /// `count - model_columns` per group. Signed: a value at or below zero never reaches a
+    /// result, the run is refused (`INSUFFICIENT_RESIDUAL_DF`).
+    pub reference_residual_df: i64,
+    pub target_residual_df: i64,
+    /// One entry per continuous predictor, in the order the request listed them.
+    pub predictors: Vec<PredictorSupport>,
+    /// Target rows whose leverage `x' (X_ref' X_ref)^-1 x` exceeds the largest leverage among
+    /// the reference rows: the fair wage for them extends the reference pay line beyond the
+    /// observed range.
+    pub extrapolated_target_count: usize,
+}
+
+/// Percentile-mode report (0120-MERIDIAN S8 / T16). `quantile_gap` is the percentile gap the
+/// headline card claims; `rif_total` is the number the model decomposes (the difference of mean
+/// RIF values, which `ddecompose` also reports) and which `total_gap` carries on this path.
+#[derive(Serialize, Debug, Clone, PartialEq)]
+pub struct QuantileReport {
+    pub tau: f64,
+    /// `Q_tau(target) - Q_tau(reference)`, R `quantile(type = 7)` per group, the same
+    /// orientation as `total_gap`.
+    pub quantile_gap: f64,
+    /// The RIF model's total (`total_gap` on this path), unchanged.
+    pub rif_total: f64,
+    pub reference: QuantileGroupReport,
+    pub target: QuantileGroupReport,
+}
+
+/// One group's percentile and how well the data pins it down.
+#[derive(Serialize, Debug, Clone, PartialEq)]
+pub struct QuantileGroupReport {
+    pub count: usize,
+    /// The group's type-7 percentile.
+    pub quantile_value: f64,
+    /// `F_n(q_tau)`: the share of the group's rows at or below `quantile_value`.
+    pub ecdf_at_quantile: f64,
+    /// `F_n(q_tau) - tau`.
+    pub ecdf_offset: f64,
+    /// Share of the group's rows exactly equal to `quantile_value`.
+    pub tie_share: f64,
 }
 
 #[derive(Deserialize, Debug)]
@@ -194,6 +323,24 @@ pub struct Adjustment {
     pub contributions: Vec<Contribution>,
     pub is_defensible: Option<bool>,
     pub defensibility_message: Option<String>,
+    /// True when this employee's leverage exceeds the largest leverage among the baseline
+    /// (reference) group's own rows, so `fair_wage` extends the baseline pay line beyond the
+    /// range the baseline group occupies (0120-MERIDIAN S6 / T12). Always `false` for a
+    /// reference-group row.
+    pub extrapolated: bool,
+}
+
+/// The prediction interval behind `fair_wage_lower_bound` / `fair_wage_upper_bound` and
+/// `is_defensible` (0120-MERIDIAN S7 / T14): Student t on the baseline regression's residual
+/// degrees of freedom, `predict.lm(interval = "prediction")`.
+#[derive(Serialize, Debug, Clone, PartialEq)]
+pub struct IntervalBasis {
+    /// The level used, after the engine's clamp to [0.50, 0.999]; 0.95 when the request gave none.
+    pub confidence_level: f64,
+    /// Residual degrees of freedom of the baseline regression (`n - k`), always positive here.
+    pub degrees_of_freedom: usize,
+    /// The t quantile that multiplied the prediction standard error.
+    pub critical_value: f64,
 }
 
 #[derive(Serialize, Debug)]
@@ -230,6 +377,13 @@ pub struct OptimizationResult {
     /// counted rather than applied (`check_defensibility`). `0` from `optimize`, which
     /// consumes none.
     pub adjustments_on_excluded_rows: usize,
+    /// The interval every `fair_wage_lower_bound` / `fair_wage_upper_bound` was built with.
+    pub interval: IntervalBasis,
+    /// Support of the baseline group's pay line for the compared group (0120-MERIDIAN S6). Only
+    /// the baseline group is fitted here, so only its residual degrees of freedom are judged.
+    pub support: SupportDiagnostics,
+    /// See [`DiagnosticWarning`]. Empty when nothing crossed a threshold.
+    pub warnings: Vec<DiagnosticWarning>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -250,14 +404,27 @@ pub struct VerificationRequest {
     #[serde(flatten)]
     pub decomposition_params: DecompositionRequest,
     pub adjustments: Vec<ProposedAdjustment>,
+    /// Level of the prediction interval `check_defensibility` scores against, e.g. `0.90`.
+    /// Clamped to [0.50, 0.999]; `None` means 0.95 (0120-MERIDIAN S7). `verify_adjustments`
+    /// builds no interval and ignores it.
+    #[serde(default)]
+    pub confidence_level: Option<f64>,
 }
 
 #[derive(Serialize, Debug)]
 pub struct FrontierPoint {
     pub budget: f64,
     pub t_statistic: f64,
+    /// Two-sided p-value of `t_statistic` under Student t with `degrees_of_freedom` (0120 S7).
     pub p_value: f64,
+    /// `p_value < 1 - confidence_level` (0.05 by default).
     pub is_significant: bool,
+    /// The group-indicator coefficient of the pooled regression after this budget is paid: how
+    /// far the compared group sits from the baseline group at equal characteristics, in outcome
+    /// units. The number behind "after adjustment, the group coefficient is X (p = Y)".
+    pub group_coefficient: f64,
+    /// Residual degrees of freedom of the pooled regression (`n - k`).
+    pub degrees_of_freedom: usize,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -266,4 +433,8 @@ pub struct EfficientFrontierRequest {
     pub decomposition_params: DecompositionRequest,
     pub steps: Option<usize>,    // Default 50
     pub max_budget: Option<f64>, // If None, auto-detect
+    /// Level whose complement is the significance threshold of `FrontierPoint::is_significant`.
+    /// Clamped to [0.50, 0.999]; `None` means 0.95 (0120-MERIDIAN S7).
+    #[serde(default)]
+    pub confidence_level: Option<f64>,
 }

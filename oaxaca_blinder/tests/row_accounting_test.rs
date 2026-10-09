@@ -38,7 +38,8 @@ fn builder(fixture: &FixtureF, categorical: bool, weighted: bool) -> OaxacaBuild
         b.categorical_predictors(vec!["Dept"]);
     }
     if weighted {
-        b.weights("Weight");
+        b.weights("Weight")
+            .weights_kind(oaxaca_blinder::WeightsKind::Relative);
     }
     b
 }

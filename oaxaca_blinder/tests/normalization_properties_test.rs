@@ -133,7 +133,8 @@ fn run(d: &Design, scheme: ReferenceCoefficients, conv: NormalizationConvention)
         .normalize_all_categoricals()
         .bootstrap_reps(1);
     if d.weighted {
-        b.weights("w");
+        b.weights("w")
+            .weights_kind(oaxaca_blinder::WeightsKind::Frequency);
     }
     b.run().expect("random design is estimable")
 }

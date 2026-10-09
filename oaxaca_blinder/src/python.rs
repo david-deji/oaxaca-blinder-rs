@@ -200,6 +200,7 @@ pub struct PyOaxacaBlinder {
     categorical_predictors: Vec<String>,
     bootstrap_reps: usize,
     weights: Option<String>,
+    weights_kind: Option<String>,
     selection_outcome: Option<String>,
     selection_predictors: Vec<String>,
 }
@@ -208,7 +209,7 @@ pub struct PyOaxacaBlinder {
 impl PyOaxacaBlinder {
     #[new]
     #[pyo3(
-        signature = (dataframe, outcome, group, reference_group, predictors, categorical_predictors=Vec::new(), bootstrap_reps=100, weights=None, selection_outcome=None, selection_predictors=None)
+        signature = (dataframe, outcome, group, reference_group, predictors, categorical_predictors=Vec::new(), bootstrap_reps=100, weights=None, weights_kind=None, selection_outcome=None, selection_predictors=None)
     )]
     fn new(
         dataframe: PyDataFrame,
@@ -219,6 +220,7 @@ impl PyOaxacaBlinder {
         categorical_predictors: Vec<String>,
         bootstrap_reps: usize,
         weights: Option<String>,
+        weights_kind: Option<String>,
         selection_outcome: Option<String>,
         selection_predictors: Option<Vec<String>>,
     ) -> Self {
@@ -232,6 +234,7 @@ impl PyOaxacaBlinder {
             categorical_predictors,
             bootstrap_reps,
             weights,
+            weights_kind,
             selection_outcome,
             selection_predictors: selection_predictors.unwrap_or_default(),
         }
@@ -301,6 +304,15 @@ impl PyOaxacaBlinder {
 
         if let Some(w) = &self.weights {
             builder.weights(w);
+            // `weights_kind` is "frequency" or "relative"; anything else (or absent) is left for
+            // the builder to refuse with WEIGHTS_KIND_REQUIRED (0120-MERIDIAN S9).
+            if let Some(kind) = self
+                .weights_kind
+                .as_deref()
+                .and_then(|k| oaxaca_blinder::WeightsKind::parse_name(k).ok())
+            {
+                builder.weights_kind(kind);
+            }
         }
         if let Some(so) = &self.selection_outcome {
             let sp_refs: Vec<&str> = self

@@ -1,0 +1,2010 @@
+{
+  "_meta": {
+    "generated_utc": "2026-10-09 14:59:27 UTC",
+    "r_version": "4.6.1",
+    "packages": {
+      "ddecompose": "1.0.0",
+      "Hmisc": "5.2.6",
+      "jsonlite": "2.0.0",
+      "digest": "0.6.39"
+    },
+    "seed": 20261009,
+    "rngkind": "Mersenne-Twister,Inversion,Rejection",
+    "generator_sha256": "31d424130d22e544161a5675b1c4040a27f76dbb0220d4f3eb7d2af07838e172",
+    "fixture_sha256": {
+      "employers_trust_fixture.csv": "91582bcc86845bfbf1e1b376abb0ac03fe6c4a6bff4a093e1a5b895a32cfeb7d",
+      "parity_fixture.csv": "eefc16ea537f3c20346f3d36d9a056d80e6e8f96aee06f10e0299219a14bbf7d",
+      "mem_profile_50k.csv": "b79835fd53cf5ab167783d593c22057c8d17bc748b0a6c15944fae06dcef3114",
+      "diag_nooverlap.csv": "1970adc1328244d8995dbc614ccb7cf4273ba99545c025588f176ac05c1413d1",
+      "diag_linear_nooverlap.csv": "2d9bccde3133fdb40fd2e0be2476188982e73d0cb85243977a026be997f8e795",
+      "diag_kink_overlap.csv": "57e57d33bd30477fcfc342414d6e29b7506e27fbc340a189e222196e6f08642f",
+      "diag_tiny.csv": "677e3ae130656c1142d0c1f5d05b60d13a945cfd350a22e52fd5f941028c49ae",
+      "diag_df5.csv": "16582c1ff18de606cd887313f129680b3a28de9766a055c8bd44f78078126201",
+      "diag_grid.csv": "f344c388dafb74cee0f5436309edc5b1927a67dcae6e4fa242b2bbae052fb9a4",
+      "0118-fixture-f.csv": "4b41d94fdd95e7a2208cc1cc08b96fb27289ac24f1d6bb08ac7a8d235b115e77",
+      "wage.csv": "50b913f1496fdd02ad36b0dc8afe933ea97a9dc731d6ced6ad8431d4e9278d5c"
+    },
+    "tolerances": {
+      "support_numbers": 9.9999999999999998e-13,
+      "intervals": 1.0000000000000001e-09,
+      "percentiles": 9.9999999999999998e-13,
+      "weights": 1.0000000000000001e-09
+    },
+    "normalised_difference": "Imbens-Rubin: (mean_target - mean_reference) / sqrt((var_target + var_reference) / 2); ddecompose prints this divided by sqrt(2)",
+    "expected_values_from_engine_output": false
+  },
+  "support": {
+    "employers": {
+      "outcome": "Salary",
+      "group": "Gender",
+      "predictors": ["Age", "Experience_Years"],
+      "reference_group": "Male",
+      "reference_count": 5108,
+      "target_count": 4892,
+      "model_columns": 3,
+      "reference_residual_df": 5105,
+      "target_residual_df": 4889,
+      "reference_max_leverage": 0.0018309293060116113,
+      "extrapolated_target_count": 0,
+      "per_predictor": {
+        "Age": {
+          "reference_min": 21,
+          "reference_max": 60,
+          "reference_p01": 21,
+          "reference_p99": 59,
+          "target_min": 21,
+          "target_max": 60,
+          "target_outside_range_share": 0,
+          "target_outside_p01_p99_share": 0.0077677841373671296,
+          "normalised_difference": -0.030464538350136041,
+          "ddecompose_normalized_difference": -0.021541681653098829
+        },
+        "Experience_Years": {
+          "reference_min": 0,
+          "reference_max": 37,
+          "reference_p01": 0,
+          "reference_p99": 35,
+          "target_min": 0,
+          "target_max": 37,
+          "target_outside_range_share": 0,
+          "target_outside_p01_p99_share": 0.0089942763695829934,
+          "normalised_difference": -0.029326970906808046,
+          "ddecompose_normalized_difference": -0.020737299999864563
+        }
+      }
+    },
+    "parity": {
+      "outcome": "log_wage",
+      "group": "gender",
+      "predictors": ["education", "experience", "tenure"],
+      "reference_group": "M",
+      "reference_count": 150,
+      "target_count": 150,
+      "model_columns": 4,
+      "reference_residual_df": 146,
+      "target_residual_df": 146,
+      "reference_max_leverage": 0.11322930340096445,
+      "extrapolated_target_count": 0,
+      "per_predictor": {
+        "education": {
+          "reference_min": 9.3705113163588649,
+          "reference_max": 19.598655905214006,
+          "reference_p01": 9.7650151703135002,
+          "reference_p99": 18.941885610644725,
+          "target_min": 9.2359074385373816,
+          "target_max": 19.327724932014661,
+          "target_outside_range_share": 0.0066666666666666671,
+          "target_outside_p01_p99_share": 0.02,
+          "normalised_difference": -0.45350945622664546,
+          "ddecompose_normalized_difference": -0.32067961183008536
+        },
+        "experience": {
+          "reference_min": 0,
+          "reference_max": 27.894268396837674,
+          "reference_p01": 0.69419660002219952,
+          "reference_p99": 21.891724434159322,
+          "target_min": 0,
+          "target_max": 24.525335846202033,
+          "target_outside_range_share": 0,
+          "target_outside_p01_p99_share": 0.033333333333333333,
+          "normalised_difference": -0.39482976714731971,
+          "ddecompose_normalized_difference": -0.27918680576417554
+        },
+        "tenure": {
+          "reference_min": 0,
+          "reference_max": 11.228760937208955,
+          "reference_p01": 0,
+          "reference_p99": 10.419053274801788,
+          "target_min": 0,
+          "target_max": 11.482959301038255,
+          "target_outside_range_share": 0.0066666666666666671,
+          "target_outside_p01_p99_share": 0.0066666666666666671,
+          "normalised_difference": -0.032849759889904045,
+          "ddecompose_normalized_difference": -0.02322828797850077
+        }
+      }
+    },
+    "fixture_f": {
+      "outcome": "Salary",
+      "group": "Gender",
+      "predictors": "Experience",
+      "reference_group": "Male",
+      "reference_count": 60,
+      "target_count": 39,
+      "model_columns": 2,
+      "reference_residual_df": 58,
+      "target_residual_df": 37,
+      "reference_max_leverage": 0.061567773879478836,
+      "extrapolated_target_count": 0,
+      "per_predictor": {
+        "Experience": {
+          "reference_min": 0,
+          "reference_max": 22,
+          "reference_p01": 0,
+          "reference_p99": 22,
+          "target_min": 0,
+          "target_max": 22,
+          "target_outside_range_share": 0,
+          "target_outside_p01_p99_share": 0,
+          "normalised_difference": 0.005193057869946326,
+          "ddecompose_normalized_difference": 0.0036720464349332149
+        }
+      }
+    },
+    "mem_profile_50k": {
+      "outcome": "Salary",
+      "group": "Gender",
+      "predictors": ["Age", "Experience_Years"],
+      "reference_group": "Male",
+      "reference_count": 25540,
+      "target_count": 24460,
+      "model_columns": 3,
+      "reference_residual_df": 25537,
+      "target_residual_df": 24457,
+      "reference_max_leverage": 0.00054266814143776564,
+      "extrapolated_target_count": 0,
+      "per_predictor": {
+        "Age": {
+          "reference_min": 19,
+          "reference_max": 62,
+          "reference_p01": 21,
+          "reference_p99": 59,
+          "target_min": 19,
+          "target_max": 62,
+          "target_outside_range_share": 0,
+          "target_outside_p01_p99_share": 0.019051512673753067,
+          "normalised_difference": -0.031808364688072938,
+          "ddecompose_normalized_difference": -0.022491910369391098
+        },
+        "Experience_Years": {
+          "reference_min": 0,
+          "reference_max": 39,
+          "reference_p01": 0,
+          "reference_p99": 35,
+          "target_min": 0,
+          "target_max": 39,
+          "target_outside_range_share": 0,
+          "target_outside_p01_p99_share": 0.0094031071136549474,
+          "normalised_difference": -0.029293646344416221,
+          "ddecompose_normalized_difference": -0.02071373597581723
+        }
+      }
+    },
+    "wage5": {
+      "outcome": "wage",
+      "group": "gender",
+      "predictors": "education",
+      "reference_group": "M",
+      "reference_count": 5,
+      "target_count": 5,
+      "model_columns": 2,
+      "reference_residual_df": 3,
+      "target_residual_df": 3,
+      "reference_max_leverage": 0.69230769230769207,
+      "extrapolated_target_count": 0,
+      "per_predictor": {
+        "education": {
+          "reference_min": 12,
+          "reference_max": 18,
+          "reference_p01": 12.08,
+          "reference_p99": 17.920000000000002,
+          "target_min": 12,
+          "target_max": 18,
+          "target_outside_range_share": 0,
+          "target_outside_p01_p99_share": 0.40000000000000002,
+          "normalised_difference": 0,
+          "ddecompose_normalized_difference": 0
+        }
+      }
+    },
+    "nooverlap": {
+      "outcome": "wage",
+      "group": "gender",
+      "predictors": "edu",
+      "reference_group": "M",
+      "reference_count": 60,
+      "target_count": 60,
+      "model_columns": 2,
+      "reference_residual_df": 58,
+      "target_residual_df": 58,
+      "reference_max_leverage": 0.047435897435896601,
+      "extrapolated_target_count": 60,
+      "per_predictor": {
+        "edu": {
+          "reference_min": 16,
+          "reference_max": 20,
+          "reference_p01": 16,
+          "reference_p99": 20,
+          "target_min": 8,
+          "target_max": 11,
+          "target_outside_range_share": 1,
+          "target_outside_p01_p99_share": 1,
+          "normalised_difference": -6.4577221595145406,
+          "ddecompose_normalized_difference": -4.5662991300113678
+        }
+      }
+    },
+    "linear_nooverlap": {
+      "outcome": "wage",
+      "group": "gender",
+      "predictors": "edu",
+      "reference_group": "M",
+      "reference_count": 60,
+      "target_count": 60,
+      "model_columns": 2,
+      "reference_residual_df": 58,
+      "target_residual_df": 58,
+      "reference_max_leverage": 0.050395256916996534,
+      "extrapolated_target_count": 60,
+      "per_predictor": {
+        "edu": {
+          "reference_min": 16,
+          "reference_max": 20,
+          "reference_p01": 16,
+          "reference_p99": 20,
+          "target_min": 8,
+          "target_max": 11,
+          "target_outside_range_share": 1,
+          "target_outside_p01_p99_share": 1,
+          "normalised_difference": -6.3027693233632549,
+          "ddecompose_normalized_difference": -4.4567309288047063
+        }
+      }
+    },
+    "kink_overlap": {
+      "outcome": "wage",
+      "group": "gender",
+      "predictors": "edu",
+      "reference_group": "M",
+      "reference_count": 60,
+      "target_count": 60,
+      "model_columns": 2,
+      "reference_residual_df": 58,
+      "target_residual_df": 58,
+      "reference_max_leverage": 0.070400920774985401,
+      "extrapolated_target_count": 0,
+      "per_predictor": {
+        "edu": {
+          "reference_min": 10,
+          "reference_max": 20,
+          "reference_p01": 10,
+          "reference_p99": 20,
+          "target_min": 10,
+          "target_max": 16,
+          "target_outside_range_share": 0,
+          "target_outside_p01_p99_share": 0,
+          "normalised_difference": -1.094993116923187,
+          "ddecompose_normalized_difference": -0.77427705832897964
+        }
+      }
+    },
+    "tiny": {
+      "outcome": "wage",
+      "group": "gender",
+      "predictors": ["edu", "exp", "age"],
+      "reference_group": "M",
+      "reference_count": 7,
+      "target_count": 7,
+      "model_columns": 4,
+      "reference_residual_df": 3,
+      "target_residual_df": 3,
+      "reference_max_leverage": 0.89578139831091974,
+      "extrapolated_target_count": 4,
+      "per_predictor": {
+        "edu": {
+          "reference_min": 10,
+          "reference_max": 16,
+          "reference_p01": 10.119999999999999,
+          "reference_p99": 15.94,
+          "target_min": 10,
+          "target_max": 18,
+          "target_outside_range_share": 0.14285714285714285,
+          "target_outside_p01_p99_share": 0.42857142857142855,
+          "normalised_difference": 0.11550214222366031,
+          "ddecompose_normalized_difference": 0.081672348007923279
+        },
+        "exp": {
+          "reference_min": 3,
+          "reference_max": 19,
+          "reference_p01": 3.1200000000000001,
+          "reference_p99": 18.519999999999996,
+          "target_min": 3,
+          "target_max": 20,
+          "target_outside_range_share": 0.14285714285714285,
+          "target_outside_p01_p99_share": 0.2857142857142857,
+          "normalised_difference": -0.15717976545551032,
+          "ddecompose_normalized_difference": -0.11114287801890239
+        },
+        "age": {
+          "reference_min": 25,
+          "reference_max": 58,
+          "reference_p01": 25.060000000000002,
+          "reference_p99": 57.699999999999996,
+          "target_min": 28,
+          "target_max": 47,
+          "target_outside_range_share": 0,
+          "target_outside_p01_p99_share": 0,
+          "normalised_difference": -0.76063276556199677,
+          "ddecompose_normalized_difference": -0.53784858652156531
+        }
+      }
+    },
+    "df5": {
+      "outcome": "pay",
+      "group": "grp",
+      "predictors": ["x1", "x2"],
+      "reference_group": "Ref",
+      "reference_count": 8,
+      "target_count": 6,
+      "model_columns": 3,
+      "reference_residual_df": 5,
+      "target_residual_df": 3,
+      "reference_max_leverage": 0.54800966021994046,
+      "extrapolated_target_count": 2,
+      "per_predictor": {
+        "x1": {
+          "reference_min": 10.69,
+          "reference_max": 19.829999999999998,
+          "reference_p01": 10.7593,
+          "reference_p99": 19.624199999999998,
+          "target_min": 11.140000000000001,
+          "target_max": 27,
+          "target_outside_range_share": 0.16666666666666666,
+          "target_outside_p01_p99_share": 0.16666666666666666,
+          "normalised_difference": 0.45894829192277914,
+          "ddecompose_normalized_difference": 0.32452544943258088
+        },
+        "x2": {
+          "reference_min": 0.93999999999999995,
+          "reference_max": 8.9499999999999993,
+          "reference_p01": 0.99039999999999995,
+          "reference_p99": 8.8526999999999987,
+          "target_min": 1.6599999999999999,
+          "target_max": 14,
+          "target_outside_range_share": 0.16666666666666666,
+          "target_outside_p01_p99_share": 0.16666666666666666,
+          "normalised_difference": 0.39311186962432482,
+          "ddecompose_normalized_difference": 0.27797206877628206
+        }
+      }
+    }
+  },
+  "intervals": {
+    "employers": {
+      "reference_group": "Male",
+      "outcome": "Salary",
+      "group": "Gender",
+      "predictors": ["Age", "Experience_Years"],
+      "residual_df": 5105,
+      "reference_rows": 5108,
+      "target_rows": 4892,
+      "levels": {
+        "0.90": {
+          "critical": 1.6451521670854039,
+          "target": [
+            {
+              "ordinal": 0,
+              "fair": 68730.507104207063,
+              "lwr": 41180.184786790647,
+              "upr": 96280.829421623479,
+              "wage": 45000
+            },
+            {
+              "ordinal": 4,
+              "fair": 72801.021972832808,
+              "lwr": 45251.485548983066,
+              "upr": 100350.55839668255,
+              "wage": 35000
+            },
+            {
+              "ordinal": 6,
+              "fair": 60916.794790590196,
+              "lwr": 33366.209221596291,
+              "upr": 88467.380359584102,
+              "wage": 60000
+            },
+            {
+              "ordinal": 7,
+              "fair": 162352.34908259899,
+              "lwr": 134801.77182692752,
+              "upr": 189902.92633827045,
+              "wage": 145000
+            },
+            {
+              "ordinal": 9,
+              "fair": 64659.992235581332,
+              "lwr": 37108.811597661253,
+              "upr": 92211.172873501404,
+              "wage": 70000
+            },
+            {
+              "ordinal": 10,
+              "fair": 68730.507104207063,
+              "lwr": 41180.184786790647,
+              "upr": 96280.829421623479,
+              "wage": 90000
+            },
+            {
+              "ordinal": 13,
+              "fair": 141345.13989220108,
+              "lwr": 113788.17124346363,
+              "upr": 168902.10854093856,
+              "wage": 175000
+            },
+            {
+              "ordinal": 14,
+              "fair": 218684.92239609006,
+              "lwr": 191122.2909098141,
+              "upr": 246247.55388236602,
+              "wage": 205000
+            },
+            {
+              "ordinal": 16,
+              "fair": 210543.89265883857,
+              "lwr": 182983.08838578276,
+              "upr": 238104.69693189437,
+              "wage": 195000
+            },
+            {
+              "ordinal": 17,
+              "fair": 150140.80447672174,
+              "lwr": 122592.4340874802,
+              "upr": 177689.17486596329,
+              "wage": 175000
+            },
+            {
+              "ordinal": 20,
+              "fair": 150140.80447672174,
+              "lwr": 122592.4340874802,
+              "upr": 177689.17486596329,
+              "wage": 170000
+            },
+            {
+              "ordinal": 21,
+              "fair": 64987.309659215935,
+              "lwr": 37437.218794340297,
+              "upr": 92537.400524091572,
+              "wage": 70000
+            },
+            {
+              "ordinal": 25,
+              "fair": 73128.339396467403,
+              "lwr": 45579.020603154509,
+              "upr": 100677.6581897803,
+              "wage": 75000
+            },
+            {
+              "ordinal": 26,
+              "fair": 162352.34908259899,
+              "lwr": 134801.77182692752,
+              "upr": 189902.92633827045,
+              "wage": 190000
+            },
+            {
+              "ordinal": 27,
+              "fair": 194261.83318433561,
+              "lwr": 166703.81451209253,
+              "upr": 221819.85185657869,
+              "wage": 190000
+            },
+            {
+              "ordinal": 30,
+              "fair": 150140.80447672174,
+              "lwr": 122592.4340874802,
+              "upr": 177689.17486596329,
+              "wage": 140000
+            },
+            {
+              "ordinal": 31,
+              "fair": 64659.992235581332,
+              "lwr": 37108.811597661253,
+              "upr": 92211.172873501404,
+              "wage": 65000
+            },
+            {
+              "ordinal": 33,
+              "fair": 93153.596315961462,
+              "lwr": 65606.902758922981,
+              "upr": 120700.28987299994,
+              "wage": 75000
+            },
+            {
+              "ordinal": 38,
+              "fair": 56846.279921964458,
+              "lwr": 29295.127208307138,
+              "upr": 84397.432635621779,
+              "wage": 70000
+            },
+            {
+              "ordinal": 40,
+              "fair": 150140.80447672174,
+              "lwr": 122592.4340874802,
+              "upr": 177689.17486596329,
+              "wage": 145000
+            },
+            {
+              "ordinal": 43,
+              "fair": 154211.3193453475,
+              "lwr": 126662.28576913034,
+              "upr": 181760.35292156466,
+              "wage": 145000
+            },
+            {
+              "ordinal": 46,
+              "fair": 165768.2291039555,
+              "lwr": 138212.2969541309,
+              "upr": 193324.1612537801,
+              "wage": 185000
+            },
+            {
+              "ordinal": 48,
+              "fair": 186775.43829435334,
+              "lwr": 159218.49204592954,
+              "upr": 214332.38454277714,
+              "wage": 195000
+            },
+            {
+              "ordinal": 49,
+              "fair": 137929.25987084454,
+              "lwr": 110382.44437045863,
+              "upr": 165476.07537123046,
+              "wage": 135000
+            },
+            {
+              "ordinal": 51,
+              "fair": 81269.36913371885,
+              "lwr": 53720.532610386254,
+              "upr": 108818.20565705144,
+              "wage": 75000
+            },
+            {
+              "ordinal": 52,
+              "fair": 137274.62502357535,
+              "lwr": 109717.23011241698,
+              "upr": 164832.01993473375,
+              "wage": 135000
+            },
+            {
+              "ordinal": 55,
+              "fair": 73128.339396467403,
+              "lwr": 45579.020603154509,
+              "upr": 100677.6581897803,
+              "wage": 70000
+            },
+            {
+              "ordinal": 56,
+              "fair": 161697.71423532977,
+              "lwr": 134141.7904243556,
+              "upr": 189253.63804630394,
+              "wage": 140000
+            },
+            {
+              "ordinal": 57,
+              "fair": 74672.620695328369,
+              "lwr": 47120.437873457398,
+              "upr": 102224.80351719934,
+              "wage": 35000
+            },
+            {
+              "ordinal": 61,
+              "fair": 125063.08041769816,
+              "lwr": 97503.972184897575,
+              "upr": 152622.18865049875,
+              "wage": 165000
+            },
+            {
+              "ordinal": 1168,
+              "fair": 88428.446600066556,
+              "lwr": 60860.288913265686,
+              "upr": 115996.60428686743,
+              "wage": 95000
+            },
+            {
+              "ordinal": 5296,
+              "fair": 88428.446600066556,
+              "lwr": 60860.288913265686,
+              "upr": 115996.60428686743,
+              "wage": 90000
+            },
+            {
+              "ordinal": 6214,
+              "fair": 88428.446600066556,
+              "lwr": 60860.288913265686,
+              "upr": 115996.60428686743,
+              "wage": 90000
+            }
+          ],
+          "reference": [
+            {
+              "ordinal": 1,
+              "fair": 198986.98290023053,
+              "lwr": 171425.87497731799,
+              "upr": 226548.09082314308,
+              "wage": 195000
+            },
+            {
+              "ordinal": 2,
+              "fair": 50904.166330843167,
+              "lwr": 23350.322853657079,
+              "upr": 78458.009808029252,
+              "wage": 35000
+            },
+            {
+              "ordinal": 3,
+              "fair": 89410.398870970326,
+              "lwr": 61861.754800815681,
+              "upr": 116959.04294112496,
+              "wage": 75000
+            },
+            {
+              "ordinal": 5,
+              "fair": 120992.56554907243,
+              "lwr": 93432.741379272338,
+              "upr": 148552.38971887252,
+              "wage": 125000
+            },
+            {
+              "ordinal": 8,
+              "fair": 153556.68449807831,
+              "lwr": 126000.56005517187,
+              "upr": 181112.80894098475,
+              "wage": 135000
+            },
+            {
+              "ordinal": 11,
+              "fair": 64659.992235581332,
+              "lwr": 37108.811597661253,
+              "upr": 92211.172873501404,
+              "wage": 80000
+            },
+            {
+              "ordinal": 12,
+              "fair": 173909.25884120696,
+              "lwr": 146353.09270437714,
+              "upr": 201465.42497803678,
+              "wage": 150000
+            },
+            {
+              "ordinal": 15,
+              "fair": 162352.34908259899,
+              "lwr": 134801.77182692752,
+              "upr": 189902.92633827045,
+              "wage": 150000
+            },
+            {
+              "ordinal": 18,
+              "fair": 170493.37881985039,
+              "lwr": 142940.96818558927,
+              "upr": 198045.78945411151,
+              "wage": 190000
+            },
+            {
+              "ordinal": 19,
+              "fair": 173909.25884120696,
+              "lwr": 146353.09270437714,
+              "upr": 201465.42497803678,
+              "wage": 150000
+            }
+          ]
+        },
+        "0.95": {
+          "critical": 1.9604287885003737,
+          "target": [
+            {
+              "ordinal": 0,
+              "fair": 68730.507104207063,
+              "lwr": 35900.446709724638,
+              "upr": 101560.56749868949,
+              "wage": 45000
+            },
+            {
+              "ordinal": 4,
+              "fair": 72801.021972832808,
+              "lwr": 39971.898080397812,
+              "upr": 105630.14586526781,
+              "wage": 35000
+            },
+            {
+              "ordinal": 6,
+              "fair": 60916.794790590196,
+              "lwr": 28086.420695052358,
+              "upr": 93747.168886128027,
+              "wage": 60000
+            },
+            {
+              "ordinal": 7,
+              "fair": 162352.34908259899,
+              "lwr": 129521.98489354699,
+              "upr": 195182.71327165098,
+              "wage": 145000
+            },
+            {
+              "ordinal": 9,
+              "fair": 64659.992235581332,
+              "lwr": 31828.909032231248,
+              "upr": 97491.07543893141,
+              "wage": 70000
+            },
+            {
+              "ordinal": 10,
+              "fair": 68730.507104207063,
+              "lwr": 35900.446709724638,
+              "upr": 101560.56749868949,
+              "wage": 90000
+            },
+            {
+              "ordinal": 13,
+              "fair": 141345.13989220108,
+              "lwr": 108507.15946483637,
+              "upr": 174183.12031956582,
+              "wage": 175000
+            },
+            {
+              "ordinal": 14,
+              "fair": 218684.92239609006,
+              "lwr": 185840.1939061709,
+              "upr": 251529.65088600921,
+              "wage": 205000
+            },
+            {
+              "ordinal": 16,
+              "fair": 210543.89265883857,
+              "lwr": 177701.34154890355,
+              "upr": 243386.44376877358,
+              "wage": 195000
+            },
+            {
+              "ordinal": 17,
+              "fair": 150140.80447672174,
+              "lwr": 117313.07007752635,
+              "upr": 182968.53887591712,
+              "wage": 175000
+            },
+            {
+              "ordinal": 20,
+              "fair": 150140.80447672174,
+              "lwr": 117313.07007752635,
+              "upr": 182968.53887591712,
+              "wage": 170000
+            },
+            {
+              "ordinal": 21,
+              "fair": 64987.309659215935,
+              "lwr": 32157.525072791388,
+              "upr": 97817.094245640474,
+              "wage": 70000
+            },
+            {
+              "ordinal": 25,
+              "fair": 73128.339396467403,
+              "lwr": 40299.474841240371,
+              "upr": 105957.20395169444,
+              "wage": 75000
+            },
+            {
+              "ordinal": 26,
+              "fair": 162352.34908259899,
+              "lwr": 129521.98489354699,
+              "upr": 195182.71327165098,
+              "wage": 190000
+            },
+            {
+              "ordinal": 27,
+              "fair": 194261.83318433561,
+              "lwr": 161422.60150717761,
+              "upr": 227101.06486149362,
+              "wage": 190000
+            },
+            {
+              "ordinal": 30,
+              "fair": 150140.80447672174,
+              "lwr": 117313.07007752635,
+              "upr": 182968.53887591712,
+              "wage": 140000
+            },
+            {
+              "ordinal": 31,
+              "fair": 64659.992235581332,
+              "lwr": 31828.909032231248,
+              "upr": 97491.07543893141,
+              "wage": 65000
+            },
+            {
+              "ordinal": 33,
+              "fair": 93153.596315961462,
+              "lwr": 60327.860096746095,
+              "upr": 125979.33253517683,
+              "wage": 75000
+            },
+            {
+              "ordinal": 38,
+              "fair": 56846.279921964458,
+              "lwr": 24015.229994277084,
+              "upr": 89677.32984965184,
+              "wage": 70000
+            },
+            {
+              "ordinal": 40,
+              "fair": 150140.80447672174,
+              "lwr": 117313.07007752635,
+              "upr": 182968.53887591712,
+              "wage": 145000
+            },
+            {
+              "ordinal": 43,
+              "fair": 154211.3193453475,
+              "lwr": 121382.7946661615,
+              "upr": 187039.84402453349,
+              "wage": 145000
+            },
+            {
+              "ordinal": 46,
+              "fair": 165768.2291039555,
+              "lwr": 132931.48380994119,
+              "upr": 198604.97439796981,
+              "wage": 185000
+            },
+            {
+              "ordinal": 48,
+              "fair": 186775.43829435334,
+              "lwr": 153937.48456009378,
+              "upr": 219613.3920286129,
+              "wage": 195000
+            },
+            {
+              "ordinal": 49,
+              "fair": 137929.25987084454,
+              "lwr": 105103.37833908384,
+              "upr": 170755.14140260525,
+              "wage": 135000
+            },
+            {
+              "ordinal": 51,
+              "fair": 81269.36913371885,
+              "lwr": 48441.079270591501,
+              "upr": 114097.65899684621,
+              "wage": 75000
+            },
+            {
+              "ordinal": 52,
+              "fair": 137274.62502357535,
+              "lwr": 104436.13664494743,
+              "upr": 170113.11340220328,
+              "wage": 135000
+            },
+            {
+              "ordinal": 55,
+              "fair": 73128.339396467403,
+              "lwr": 40299.474841240371,
+              "upr": 105957.20395169444,
+              "wage": 70000
+            },
+            {
+              "ordinal": 56,
+              "fair": 161697.71423532977,
+              "lwr": 128860.97887822145,
+              "upr": 194534.44959243809,
+              "wage": 140000
+            },
+            {
+              "ordinal": 57,
+              "fair": 74672.620695328369,
+              "lwr": 41840.343249702091,
+              "upr": 107504.89814095464,
+              "wage": 35000
+            },
+            {
+              "ordinal": 61,
+              "fair": 125063.08041769816,
+              "lwr": 92222.550376822503,
+              "upr": 157903.61045857382,
+              "wage": 165000
+            },
+            {
+              "ordinal": 1168,
+              "fair": 88428.446600066556,
+              "lwr": 55577.132869695597,
+              "upr": 121279.76033043751,
+              "wage": 95000
+            },
+            {
+              "ordinal": 5296,
+              "fair": 88428.446600066556,
+              "lwr": 55577.132869695597,
+              "upr": 121279.76033043751,
+              "wage": 90000
+            },
+            {
+              "ordinal": 6214,
+              "fair": 88428.446600066556,
+              "lwr": 55577.132869695597,
+              "upr": 121279.76033043751,
+              "wage": 90000
+            }
+          ],
+          "reference": [
+            {
+              "ordinal": 1,
+              "fair": 198986.98290023053,
+              "lwr": 166144.06994904298,
+              "upr": 231829.89585141808,
+              "wage": 195000
+            },
+            {
+              "ordinal": 2,
+              "fair": 50904.166330843167,
+              "lwr": 18069.90998226028,
+              "upr": 83738.422679426061,
+              "wage": 35000
+            },
+            {
+              "ordinal": 3,
+              "fair": 89410.398870970326,
+              "lwr": 56582.338342708194,
+              "upr": 122238.45939923247,
+              "wage": 75000
+            },
+            {
+              "ordinal": 5,
+              "fair": 120992.56554907243,
+              "lwr": 88151.182369178598,
+              "upr": 153833.94872896626,
+              "wage": 125000
+            },
+            {
+              "ordinal": 8,
+              "fair": 153556.68449807831,
+              "lwr": 120719.71005997565,
+              "upr": 186393.65893618096,
+              "wage": 135000
+            },
+            {
+              "ordinal": 11,
+              "fair": 64659.992235581332,
+              "lwr": 31828.909032231248,
+              "upr": 97491.07543893141,
+              "wage": 80000
+            },
+            {
+              "ordinal": 12,
+              "fair": 173909.25884120696,
+              "lwr": 141072.23471896606,
+              "upr": 206746.28296344785,
+              "wage": 150000
+            },
+            {
+              "ordinal": 15,
+              "fair": 162352.34908259899,
+              "lwr": 129521.98489354699,
+              "upr": 195182.71327165098,
+              "wage": 150000
+            },
+            {
+              "ordinal": 18,
+              "fair": 170493.37881985039,
+              "lwr": 137660.82990391459,
+              "upr": 203325.92773578619,
+              "wage": 190000
+            },
+            {
+              "ordinal": 19,
+              "fair": 173909.25884120696,
+              "lwr": 141072.23471896606,
+              "upr": 206746.28296344785,
+              "wage": 150000
+            }
+          ]
+        },
+        "0.99": {
+          "critical": 2.5767927273832418,
+          "target": [
+            {
+              "ordinal": 0,
+              "fair": 68730.507104207063,
+              "lwr": 25578.589850040102,
+              "upr": 111882.42435837403,
+              "wage": 45000
+            },
+            {
+              "ordinal": 4,
+              "fair": 72801.021972832808,
+              "lwr": 29650.335659406534,
+              "upr": 115951.70828625909,
+              "wage": 35000
+            },
+            {
+              "ordinal": 6,
+              "fair": 60916.794790590196,
+              "lwr": 17764.465206935471,
+              "upr": 104069.12437424492,
+              "wage": 60000
+            },
+            {
+              "ordinal": 7,
+              "fair": 162352.34908259899,
+              "lwr": 119200.03252005515,
+              "upr": 205504.66564514284,
+              "wage": 145000
+            },
+            {
+              "ordinal": 9,
+              "fair": 64659.992235581332,
+              "lwr": 21506.730598763417,
+              "upr": 107813.25387239925,
+              "wage": 70000
+            },
+            {
+              "ordinal": 10,
+              "fair": 68730.507104207063,
+              "lwr": 25578.589850040102,
+              "upr": 111882.42435837403,
+              "wage": 90000
+            },
+            {
+              "ordinal": 13,
+              "fair": 141345.13989220108,
+              "lwr": 98182.812526097667,
+              "upr": 184507.4672583045,
+              "wage": 175000
+            },
+            {
+              "ordinal": 14,
+              "fair": 218684.92239609006,
+              "lwr": 175513.72535891455,
+              "upr": 261856.11943326556,
+              "wage": 205000
+            },
+            {
+              "ordinal": 16,
+              "fair": 210543.89265883857,
+              "lwr": 167375.55757560951,
+              "upr": 253712.22774206763,
+              "wage": 195000
+            },
+            {
+              "ordinal": 17,
+              "fair": 150140.80447672174,
+              "lwr": 106991.94451684403,
+              "upr": 193289.66443659944,
+              "wage": 175000
+            },
+            {
+              "ordinal": 20,
+              "fair": 150140.80447672174,
+              "lwr": 106991.94451684403,
+              "upr": 193289.66443659944,
+              "wage": 170000
+            },
+            {
+              "ordinal": 21,
+              "fair": 64987.309659215935,
+              "lwr": 21835.754927881659,
+              "upr": 108138.86439055021,
+              "wage": 70000
+            },
+            {
+              "ordinal": 25,
+              "fair": 73128.339396467403,
+              "lwr": 29977.993956545615,
+              "upr": 116278.68483638919,
+              "wage": 75000
+            },
+            {
+              "ordinal": 26,
+              "fair": 162352.34908259899,
+              "lwr": 119200.03252005515,
+              "upr": 205504.66564514284,
+              "wage": 190000
+            },
+            {
+              "ordinal": 27,
+              "fair": 194261.83318433561,
+              "lwr": 151097.86117223109,
+              "upr": 237425.80519644014,
+              "wage": 190000
+            },
+            {
+              "ordinal": 30,
+              "fair": 150140.80447672174,
+              "lwr": 106991.94451684403,
+              "upr": 193289.66443659944,
+              "wage": 140000
+            },
+            {
+              "ordinal": 31,
+              "fair": 64659.992235581332,
+              "lwr": 21506.730598763417,
+              "upr": 107813.25387239925,
+              "wage": 65000
+            },
+            {
+              "ordinal": 33,
+              "fair": 93153.596315961462,
+              "lwr": 50007.362769076011,
+              "upr": 136299.82986284691,
+              "wage": 75000
+            },
+            {
+              "ordinal": 38,
+              "fair": 56846.279921964458,
+              "lwr": 13693.062022764643,
+              "upr": 99999.497821164274,
+              "wage": 70000
+            },
+            {
+              "ordinal": 40,
+              "fair": 150140.80447672174,
+              "lwr": 106991.94451684403,
+              "upr": 193289.66443659944,
+              "wage": 145000
+            },
+            {
+              "ordinal": 43,
+              "fair": 154211.3193453475,
+              "lwr": 111061.42063938304,
+              "upr": 197361.21805131197,
+              "wage": 145000
+            },
+            {
+              "ordinal": 46,
+              "fair": 165768.2291039555,
+              "lwr": 122607.5252003585,
+              "upr": 208928.93300755249,
+              "wage": 185000
+            },
+            {
+              "ordinal": 48,
+              "fair": 186775.43829435334,
+              "lwr": 143613.14601373716,
+              "upr": 229937.73057496952,
+              "wage": 195000
+            },
+            {
+              "ordinal": 49,
+              "fair": 137929.25987084454,
+              "lwr": 94782.835324769403,
+              "upr": 181075.68441691968,
+              "wage": 135000
+            },
+            {
+              "ordinal": 51,
+              "fair": 81269.36913371885,
+              "lwr": 38119.77907059608,
+              "upr": 124418.95919684162,
+              "wage": 75000
+            },
+            {
+              "ordinal": 52,
+              "fair": 137274.62502357535,
+              "lwr": 94111.630005002982,
+              "upr": 180437.62004214773,
+              "wage": 135000
+            },
+            {
+              "ordinal": 55,
+              "fair": 73128.339396467403,
+              "lwr": 29977.993956545615,
+              "upr": 116278.68483638919,
+              "wage": 70000
+            },
+            {
+              "ordinal": 56,
+              "fair": 161697.71423532977,
+              "lwr": 118537.02339282802,
+              "upr": 204858.40507783153,
+              "wage": 140000
+            },
+            {
+              "ordinal": 57,
+              "fair": 74672.620695328369,
+              "lwr": 31517.789343338918,
+              "upr": 117827.45204731781,
+              "wage": 35000
+            },
+            {
+              "ordinal": 61,
+              "fair": 125063.08041769816,
+              "lwr": 81897.401832927091,
+              "upr": 168228.75900246925,
+              "wage": 165000
+            },
+            {
+              "ordinal": 1168,
+              "fair": 88428.446600066556,
+              "lwr": 45248.593905616603,
+              "upr": 131608.2992945165,
+              "wage": 95000
+            },
+            {
+              "ordinal": 5296,
+              "fair": 88428.446600066556,
+              "lwr": 45248.593905616603,
+              "upr": 131608.2992945165,
+              "wage": 90000
+            },
+            {
+              "ordinal": 6214,
+              "fair": 88428.446600066556,
+              "lwr": 45248.593905616603,
+              "upr": 131608.2992945165,
+              "wage": 90000
+            }
+          ],
+          "reference": [
+            {
+              "ordinal": 1,
+              "fair": 198986.98290023053,
+              "lwr": 155818.17221191269,
+              "upr": 242155.79358854837,
+              "wage": 195000
+            },
+            {
+              "ordinal": 2,
+              "fair": 50904.166330843167,
+              "lwr": 7746.733903631437,
+              "upr": 94061.598758054897,
+              "wage": 35000
+            },
+            {
+              "ordinal": 3,
+              "fair": 89410.398870970326,
+              "lwr": 46261.11024619425,
+              "upr": 132559.68749574642,
+              "wage": 75000
+            },
+            {
+              "ordinal": 5,
+              "fair": 120992.56554907243,
+              "lwr": 77825.765596144367,
+              "upr": 164159.3655020005,
+              "wage": 125000
+            },
+            {
+              "ordinal": 8,
+              "fair": 153556.68449807831,
+              "lwr": 110395.67940689226,
+              "upr": 196717.68958926434,
+              "wage": 135000
+            },
+            {
+              "ordinal": 11,
+              "fair": 64659.992235581332,
+              "lwr": 21506.730598763417,
+              "upr": 107813.25387239925,
+              "wage": 80000
+            },
+            {
+              "ordinal": 12,
+              "fair": 173909.25884120696,
+              "lwr": 130748.18844505967,
+              "upr": 217070.32923735425,
+              "wage": 150000
+            },
+            {
+              "ordinal": 15,
+              "fair": 162352.34908259899,
+              "lwr": 119200.03252005515,
+              "upr": 205504.66564514284,
+              "wage": 150000
+            },
+            {
+              "ordinal": 18,
+              "fair": 170493.37881985039,
+              "lwr": 127338.19064657603,
+              "upr": 213648.56699312475,
+              "wage": 190000
+            },
+            {
+              "ordinal": 19,
+              "fair": 173909.25884120696,
+              "lwr": 130748.18844505967,
+              "upr": 217070.32923735425,
+              "wage": 150000
+            }
+          ]
+        }
+      },
+      "pooled_group_test": {
+        "coefficient": -296.55249755984113,
+        "t": -0.87966389419060653,
+        "p": 0.37906256081912881,
+        "df": 9996
+      }
+    },
+    "df5": {
+      "reference_group": "Ref",
+      "outcome": "pay",
+      "group": "grp",
+      "predictors": ["x1", "x2"],
+      "residual_df": 5,
+      "reference_rows": 8,
+      "target_rows": 6,
+      "levels": {
+        "0.90": {
+          "critical": 2.0150483733330224,
+          "target": [
+            {
+              "ordinal": 8,
+              "fair": 66425.484871365392,
+              "lwr": 64048.697846469353,
+              "upr": 68802.271896261431,
+              "wage": 60591.769999999997
+            },
+            {
+              "ordinal": 9,
+              "fair": 70273.56291620413,
+              "lwr": 67968.796855733264,
+              "upr": 72578.328976674995,
+              "wage": 69534.850000000006
+            },
+            {
+              "ordinal": 10,
+              "fair": 63611.304393716324,
+              "lwr": 61124.458746639342,
+              "upr": 66098.150040793305,
+              "wage": 59436.879999999997
+            },
+            {
+              "ordinal": 11,
+              "fair": 69072.671587360936,
+              "lwr": 66401.327650363033,
+              "upr": 71744.015524358838,
+              "wage": 67825.710000000006
+            },
+            {
+              "ordinal": 12,
+              "fair": 66466.247934867584,
+              "lwr": 64122.187709867896,
+              "upr": 68810.308159867272,
+              "wage": 58701.959999999999
+            },
+            {
+              "ordinal": 13,
+              "fair": 90726.04606633709,
+              "lwr": 86521.872574914858,
+              "upr": 94930.219557759323,
+              "wage": 90403.389999999999
+            }
+          ],
+          "reference": [
+            {
+              "ordinal": 0,
+              "fair": 59919.243472283044,
+              "lwr": 57438.010490795641,
+              "upr": 62400.476453770447,
+              "wage": 60833.169999999998
+            },
+            {
+              "ordinal": 1,
+              "fair": 67171.239752871508,
+              "lwr": 64676.397369994615,
+              "upr": 69666.082135748395,
+              "wage": 68120.210000000006
+            },
+            {
+              "ordinal": 2,
+              "fair": 61681.150158179087,
+              "lwr": 59261.548236030583,
+              "upr": 64100.752080327591,
+              "wage": 60943.790000000001
+            },
+            {
+              "ordinal": 3,
+              "fair": 71313.407298226317,
+              "lwr": 68828.614413893272,
+              "upr": 73798.200182559362,
+              "wage": 71364.199999999997
+            },
+            {
+              "ordinal": 4,
+              "fair": 66444.257379130562,
+              "lwr": 64196.322448861254,
+              "upr": 68692.192309399863,
+              "wage": 65506.120000000003
+            },
+            {
+              "ordinal": 5,
+              "fair": 71123.016708307667,
+              "lwr": 68793.124429406802,
+              "upr": 73452.908987208531,
+              "wage": 72234.619999999995
+            },
+            {
+              "ordinal": 6,
+              "fair": 64693.424097354597,
+              "lwr": 62238.163187236882,
+              "upr": 67148.685007472304,
+              "wage": 63913.349999999999
+            },
+            {
+              "ordinal": 7,
+              "fair": 75312.891133647005,
+              "lwr": 72724.144716327966,
+              "upr": 77901.637550966043,
+              "wage": 74743.169999999998
+            }
+          ]
+        },
+        "0.95": {
+          "critical": 2.5705818356363141,
+          "target": [
+            {
+              "ordinal": 8,
+              "fair": 66425.484871365392,
+              "lwr": 63393.435797889331,
+              "upr": 69457.533944841445,
+              "wage": 60591.769999999997
+            },
+            {
+              "ordinal": 9,
+              "fair": 70273.56291620413,
+              "lwr": 67333.39043754655,
+              "upr": 73213.735394861709,
+              "wage": 69534.850000000006
+            },
+            {
+              "ordinal": 10,
+              "fair": 63611.304393716324,
+              "lwr": 60438.854375638854,
+              "upr": 66783.754411793794,
+              "wage": 59436.879999999997
+            },
+            {
+              "ordinal": 11,
+              "fair": 69072.671587360936,
+              "lwr": 65664.858508498874,
+              "upr": 72480.484666222997,
+              "wage": 67825.710000000006
+            },
+            {
+              "ordinal": 12,
+              "fair": 66466.247934867584,
+              "lwr": 63475.948190323477,
+              "upr": 69456.547679411698,
+              "wage": 58701.959999999999
+            },
+            {
+              "ordinal": 13,
+              "fair": 90726.04606633709,
+              "lwr": 85362.814019933197,
+              "upr": 96089.278112740983,
+              "wage": 90403.389999999999
+            }
+          ],
+          "reference": [
+            {
+              "ordinal": 0,
+              "fair": 59919.243472283044,
+              "lwr": 56753.953488875217,
+              "upr": 63084.533455690871,
+              "wage": 60833.169999999998
+            },
+            {
+              "ordinal": 1,
+              "fair": 67171.239752871508,
+              "lwr": 63988.588359946829,
+              "upr": 70353.891145796195,
+              "wage": 68120.210000000006
+            },
+            {
+              "ordinal": 2,
+              "fair": 61681.150158179087,
+              "lwr": 58594.482446943097,
+              "upr": 64767.817869415077,
+              "wage": 60943.790000000001
+            },
+            {
+              "ordinal": 3,
+              "fair": 71313.407298226317,
+              "lwr": 68143.575973919316,
+              "upr": 74483.238622533318,
+              "wage": 71364.199999999997
+            },
+            {
+              "ordinal": 4,
+              "fair": 66444.257379130562,
+              "lwr": 63576.583939666358,
+              "upr": 69311.930818594774,
+              "wage": 65506.120000000003
+            },
+            {
+              "ordinal": 5,
+              "fair": 71123.016708307667,
+              "lwr": 68150.790904504567,
+              "upr": 74095.242512110766,
+              "wage": 72234.619999999995
+            },
+            {
+              "ordinal": 6,
+              "fair": 64693.424097354597,
+              "lwr": 61561.266487233843,
+              "upr": 67825.581707475358,
+              "wage": 63913.349999999999
+            },
+            {
+              "ordinal": 7,
+              "fair": 75312.891133647005,
+              "lwr": 72010.447080444559,
+              "upr": 78615.33518684945,
+              "wage": 74743.169999999998
+            }
+          ]
+        },
+        "0.99": {
+          "critical": 4.0321429835552287,
+          "target": [
+            {
+              "ordinal": 8,
+              "fair": 66425.484871365392,
+              "lwr": 61669.497247114043,
+              "upr": 71181.472495616734,
+              "wage": 60591.769999999997
+            },
+            {
+              "ordinal": 9,
+              "fair": 70273.56291620413,
+              "lwr": 65661.690356493622,
+              "upr": 74885.435475914637,
+              "wage": 69534.850000000006
+            },
+            {
+              "ordinal": 10,
+              "fair": 63611.304393716324,
+              "lwr": 58635.087763015552,
+              "upr": 68587.521024417088,
+              "wage": 59436.879999999997
+            },
+            {
+              "ordinal": 11,
+              "fair": 69072.671587360936,
+              "lwr": 63727.271022900772,
+              "upr": 74418.072151821107,
+              "wage": 67825.710000000006
+            },
+            {
+              "ordinal": 12,
+              "fair": 66466.247934867584,
+              "lwr": 61775.747143747707,
+              "upr": 71156.748725987462,
+              "wage": 58701.959999999999
+            },
+            {
+              "ordinal": 13,
+              "fair": 90726.04606633709,
+              "lwr": 82313.429838644442,
+              "upr": 99138.662294029738,
+              "wage": 90403.389999999999
+            }
+          ],
+          "reference": [
+            {
+              "ordinal": 0,
+              "fair": 59919.243472283044,
+              "lwr": 54954.257872298745,
+              "upr": 64884.229072267342,
+              "wage": 60833.169999999998
+            },
+            {
+              "ordinal": 1,
+              "fair": 67171.239752871508,
+              "lwr": 62179.021530063248,
+              "upr": 72163.457975679776,
+              "wage": 68120.210000000006
+            },
+            {
+              "ordinal": 2,
+              "fair": 61681.150158179087,
+              "lwr": 56839.489261845141,
+              "upr": 66522.811054513033,
+              "wage": 60943.790000000001
+            },
+            {
+              "ordinal": 3,
+              "fair": 71313.407298226317,
+              "lwr": 66341.298277548427,
+              "upr": 76285.516318904207,
+              "wage": 71364.199999999997
+            },
+            {
+              "ordinal": 4,
+              "fair": 66444.257379130562,
+              "lwr": 61946.10479057426,
+              "upr": 70942.409967686865,
+              "wage": 65506.120000000003
+            },
+            {
+              "ordinal": 5,
+              "fair": 71123.016708307667,
+              "lwr": 66460.866196620162,
+              "upr": 75785.167219995172,
+              "wage": 72234.619999999995
+            },
+            {
+              "ordinal": 6,
+              "fair": 64693.424097354597,
+              "lwr": 59780.409014171571,
+              "upr": 69606.439180537622,
+              "wage": 63913.349999999999
+            },
+            {
+              "ordinal": 7,
+              "fair": 75312.891133647005,
+              "lwr": 70132.769484492135,
+              "upr": 80493.012782801874,
+              "wage": 74743.169999999998
+            }
+          ]
+        }
+      },
+      "pooled_group_test": {
+        "coefficient": -3872.3989428877494,
+        "t": -3.5248393829429561,
+        "p": 0.005493895165366222,
+        "df": 10
+      }
+    }
+  },
+  "t_grid": [
+    {
+      "t": 0.25,
+      "df": 3,
+      "p": 0.81872922242882962
+    },
+    {
+      "t": 1,
+      "df": 3,
+      "p": 0.39100221895577053
+    },
+    {
+      "t": 1.96,
+      "df": 3,
+      "p": 0.14485220856485359
+    },
+    {
+      "t": 2.5710000000000002,
+      "df": 3,
+      "p": 0.082421454944585804
+    },
+    {
+      "t": 3.5,
+      "df": 3,
+      "p": 0.039481037619282788
+    },
+    {
+      "t": 8,
+      "df": 3,
+      "p": 0.0040765775877854666
+    },
+    {
+      "t": 0.25,
+      "df": 5,
+      "p": 0.8125341307441234
+    },
+    {
+      "t": 1,
+      "df": 5,
+      "p": 0.36321746764912255
+    },
+    {
+      "t": 1.96,
+      "df": 5,
+      "p": 0.1072879525052941
+    },
+    {
+      "t": 2.5710000000000002,
+      "df": 5,
+      "p": 0.049974634683851382
+    },
+    {
+      "t": 3.5,
+      "df": 5,
+      "p": 0.017284431785293354
+    },
+    {
+      "t": 8,
+      "df": 5,
+      "p": 0.00049290666057244374
+    },
+    {
+      "t": 0.25,
+      "df": 12,
+      "p": 0.80681590064586384
+    },
+    {
+      "t": 1,
+      "df": 12,
+      "p": 0.33704905795358431
+    },
+    {
+      "t": 1.96,
+      "df": 12,
+      "p": 0.073632425892749181
+    },
+    {
+      "t": 2.5710000000000002,
+      "df": 12,
+      "p": 0.024500431757582299
+    },
+    {
+      "t": 3.5,
+      "df": 12,
+      "p": 0.0043818694317481434
+    },
+    {
+      "t": 8,
+      "df": 12,
+      "p": 3.7598982247502612e-06
+    },
+    {
+      "t": 0.25,
+      "df": 30,
+      "p": 0.80429140908057506
+    },
+    {
+      "t": 1,
+      "df": 30,
+      "p": 0.32530861542602985
+    },
+    {
+      "t": 1.96,
+      "df": 30,
+      "p": 0.05934231289605052
+    },
+    {
+      "t": 2.5710000000000002,
+      "df": 30,
+      "p": 0.015342676028283049
+    },
+    {
+      "t": 3.5,
+      "df": 30,
+      "p": 0.0014768074376442556
+    },
+    {
+      "t": 8,
+      "df": 30,
+      "p": 6.2658224757007723e-09
+    },
+    {
+      "t": 0.25,
+      "df": 4888,
+      "p": 0.80259785456361277
+    },
+    {
+      "t": 1,
+      "df": 4888,
+      "p": 0.31736000834334477
+    },
+    {
+      "t": 1.96,
+      "df": 4888,
+      "p": 0.05005252320632346
+    },
+    {
+      "t": 2.5710000000000002,
+      "df": 4888,
+      "p": 0.010169851129593271
+    },
+    {
+      "t": 3.5,
+      "df": 4888,
+      "p": 0.00046940968180824702
+    },
+    {
+      "t": 8,
+      "df": 4888,
+      "p": 1.5413010500602331e-15
+    }
+  ],
+  "quantiles": {
+    "employers": {
+      "outcome": "log_salary",
+      "group": "Gender",
+      "reference_group": "Male",
+      "taus": {
+        "0.1": {
+          "reference": {
+            "count": 5108,
+            "quantile_value": 11.082142548877775,
+            "ecdf_at_quantile": 0.16033672670321064,
+            "tie_count": 378,
+            "tie_share": 0.074001566170712602
+          },
+          "target": {
+            "count": 4892,
+            "quantile_value": 11.082142548877775,
+            "ecdf_at_quantile": 0.17232215862632869,
+            "tie_count": 356,
+            "tie_share": 0.072771872444807845
+          },
+          "quantile_gap": 0
+        },
+        "0.5": {
+          "reference": {
+            "count": 5108,
+            "quantile_value": 11.695247021764184,
+            "ecdf_at_quantile": 0.52153484729835553,
+            "tie_count": 215,
+            "tie_share": 0.042090837901331245
+          },
+          "target": {
+            "count": 4892,
+            "quantile_value": 11.652687407345388,
+            "ecdf_at_quantile": 0.50224856909239579,
+            "tie_count": 140,
+            "tie_share": 0.028618152085036794
+          },
+          "quantile_gap": -0.042559614418795633
+        },
+        "0.9": {
+          "reference": {
+            "count": 5108,
+            "quantile_value": 12.100712129872347,
+            "ecdf_at_quantile": 0.90015661707126082,
+            "tie_count": 114,
+            "tie_share": 0.022317932654659357
+          },
+          "target": {
+            "count": 4892,
+            "quantile_value": 12.100712129872347,
+            "ecdf_at_quantile": 0.90024529844644319,
+            "tie_count": 105,
+            "tie_share": 0.021463614063777597
+          },
+          "quantile_gap": 0
+        }
+      }
+    },
+    "grid": {
+      "outcome": "pay",
+      "group": "grp",
+      "reference_group": "Cont",
+      "taus": {
+        "0.5": {
+          "reference": {
+            "count": 30,
+            "quantile_value": 25.033099999999997,
+            "ecdf_at_quantile": 0.5,
+            "tie_count": 0,
+            "tie_share": 0
+          },
+          "target": {
+            "count": 30,
+            "quantile_value": 26,
+            "ecdf_at_quantile": 0.59999999999999998,
+            "tie_count": 12,
+            "tie_share": 0.40000000000000002
+          },
+          "quantile_gap": 0.96690000000000254
+        },
+        "0.9": {
+          "reference": {
+            "count": 30,
+            "quantile_value": 29.968830000000001,
+            "ecdf_at_quantile": 0.90000000000000002,
+            "tie_count": 0,
+            "tie_share": 0
+          },
+          "target": {
+            "count": 30,
+            "quantile_value": 28.200000000000003,
+            "ecdf_at_quantile": 0.90000000000000002,
+            "tie_count": 0,
+            "tie_share": 0
+          },
+          "quantile_gap": -1.7688299999999977
+        }
+      }
+    }
+  },
+  "weights": {
+    "relative": [
+      {
+        "name": "mixed FTE",
+        "y": [40, 42, 44, 46, 48, 60, 62, 64],
+        "w": [1, 1, 1, 1, 1, 0.5, 0.5, 0.5],
+        "relative": {
+          "0.10": 41.399999999999999,
+          "0.25": 43.5,
+          "0.50": 47,
+          "0.75": 51.5,
+          "0.90": 62.600000000000001
+        }
+      },
+      {
+        "name": "integer 1,3,2,1",
+        "y": [1, 2, 3, 7],
+        "w": [1, 3, 2, 1],
+        "relative": {
+          "0.10": 2,
+          "0.25": 2,
+          "0.50": 2.5,
+          "0.75": 4,
+          "0.90": 5.8000000000000007
+        }
+      },
+      {
+        "name": "uniform 0.5",
+        "y": [20, 24, 28, 32],
+        "w": [0.5, 0.5, 0.5, 0.5],
+        "relative": {
+          "0.10": 21.200000000000003,
+          "0.25": 23,
+          "0.50": 26,
+          "0.75": 29,
+          "0.90": 30.800000000000001
+        }
+      },
+      {
+        "name": "random",
+        "y": [52.723100000000002, 73.419799999999995, 48.798900000000003, 30.7468, 30.9678, 48.057899999999997, 60.651499999999999, 30.655100000000001, 43.164999999999999, 70.5214, 33.0199, 45.098999999999997],
+        "w": [0.45639999999999997, 0.84430000000000005, 0.82889999999999997, 0.88260000000000005, 0.99280000000000002, 0.58150000000000002, 0.27460000000000001, 0.83720000000000006, 0.88490000000000002, 0.65229999999999999, 0.59850000000000003, 0.2893],
+        "relative": {
+          "0.10": 30.768899999999999,
+          "0.25": 30.9678,
+          "0.50": 45.611449999999998,
+          "0.75": 57.172675000000005,
+          "0.90": 73.129959999999997
+        }
+      },
+      {
+        "name": "ties",
+        "y": [10, 10, 10, 20, 20, 30, 40, 40],
+        "w": [1.5, 0.5, 1, 2, 0.25, 3, 0.75, 1],
+        "relative": {
+          "0.10": 10,
+          "0.25": 17.5,
+          "0.50": 25,
+          "0.75": 32.5,
+          "0.90": 40
+        }
+      }
+    ],
+    "frequency": [
+      {
+        "name": "integer 1,3,2,1",
+        "y": [1, 2, 3, 7],
+        "w": [1, 3, 2, 1],
+        "frequency": {
+          "0.10": 1.6000000000000001,
+          "0.25": 2,
+          "0.50": 2,
+          "0.75": 3,
+          "0.90": 4.6000000000000014
+        }
+      },
+      {
+        "name": "integer 2,2,5",
+        "y": [15, 18, 31],
+        "w": [2, 2, 5],
+        "frequency": {
+          "0.10": 15,
+          "0.25": 18,
+          "0.50": 31,
+          "0.75": 31,
+          "0.90": 31
+        }
+      }
+    ]
+  }
+}

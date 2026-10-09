@@ -111,7 +111,8 @@ fn builder(
         .reference_coefficients(scheme)
         .bootstrap_reps(1);
     if let Some(w) = m.weights {
-        b.weights(w);
+        b.weights(w)
+            .weights_kind(oaxaca_blinder::WeightsKind::Frequency);
     }
     if let Some(c) = conv {
         b.normalization_convention(c).normalize_all_categoricals();

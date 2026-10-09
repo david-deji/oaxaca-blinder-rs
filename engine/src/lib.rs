@@ -3,6 +3,7 @@ pub mod analysis;
 pub mod defensibility;
 pub mod row_key;
 mod rows;
+pub mod support;
 pub mod types;
 mod verification_test;
 
@@ -160,6 +161,7 @@ mod tests {
             },
             steps: Some(10),
             max_budget: Some(10000.0),
+            confidence_level: None,
         };
 
         let js_val = serde_wasm_bindgen::to_value(&req).unwrap();

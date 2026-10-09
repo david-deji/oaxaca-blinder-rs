@@ -1,9 +1,9 @@
 use crate::rows::{check_alignment, excluded_with_keys, read_csv};
+use crate::support::{self, Fitted, IntervalModel, DEFENSIBLE_TOLERANCE};
 use crate::types::*;
 use nalgebra::DVector;
 use oaxaca_blinder::{OaxacaBuilder, ReferenceCoefficients};
 use polars::prelude::*;
-use statrs::distribution::{ContinuousCDF, Normal};
 // D14 (0017-P1): every map in this function is a BTreeMap, never a std HashMap. std HashMap
 // iterates in RandomState order (seeded per process), and three f64 sums below are accumulated
 // by iterating a row-index map — `required_budget`, `original_unexplained_gap` and
@@ -232,6 +232,17 @@ pub fn check_defensibility_inner(req: VerificationRequest) -> Result<Optimizatio
         feature_names.push(format!("Feature {}", feature_names.len()));
     }
 
+    // The baseline group's pay line is the standard every fair wage is read off. With no
+    // residual degrees of freedom there is no honest range (the old code returned a zero-width
+    // one), so it is refused by name before anything is solved (0120-MERIDIAN T13).
+    if y_a.len() <= x_a.ncols() {
+        return Err(support::insufficient_df_error(
+            "reference",
+            y_a.len(),
+            x_a.ncols(),
+        ));
+    }
+
     // Calculate Fair Beta (Reference Target for "Defensibility")
     let beta_fair = x_a
         .clone()
@@ -239,41 +250,23 @@ pub fn check_defensibility_inner(req: VerificationRequest) -> Result<Optimizatio
         .solve(&y_a, 1e-9)
         .map_err(|e| format!("SVD Solve Error: {}", e))?;
 
-    // --- Variance Calculation ---
-    let predicted_y_a_fair = &x_a * &beta_fair;
-    let residuals_a = &y_a - &predicted_y_a_fair;
-    let rss = residuals_a.dot(&residuals_a);
-    let degrees_of_freedom = (y_a.len() as f64) - (x_a.ncols() as f64);
-    let sigma_squared = if degrees_of_freedom > 0.0 {
-        rss / degrees_of_freedom
-    } else {
-        0.0
+    // --- Prediction intervals (0120-MERIDIAN T14) ---
+    // The same model `optimize` uses: Student t on the baseline regression's residual degrees of
+    // freedom, level from the request (default 95%, clamped to [50%, 99.9%]).
+    let confidence = support::clamp_confidence(req.confidence_level);
+    let interval_model = IntervalModel::new(&x_a, &y_a, &beta_fair, confidence)?;
+    let calculate_interval = |features: DVector<f64>, predicted_y: f64| -> (f64, f64) {
+        interval_model.interval(&features, predicted_y)
     };
 
-    let xt_x = x_a.transpose() * &x_a;
-    let _r = xt_x.nrows();
-    let _c = xt_x.ncols();
-    let cov_matrix = xt_x
-        .try_inverse()
-        .ok_or("Covariance matrix is singular, likely due to perfect multicollinearity.")?;
-
-    // Confidence Level (Default 95%)
-    let confidence = 0.95;
-    let alpha = 1.0 - confidence;
-    let p_value_z = 1.0 - (alpha / 2.0);
-    let normal = Normal::new(0.0, 1.0).unwrap();
-    let z_score = normal.inverse_cdf(p_value_z);
-
-    let calculate_interval = move |features: DVector<f64>, predicted_y: f64| -> (f64, f64) {
-        if sigma_squared <= 1e-9 {
-            return (predicted_y, predicted_y);
-        }
-        let leverage = (features.transpose() * &cov_matrix * &features)[(0, 0)];
-        let pred_variance = sigma_squared * (1.0 + leverage);
-        let pred_se = pred_variance.sqrt();
-        let margin = z_score * pred_se;
-        (predicted_y - margin, predicted_y + margin)
-    };
+    let (support_block, warnings) = support::support_diagnostics(
+        &x_a,
+        &x_b,
+        &feature_names,
+        &req.decomposition_params.predictors,
+        Fitted::Reference,
+        Some(interval_model.leverage()),
+    )?;
 
     // Process Specific Adjustments
     let mut results = Vec::new();
@@ -314,6 +307,7 @@ pub fn check_defensibility_inner(req: VerificationRequest) -> Result<Optimizatio
             // Calculate Fair Wage (Point Estimate)
             let fair_wage = (&features.transpose() * &beta_fair)[(0, 0)];
 
+            let extrapolated = interval_model.is_extrapolated(&features);
             let (lower, upper) = calculate_interval(features, fair_wage);
 
             let current_wage = wage_array.get(row_idx).unwrap_or(0.0);
@@ -327,7 +321,7 @@ pub fn check_defensibility_inner(req: VerificationRequest) -> Result<Optimizatio
             let new_wage = current_wage + m.value;
 
             // Defensibility Logic
-            let is_defensible = new_wage >= (lower - 1.0);
+            let is_defensible = new_wage >= (lower - DEFENSIBLE_TOLERANCE);
 
             let msg = if is_defensible {
                 Some("Wage is within or above the calculated fair range.".to_string())
@@ -367,6 +361,7 @@ pub fn check_defensibility_inner(req: VerificationRequest) -> Result<Optimizatio
                 contributions: contribs,
                 is_defensible: Some(is_defensible),
                 defensibility_message: msg,
+                extrapolated,
             });
         } else {
             // 0118-MERIDIAN S3: addressed to an excluded or unknown row. The app replays
@@ -510,5 +505,8 @@ pub fn check_defensibility_inner(req: VerificationRequest) -> Result<Optimizatio
         analysed_target_count: target_rows.len(),
         excluded_rows: excluded_with_keys(&builder_excluded_rows, Some(&row_keys)),
         adjustments_on_excluded_rows,
+        interval: interval_model.basis.clone(),
+        support: support_block,
+        warnings,
     })
 }

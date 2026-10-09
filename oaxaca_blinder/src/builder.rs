@@ -18,7 +18,8 @@ use crate::math::normalization::{
     NormalizationRecord, ShareMap,
 };
 use crate::math::ols::ols;
-use crate::math::rif::{calculate_rif, calculate_rif_weighted};
+use crate::math::rif::{calculate_rif, calculate_rif_relative, calculate_rif_weighted};
+use crate::math::weights::{check_weight, rescale_to_count, WeightsKind};
 use crate::rng::{resample_indices, unit_rng, RngPurpose, RunMetadata, DEFAULT_SEED};
 use crate::rows::{
     DataMatricesWithRows, ExcludedRow, ExclusionReason, GroupMatrices, RowAccounting,
@@ -99,6 +100,23 @@ enum Rep {
 /// Reserved: a caller column with this name is a conflict and is refused by polars.
 const ROW_ORDINAL_COL: &str = "__ob_row_ordinal__";
 
+/// The weights column of `df` as plain floats. An integer column (a CSV of headcounts) is cast;
+/// a column that does not parse as numbers is an error rather than silent nulls.
+fn weight_values(df: &DataFrame, col: &str) -> Result<Float64Chunked, OaxacaError> {
+    let raw = df.column(col)?.as_materialized_series();
+    let cast = raw.cast(&DataType::Float64)?;
+    if cast.null_count() > raw.null_count() {
+        return Err(OaxacaError::PolarsError(PolarsError::ComputeError(
+            format!("weights column '{col}' contains non-numeric values").into(),
+        )));
+    }
+    Ok(cast.f64()?.clone())
+}
+
+/// Temporary row-position column used to name a rejected weight when the frame carries no
+/// ordinal column. Never survives `clean_dataframe`.
+const WEIGHT_POS_COL: &str = "__ob_weight_pos__";
+
 pub struct OaxacaBuilder {
     dataframe: DataFrame,
     outcome: String,
@@ -111,6 +129,7 @@ pub struct OaxacaBuilder {
     normalization_vars: Vec<String>,
     normalization_convention: NormalizationConvention,
     weights_col: Option<String>,
+    weights_kind: Option<WeightsKind>,
     selection_outcome: Option<String>,
     selection_predictors: Vec<String>,
     /// Master seed for bootstrap resampling. `None` resolves to `DEFAULT_SEED` at `run()`.
@@ -293,7 +312,7 @@ impl OaxacaBuilder {
             return Ok(levels.into_iter().flatten().map(String::from).collect());
         };
 
-        let weights = df.column(w_col)?.f64()?.clone();
+        let weights = weight_values(df, w_col)?;
         let mut present = std::collections::HashSet::new();
         for (level, weight) in levels.into_iter().zip(weights.into_iter()) {
             if let (Some(level), Some(weight)) = (level, weight) {
@@ -328,6 +347,7 @@ impl OaxacaBuilder {
             normalization_vars: Vec::new(),
             normalization_convention: NormalizationConvention::default(),
             weights_col: None,
+            weights_kind: None,
             selection_outcome: None,
             selection_predictors: Vec::new(),
             seed: None,
@@ -361,6 +381,7 @@ impl OaxacaBuilder {
             normalization_vars: Vec::new(),
             normalization_convention: NormalizationConvention::default(),
             weights_col: None,
+            weights_kind: None,
             selection_outcome: None,
             selection_predictors: Vec::new(),
             seed: None,
@@ -487,6 +508,20 @@ impl OaxacaBuilder {
     /// * `weights` - The name of the column containing sample weights.
     pub fn weights(&mut self, weights: &str) -> &mut Self {
         self.weights_col = Some(weights.to_string());
+        self
+    }
+
+    /// States what the weights column means (0120-MERIDIAN S9 / T17). REQUIRED whenever
+    /// [`weights`](Self::weights) is set; a run without it is refused with
+    /// [`OaxacaError::WeightsKindRequired`].
+    ///
+    /// * [`WeightsKind::Frequency`]: whole-number replication counts; `w = 2` is the row twice.
+    ///   A fractional weight is refused, naming the row.
+    /// * [`WeightsKind::Relative`]: relative importance (FTE, design weights). Each regression's
+    ///   weights are rescaled to sum to its row count, and the RIF quantile is
+    ///   `Hmisc::wtd.quantile(type = "quantile", normwt = TRUE)`. Uniform weights change nothing.
+    pub fn weights_kind(&mut self, kind: WeightsKind) -> &mut Self {
+        self.weights_kind = Some(kind);
         self
     }
 
@@ -782,7 +817,7 @@ impl OaxacaBuilder {
             .collect();
 
         let weights = if let Some(w_col) = &self.weights_col {
-            let w_series = df.column(w_col)?.f64()?;
+            let w_series = weight_values(df, w_col)?;
             let w_vec: Vec<f64> = w_series
                 .into_iter()
                 .map(|opt| {
@@ -793,6 +828,13 @@ impl OaxacaBuilder {
                     })
                 })
                 .collect::<Result<Vec<f64>, _>>()?;
+            // Relative weights are rescaled so each regression's weights sum to its row count
+            // (0120-MERIDIAN T17). Frequency weights are used as given: w = 2 is the row twice.
+            let w_vec = if self.weights_kind == Some(WeightsKind::Relative) {
+                rescale_to_count(&w_vec)
+            } else {
+                w_vec
+            };
             Some(DVector::from_vec(w_vec))
         } else {
             None
@@ -873,8 +915,7 @@ impl OaxacaBuilder {
         }
         let weights: Option<Vec<f64>> = match &self.weights_col {
             Some(w_col) => Some(
-                df.column(w_col)?
-                    .f64()?
+                weight_values(df, w_col)?
                     .into_iter()
                     .map(|v| {
                         v.ok_or_else(|| {
@@ -1465,22 +1506,24 @@ impl OaxacaBuilder {
         // in the same order as the outcome, because `clean_dataframe` has already dropped any row
         // with a null in either column.
         let weights: Option<Vec<f64>> = match &self.weights_col {
-            Some(col) => Some(
-                g.column(col)?
-                    .cast(&DataType::Float64)?
-                    .f64()?
-                    .into_no_null_iter()
-                    .collect(),
-            ),
+            Some(col) => Some(weight_values(g, col)?.into_no_null_iter().collect()),
             None => None,
         };
         let series = g.column(&self.outcome)?.as_materialized_series();
         // Branch rather than always calling the weighted form with `None`: the unweighted path
         // stays literally the original function, so "did the unweighted answer move?" is answered
         // by reading this line rather than by trusting a delegation.
-        let rif = match weights.as_deref() {
-            Some(w) => calculate_rif_weighted(series, quantile, Some(w)),
-            None => calculate_rif(series, quantile),
+        let rif = match (weights.as_deref(), self.weights_kind) {
+            (Some(w), Some(WeightsKind::Relative)) => calculate_rif_relative(series, quantile, w),
+            (Some(w), Some(WeightsKind::Frequency)) => {
+                calculate_rif_weighted(series, quantile, Some(w))
+            }
+            (Some(_), None) => {
+                return Err(OaxacaError::WeightsKindRequired {
+                    column: self.weights_col.clone().unwrap_or_default(),
+                })
+            }
+            (None, _) => calculate_rif(series, quantile),
         }
         .map_err(OaxacaError::PolarsError)?;
         let mut out = g.clone();
@@ -1503,10 +1546,63 @@ impl OaxacaBuilder {
             }
         }
 
-        let clean_df = df
-            .drop_nulls(Some(&cols))
-            .map_err(OaxacaError::PolarsError)?;
+        let Some(w_col) = &self.weights_col else {
+            let clean_df = df
+                .drop_nulls(Some(&cols))
+                .map_err(OaxacaError::PolarsError)?;
+            return Ok(clean_df);
+        };
+
+        // A weights column: the stated kind is required, and every weight that survives the
+        // null drop must be valid under it. A rejected weight is named by its original row
+        // ordinal: the ordinal column when the caller added one, otherwise the row position in
+        // the frame given here (which is the data-row ordinal of the builder's frame).
+        let Some(kind) = self.weights_kind else {
+            return Err(OaxacaError::WeightsKindRequired {
+                column: w_col.clone(),
+            });
+        };
+        let has_ordinal = df.column(ROW_ORDINAL_COL).is_ok();
+        let mut clean_df = if has_ordinal {
+            df.drop_nulls(Some(&cols))
+                .map_err(OaxacaError::PolarsError)?
+        } else {
+            df.clone()
+                .with_row_index(WEIGHT_POS_COL.into(), None)?
+                .drop_nulls(Some(&cols))
+                .map_err(OaxacaError::PolarsError)?
+        };
+        let pos_col = if has_ordinal {
+            ROW_ORDINAL_COL
+        } else {
+            WEIGHT_POS_COL
+        };
+        let ordinals = Self::ordinals_of(&clean_df, pos_col)?;
+        let weights = weight_values(&clean_df, w_col)?;
+        let mut total = 0.0;
+        for (opt, ordinal) in weights.into_iter().zip(ordinals.iter()) {
+            let w = opt.unwrap_or(0.0);
+            check_weight(w_col, *ordinal, w, kind)?;
+            total += w;
+        }
+        if clean_df.height() > 0 && total <= 0.0 {
+            return Err(OaxacaError::InvalidWeight {
+                column: w_col.clone(),
+                row: ordinals.first().copied().unwrap_or(0),
+                value: 0.0,
+                reason: "weights sum to zero".to_string(),
+            });
+        }
+        if !has_ordinal {
+            clean_df = clean_df.drop(WEIGHT_POS_COL)?;
+        }
         Ok(clean_df)
+    }
+
+    /// The `usize` values of an ordinal column, in frame order.
+    fn ordinals_of(df: &DataFrame, col: &str) -> Result<Vec<usize>, OaxacaError> {
+        let ca = df.column(col)?.as_materialized_series().idx()?.clone();
+        Ok(ca.into_no_null_iter().map(|v| v as usize).collect())
     }
 
     /// Executes the Oaxaca-Blinder decomposition.
@@ -1875,7 +1971,7 @@ mod tests {
             let mut b = OaxacaBuilder::new(df.clone(), "wage", "group", "A");
             b.predictors(vec!["educ"]);
             if weighted {
-                b.weights("hc");
+                b.weights("hc").weights_kind(WeightsKind::Frequency);
             }
             let out = b
                 .rif_replace_outcome(&df, 0.5)

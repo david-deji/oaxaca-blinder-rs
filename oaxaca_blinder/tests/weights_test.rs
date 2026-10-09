@@ -1,4 +1,4 @@
-use oaxaca_blinder::OaxacaBuilder;
+use oaxaca_blinder::{OaxacaBuilder, WeightsKind};
 use polars::prelude::*;
 
 #[test]
@@ -39,6 +39,7 @@ fn test_weighted_decomposition() -> Result<(), Box<dyn std::error::Error>> {
     let res_weighted = OaxacaBuilder::new(df, "outcome", "group", "B")
         .predictors(vec!["x"])
         .weights("weight")
+        .weights_kind(WeightsKind::Frequency)
         .bootstrap_reps(0)
         .run()?;
 
@@ -79,7 +80,7 @@ fn gap_at_median(weighted: bool) -> f64 {
     let mut b = OaxacaBuilder::new(df, "wage", "group", "B");
     b.predictors(vec!["educ"]).bootstrap_reps(0);
     if weighted {
-        b.weights("hc");
+        b.weights("hc").weights_kind(WeightsKind::Frequency);
     }
     let r = b.decompose_quantile(0.5).expect("decompose_quantile");
     r.total_gap

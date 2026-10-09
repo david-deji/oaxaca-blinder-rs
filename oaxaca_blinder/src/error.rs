@@ -55,6 +55,19 @@ pub enum OaxacaError {
     },
     /// A normalisation request the data cannot satisfy (0120-MERIDIAN S1).
     NormalizationError(String),
+    /// A weights column was named without saying what its weights mean (0120-MERIDIAN S9). No
+    /// single convention makes both "uniform fractional weights are a no-op" and "w = 2 is the
+    /// row twice" true, so the caller states `frequency` or `relative`.
+    WeightsKindRequired { column: String },
+    /// One weight the stated kind cannot take (0120-MERIDIAN S9): not finite, negative, or a
+    /// fractional value under `frequency`. `row` is the 0-based position among the data rows of
+    /// the frame given to the builder.
+    InvalidWeight {
+        column: String,
+        row: usize,
+        value: f64,
+        reason: String,
+    },
 }
 
 impl From<PolarsError> for OaxacaError {
@@ -132,6 +145,22 @@ impl fmt::Display for OaxacaError {
                 }
             }
             OaxacaError::NormalizationError(s) => write!(f, "Normalization error: {}", s),
+            OaxacaError::WeightsKindRequired { column } => write!(
+                f,
+                "WEIGHTS_KIND_REQUIRED: column={}; weights_kind must be stated, exactly one of: {}",
+                column,
+                crate::math::weights::WeightsKind::ACCEPTED_NAMES.join(", ")
+            ),
+            OaxacaError::InvalidWeight {
+                column,
+                row,
+                value,
+                reason,
+            } => write!(
+                f,
+                "INVALID_WEIGHT: column={}, row={}, value={}: {}",
+                column, row, value, reason
+            ),
         }
     }
 }

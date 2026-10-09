@@ -264,6 +264,7 @@ fn verify_normalises_exactly_as_decompose_does() {
     let v = verify_inner(VerificationRequest {
         decomposition_params: req(),
         adjustments: vec![],
+        confidence_level: None,
     })
     .unwrap();
     assert_eq!(detail(&d, "unexplained"), detail(&v, "unexplained"));
@@ -428,6 +429,7 @@ fn an_absent_or_unknown_scheme_is_an_error_and_never_a_fallback() {
         let e = verify_inner(VerificationRequest {
             decomposition_params: request(&data, &nums, &["Department"], bad, None),
             adjustments: vec![],
+            confidence_level: None,
         })
         .unwrap_err();
         assert!(
@@ -464,6 +466,7 @@ fn frontier_and_defensibility_do_not_consume_a_scheme() {
         decomposition_params: request(&data, &nums, &["Department", "Location"], None, None),
         steps: Some(3),
         max_budget: Some(50_000.0),
+        confidence_level: None,
     });
     assert!(f.is_ok(), "{:?}", f.err());
     let d = check_defensibility_inner(VerificationRequest {
@@ -474,6 +477,7 @@ fn frontier_and_defensibility_do_not_consume_a_scheme() {
             value: 100.0,
             predictor_overrides: None,
         }],
+        confidence_level: None,
     });
     assert!(d.is_ok(), "{:?}", d.err());
 }
@@ -581,6 +585,7 @@ fn the_intercept_token_is_the_one_name_of_the_constant_in_every_output_vector() 
             value: 100.0,
             predictor_overrides: None,
         }],
+        confidence_level: None,
     })
     .unwrap();
     let names: Vec<String> = def
@@ -683,12 +688,14 @@ fn a_column_named_intercept_is_a_predictor_and_never_the_constant() {
         decomposition_params: request(&real, &["Age", "intercept"], &cats, None, None),
         steps: Some(4),
         max_budget: Some(40_000.0),
+        confidence_level: None,
     })
     .unwrap();
     let fb = calculate_efficient_frontier_inner(EfficientFrontierRequest {
         decomposition_params: request(&renamed, &["Age", "tenure_years"], &cats, None, None),
         steps: Some(4),
         max_budget: Some(40_000.0),
+        confidence_level: None,
     })
     .unwrap();
     assert_eq!(fa.len(), fb.len());

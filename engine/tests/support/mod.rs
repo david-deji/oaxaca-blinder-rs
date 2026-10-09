@@ -41,8 +41,12 @@ use std::collections::{BTreeMap, BTreeSet};
 pub const REFERENCE: &str = "Male";
 pub const TARGET: &str = "Female";
 pub const N_ROWS: usize = 100;
-/// z for a two-sided 95% interval, `Normal(0,1).inverse_cdf(0.975)`.
-pub const Z_95: f64 = 1.959_963_984_540_054;
+/// The t quantile of a two-sided 95% prediction interval on `dof` residual degrees of freedom
+/// (0120-MERIDIAN T14; the interval used to be built with z = 1.959963984540054 here).
+pub fn t_95(dof: f64) -> f64 {
+    use statrs::distribution::{ContinuousCDF, StudentsT};
+    StudentsT::new(0.0, 1.0, dof).unwrap().inverse_cdf(0.975)
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Col {
@@ -427,7 +431,8 @@ impl FixtureF {
     }
 
     /// Oracle 95% prediction interval `(lower, upper)` for row `i`, the same quantity the
-    /// engine's `calculate_interval` returns: `fair -/+ z * sqrt(sigma2 * (1 + x' (X'X)^-1 x))`.
+    /// engine's interval returns: `fair -/+ t * sqrt(sigma2 * (1 + x' (X'X)^-1 x))` with `t` the
+    /// 97.5% Student t quantile on `n - p` degrees of freedom.
     pub fn interval(&self, fit: &OlsFit, i: usize) -> (f64, f64) {
         let fair = self.fair_wage(fit, i);
         if fit.sigma2 <= 1e-9 {
@@ -435,7 +440,7 @@ impl FixtureF {
         }
         let x = self.features(i);
         let h = quad_form(&fit.xtx_inv, &x);
-        let margin = Z_95 * (fit.sigma2 * (1.0 + h)).sqrt();
+        let margin = t_95(fit.n as f64 - fit.p as f64) * (fit.sigma2 * (1.0 + h)).sqrt();
         (fair - margin, fair + margin)
     }
 }
