@@ -582,6 +582,67 @@ fn t13_a_baseline_with_no_residual_df_is_refused_by_name_on_every_entry() {
 }
 
 #[test]
+fn t13_fewer_baseline_rows_than_model_columns_is_refused_the_same_way_on_every_entry() {
+    // Negative residual df: the entry-point guards must agree on the text and on the sign, so
+    // removing any one of them is seen (E-REV F3: a guard removed at a single site was never run).
+    for rows in [3usize, 2] {
+        let expect = format!(
+            "INSUFFICIENT_RESIDUAL_DF: group=reference, rows={rows}, model_columns=4, residual_df={}",
+            rows as i64 - 4
+        );
+        let verification = || VerificationRequest {
+            decomposition_params: tiny_decomposition(rows, 9),
+            adjustments: vec![],
+            confidence_level: None,
+        };
+        let r = tiny_decomposition(rows, 9);
+        let optimisation = OptimizationRequest {
+            csv_data: r.csv_data,
+            outcome_variable: r.outcome_variable,
+            group_variable: r.group_variable,
+            reference_group: r.reference_group,
+            predictors: r.predictors,
+            categorical_predictors: None,
+            budget: 0.0,
+            target_gap: None,
+            target: None,
+            strategy: None,
+            min_gap_pct: None,
+            forensic_mode: None,
+            adjust_both_groups: None,
+            confidence_level: None,
+            range_target: None,
+        };
+        let got = [
+            (
+                "decompose",
+                decompose_inner(tiny_decomposition(rows, 9)).err(),
+            ),
+            ("verify", verify_inner(verification()).err()),
+            ("optimize", optimize_inner(optimisation).err()),
+            (
+                "defensibility",
+                check_defensibility_inner(verification()).err(),
+            ),
+            (
+                "frontier",
+                calculate_efficient_frontier_inner(EfficientFrontierRequest {
+                    decomposition_params: tiny_decomposition(rows, 9),
+                    steps: Some(3),
+                    max_budget: Some(1000.0),
+                    confidence_level: None,
+                })
+                .err(),
+            ),
+        ];
+        for (entry, err) in got {
+            let err = err.unwrap_or_else(|| panic!("{entry} with {rows} baseline rows ran"));
+            assert!(err.starts_with(&expect), "{entry}, {rows} rows: {err}");
+        }
+    }
+}
+
+#[test]
 fn t13_a_target_group_too_small_to_fit_stops_decompose_but_not_the_remedy() {
     // Decompose fits BOTH groups; the remedy fits only the baseline.
     let e = decompose_inner(tiny_decomposition(12, 4)).err().unwrap();
