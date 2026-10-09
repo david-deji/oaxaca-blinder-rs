@@ -29,7 +29,8 @@ $$ \Delta \bar{Y} = (\bar{X}_A - \bar{X}_B)'\beta^* + [\bar{X}_A'(\hat{\beta}_A 
 **Validity Strategy**:
 *   **The Indexing Problem**: The library does not arbitrarily force a reference group. Instead, it implements the **Oaxaca-Ransom (1994)** generalized weighting matrix ($W$), allowing users to select scientifically appropriate counterfactuals:
     *   *Group A / Group B reference*: for standard discrimination analysis.
-    *   *Pooled (Neumark)*: Uses a pooled regression (with group dummy) to approximate a competitive market structure.
+    *   *Pooled* (Jann 2008 `pooled`; the library alias `Neumark` computes this): Uses a pooled regression with a group dummy, whose coefficient is the unexplained gap.
+    *   *PooledNoIndicator* (Neumark 1988): Uses a pooled regression without a group dummy to approximate a competitive market structure.
     *   *Weighted (Cotton/Reimers)*: Adjusts for group size.
 *   **Categorical Identification (Yun’s Normalization)**: A common flaw in decomposition software is the sensitivity of results to the choice of the omitted base category for dummy variables. This library implements **Yun (2005)**’s normalization method, transforming coefficients to be invariant to the base category choice. This ensures that the "detailed" decomposition of parts (e.g., "contribution of education vs. industry") is mathematically stable and reproducible. Specifically, it calculates a normalized coefficient $\tilde{\beta}_{k}$:
     $$ \tilde{\beta}_{k} = \beta_{k} + \bar{\beta}_k $$

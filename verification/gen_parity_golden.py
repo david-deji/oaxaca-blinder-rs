@@ -24,7 +24,7 @@ Parameterization match (determined empirically 2026-06-06, R6 of the Track-0 spe
   and "s" group = F, aligning with the engine's A/B. Then:
     engine ReferenceCoefficients::GroupB  (beta_star = beta_B = beta_F)
         == statsmodels two_fold(two_fold_type='self_submitted', submitted_weight=0.0)
-    engine ReferenceCoefficients::Pooled  (Neumark, pooled WITH group dummy)
+    engine ReferenceCoefficients::Pooled  (Jann 2008 pooled WITH group dummy; the old `Neumark` alias)
         == statsmodels two_fold(two_fold_type='pooled')
   Both verified to <1e-9 against the engine on this fixture.
 

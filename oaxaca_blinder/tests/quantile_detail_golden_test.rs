@@ -224,3 +224,92 @@ fn ac6_quantile_detail_golden_ddecompose() {
         "AC-6 global per-predictor max |engine-ddecompose| across all tau = {global_max_diff:.3e}"
     );
 }
+
+/// 0120-MERIDIAN T18 / F2: the normalised quantile decomposition against `ddecompose(
+/// rifreg_statistic = "quantiles", normalize_factors = TRUE)`, ADDED beside the raw block above.
+///
+/// What this can and cannot see. The engine and ddecompose estimate the RIF density
+/// differently (the module comment's 5e-4 / 2e-2 bounds), so their ABSOLUTE terms disagree at
+/// that level and no tight tolerance is available on them. The normalisation is a linear map of
+/// the RIF-OLS coefficients, so the SHIFT it applies (normalised minus raw, per row) cancels most
+/// of that disagreement; the shift is compared here at a MEASURED, PINNED tolerance. This is an
+/// end-to-end check that includes both density estimators; it is not the normalisation gate.
+/// That gate is `normalization_oracle_test.rs` (V1d), where the engine's own exported RIF column
+/// is run through ddecompose and R oaxaca as an ordinary outcome and agrees to 1e-10.
+#[test]
+fn v1d_normalised_quantile_shift_matches_ddecompose() {
+    use oaxaca_blinder::NormalizationConvention;
+    let golden = load_golden();
+    let qdn = &golden["quantile_detail_normalized"];
+    assert_eq!(
+        qdn["available"].as_bool(),
+        Some(true),
+        "normalised ddecompose block missing: regenerate trust_goldens_r.json"
+    );
+
+    // Measured max |engine - ddecompose| shift: tau=0.10 -> 5.7e-6, tau=0.50 -> 3.7e-6 (GroupB).
+    // Pinned at 5e-5 (~10x headroom). tau=0.90 is NOT compared: there the two density estimators
+    // disagree by 1.4e-2 in the absolute terms and 9.8e-3 in the intercept shift, the same order
+    // as the quantity compared, so a tolerance wide enough to pass would not discriminate (the
+    // existing raw test keeps the same tail as a disclosed bound). The tail is covered at 1e-10 by
+    // V1d in normalization_oracle_test.rs.
+    let shift_tol = |_tau: f64| 5.0e-5;
+    for (gname, scheme) in [
+        ("GroupB", ReferenceCoefficients::GroupB),
+        ("GroupA", ReferenceCoefficients::GroupA),
+    ] {
+        for (tau, key) in [(0.10, "quantile_0.1"), (0.50, "quantile_0.5")] {
+            let run = |norm: bool| {
+                let mut b = OaxacaBuilder::new(load_fixture(), "log_salary", "Gender", "Female");
+                b.predictors(vec!["Age", "Experience_Years"])
+                    .categorical_predictors(vec!["Education_Level", "Department", "Location"])
+                    .reference_coefficients(scheme)
+                    .bootstrap_reps(1);
+                if norm {
+                    b.normalization_convention(NormalizationConvention::EqualShare)
+                        .normalize_all_categoricals();
+                }
+                b.decompose_quantile(tau).expect("decompose_quantile")
+            };
+            let (raw, norm) = (run(false), run(true));
+            let g = &qdn["per_reference"][gname];
+            let mut worst = 0.0_f64;
+            for (engine_field, golden_field) in [
+                ("explained", "detailed_composition"),
+                ("unexplained", "detailed_structure"),
+            ] {
+                let pick =
+                    |r: &oaxaca_blinder::OaxacaResults| -> Vec<oaxaca_blinder::ComponentResult> {
+                        if engine_field == "explained" {
+                            r.two_fold.detailed_explained.clone()
+                        } else {
+                            r.two_fold.detailed_unexplained.clone()
+                        }
+                    };
+                let (er, en) = (pick(&raw), pick(&norm));
+                let gn = g["normalized"][key][golden_field].as_object().unwrap();
+                let gr = g["raw"][key][golden_field].as_object().unwrap();
+                // key sets first: the normalised vectors carry the base levels, the raw ones do not
+                assert_eq!(
+                    engine_key_set(&en),
+                    golden_key_set(gn),
+                    "[{gname} {key} {golden_field}] normalised key sets differ"
+                );
+                assert_eq!(
+                    engine_key_set(&er),
+                    golden_key_set(gr),
+                    "[{gname} {key} {golden_field}] raw key sets differ"
+                );
+                for (name, gv) in gn {
+                    let engine_shift = est(&en, name).unwrap() - est(&er, name).unwrap_or(0.0);
+                    let golden_shift = gv.as_f64().unwrap()
+                        - gr.get(name).map(|v| v.as_f64().unwrap()).unwrap_or(0.0);
+                    let d = (engine_shift - golden_shift).abs();
+                    worst = worst.max(d);
+                    assert!(d <= shift_tol(tau), "[{gname} {key} {golden_field}] shift of '{name}': engine {engine_shift:.6e} vs ddecompose {golden_shift:.6e} diff {d:.3e} > {:.1e}", shift_tol(tau));
+                }
+            }
+            eprintln!("[{gname} {key}] normalised-minus-raw shift: max |engine - ddecompose| = {worst:.3e} (tol {:.1e})", shift_tol(tau));
+        }
+    }
+}

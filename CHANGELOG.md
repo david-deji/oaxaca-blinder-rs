@@ -2,6 +2,55 @@
 
 ## [Unreleased]
 
+### Changed, BREAKING (0120-MERIDIAN S1-S4, Track E core, 2026-10-09)
+- **Per-level driver rows no longer depend on which level sorts first.** The engine (WASM `decompose` and
+  `verify_adjustments`, MCP) and the CLI (`run`, `report`) normalise every categorical predictor on every run:
+  each level, the alphabetically first one included, is a deviation from the pooled-sample share-weighted average of
+  the levels (population-share, founder decision D1). All k levels are emitted; the intercept absorbs the average.
+  Aggregates, remedy, verify, defensibility and frontier numbers are unchanged. The library keeps `normalize()`
+  opt-in (raw by default); `normalize_all_categoricals()` and `normalization_convention(PopulationShare |
+  EqualShare)` are new, `EqualShare` being what Stata `categorical()`, R `oaxaca` and `ddecompose` print.
+  `oaxaca-cli --normalization population-share|equal-share|none`. Surface table: `docs/NORMALIZATION.md`.
+- **One restriction per run.** The share vector is keyed by variable and level name and built once per pass from the
+  pooled analysed rows (sum of weights when a weights column is set); it is applied to beta_A, beta_B, the pooled fit
+  and the weighted mix alike. A bootstrap replicate builds its own from its pooled resample. The unused `_x_mean`
+  parameter of `normalize_categorical_coefficients` and the `category_counts` plumbing are gone. With a Heckman
+  selection model normalisation is skipped on A, B and pooled together and the run says so.
+- **Three-fold is computed from the treatment-coded vectors**, in the point estimate and in every replicate. Under
+  normalisation it used to sum to 79% of the gap and move with the base level; it now equals R `oaxaca`
+  `threefold$overall` (E, C, I) to 1e-10.
+- **`reference_coefficients` is required and exact** at WASM `decompose` / `verify_adjustments` and the MCP tools
+  `forensic_decomposition` / `verify_adjustments`: `GroupA`, `GroupB`, `Pooled`, `PooledNoIndicator`, `Weighted`.
+  Absent, `"pooled"`, `"Neumark"` or anything else is an error (`UNKNOWN_REFERENCE_COEFFICIENTS`); the silent
+  fallback to `Pooled` is removed. The MCP schema requires the field and describes each counterfactual.
+  The frontier and defensibility entry points still ignore the field.
+- **New `ReferenceCoefficients::PooledNoIndicator`** (Neumark 1988, Stata `omega`, R `oaxaca` weight -1).
+  `ReferenceCoefficients::Neumark` is `#[deprecated]` and keeps computing `Pooled` (pooled WITH a group indicator, whose
+  coefficient is the unexplained gap; Jann 2008 `pooled`), so its number is unchanged. `GroupA` / `GroupB` doc
+  comments now say which group is which (A = the compared, non-reference group).
+- **The intercept has one name.** `oaxaca_blinder::INTERCEPT_NAME` (`"__ob_intercept__"`) replaces ten string
+  literals; `pay_equity_engine::intercept_token()` (and the WASM function of the same name) returns it. The
+  unreachable `"Base Rate (Intercept)"` branch in `optimize_inner` and `check_defensibility_inner` is removed.
+  `model_coefficients` and per-employee `contributions` are documented as RAW treatment-coded model terms, never
+  drivers.
+- **`run_metadata` gains** `normalization` (convention, share basis, applied, the point sample's shares),
+  `reference_coefficients_used`, `engine_version`, `method` (`oaxaca-blinder-mean` | `rif-quantile`) and
+  `bootstrap_discard_levels` (`variable=level` entries for levels that cost replicates). All are omitted when unset, so a
+  raw library run serializes to the bytes it always did. `reference_coefficients_used`, `engine_version` and `method` are stamped by the engine layer only.
+- New library method `OaxacaBuilder::rif_outcome_frame(tau)` and example `emit_rif_fixture` export the per-group RIF
+  outcome so an external package can check the quantile path's normalisation.
+- Crate versions: `oaxaca_blinder` 0.3.0, `pay-equity-engine` 0.2.0.
+
+### Added (0120-MERIDIAN oracles)
+- `verification/gen_norm_goldens.R` + `regen_norm_goldens.sh`: base-R `lm()` weighted-effect-coding refit (population
+  share), `ddecompose(normalize_factors = TRUE)` and R `oaxaca` (equal share) goldens in `norm_goldens_r.json`,
+  with the sha256 of the generator and of every fixture; the Rust tests refuse a stale golden. Fixtures:
+  `norm_skewed_fixture.csv` (levels 60/30/9/1 percent, mixes differing by 20+ points between the groups, an 8-person
+  department, integer weights, blank Tenure cells), `norm_balanced_fixture.csv` (every factor balanced in the pooled
+  sample, unbalanced inside each group), `norm_skewed_rif.csv` (the engine's RIF columns).
+- `trust_goldens_r.json` gains the block `quantile_detail_normalized`; every existing block is byte-identical (the
+  generator was rerun and diffed). `0118-null-free-golden.txt` is NOT regenerated: its comparator is field-scoped.
+
 ### Added (0119-MERIDIAN S7 + S6, 2026-10-09)
 - `scripts/build-wasm.sh --verify` builds both raw blobs and compares them with `git show HEAD:engine/*.sha256`;
   it never writes a baseline, never publishes, and exits 1 on a mismatch (result in `target/wasm-verify.json`).

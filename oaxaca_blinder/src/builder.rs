@@ -1438,6 +1438,21 @@ impl OaxacaBuilder {
         ))
     }
 
+    /// The analysed rows with the outcome column replaced by its per-group RIF at `quantile`:
+    /// exactly the outcome `decompose_quantile` regresses on for the point estimate (group A
+    /// rows first, then group B rows, each group's RIF computed on its own rows). Diagnostic
+    /// export (0120-MERIDIAN V1d): a RIF-OLS on a given outcome vector is plain OLS, so an
+    /// external package can be run on this column to check the normalisation of the quantile
+    /// path independently of the density estimator.
+    pub fn rif_outcome_frame(&self, quantile: f64) -> Result<DataFrame, OaxacaError> {
+        self.check_group_values()?;
+        let df = self.clean_dataframe(&self.dataframe.clone())?;
+        let groups = self.split_groups(&df)?;
+        Ok(self
+            .rif_replace_outcome(&groups.df_a, quantile)?
+            .vstack(&self.rif_replace_outcome(&groups.df_b, quantile)?)?)
+    }
+
     /// Replace the outcome column of `g` with its Recentered Influence Function at
     /// `quantile` (RIF-regression transform, FFL 2009). Called once per group for the point
     /// estimate and once per group PER bootstrap replicate (ruling 4). `clone()` is an
@@ -1889,5 +1904,153 @@ mod tests {
     fn it_works() {
         let result = 2 + 2;
         assert_eq!(result, 4);
+    }
+
+    // ---- 0120-MERIDIAN V2: the bootstrap REPLICATE path --------------------------------------
+    //
+    // A replicate is `run_single_pass` on a resampled frame, so it builds its restriction
+    // weights from THAT resample's pooled rows (the point-estimate shares are what
+    // `run_metadata.normalization` records). The pass-level tests below call `run_single_pass`
+    // exactly as the replicate loop does, on a frame the loop's own RNG streams resampled.
+
+    fn skewed_frame() -> DataFrame {
+        let path = format!(
+            "{}/tests/fixtures/norm_skewed_fixture.csv",
+            env!("CARGO_MANIFEST_DIR")
+        );
+        LazyCsvReader::new(path)
+            .with_has_header(true)
+            .finish()
+            .unwrap()
+            .collect()
+            .unwrap()
+    }
+
+    /// The cleaned frame with dummy columns, plus their names: what `run` hands to
+    /// `run_single_pass`.
+    fn prepared(b: &OaxacaBuilder) -> (DataFrame, Vec<String>) {
+        let mut df = b.clean_dataframe(&b.dataframe.clone()).unwrap();
+        let mut names = Vec::new();
+        for cat in &b.categorical_predictors {
+            let (dummies, _, _) = b
+                .create_dummies_manual(df.column(cat).unwrap().as_materialized_series())
+                .unwrap();
+            for s in dummies.get_columns() {
+                names.push(s.name().to_string());
+            }
+            df = df.hstack(dummies.get_columns()).unwrap();
+        }
+        (df, names)
+    }
+
+    fn level_counts(df: &DataFrame, var: &str) -> std::collections::BTreeMap<String, f64> {
+        let mut m = std::collections::BTreeMap::new();
+        for v in df.column(var).unwrap().str().unwrap().into_iter().flatten() {
+            *m.entry(v.to_string()).or_insert(0.0) += 1.0;
+        }
+        let n: f64 = m.values().sum();
+        m.values_mut().for_each(|v| *v /= n);
+        m
+    }
+
+    #[test]
+    fn a_replicate_adds_up_and_normalises_under_its_own_resample_shares() {
+        for scheme in [
+            ReferenceCoefficients::GroupA,
+            ReferenceCoefficients::GroupB,
+            ReferenceCoefficients::Pooled,
+            ReferenceCoefficients::PooledNoIndicator,
+            ReferenceCoefficients::Weighted,
+        ] {
+            let mut b = OaxacaBuilder::new(skewed_frame(), "log_salary", "Gender", "Female");
+            b.predictors(["Age", "Experience_Years"])
+                .categorical_predictors(["Department", "Location"])
+                .reference_coefficients(scheme)
+                .normalize_all_categoricals();
+            let (df, dummies) = prepared(&b);
+            let point = b.run_single_pass(&df, &dummies).unwrap();
+            let groups = b.split_groups(&df).unwrap();
+
+            let mut passes = 0;
+            let mut differs_from_point = 0;
+            for rep in 0..40u64 {
+                let mut rng_a = unit_rng(DEFAULT_SEED, RngPurpose::Bootstrap, rep * 2);
+                let mut rng_b = unit_rng(DEFAULT_SEED, RngPurpose::Bootstrap, rep * 2 + 1);
+                let sample = groups
+                    .df_a
+                    .take(&resample_indices(&mut rng_a, groups.df_a.height()))
+                    .unwrap()
+                    .vstack(
+                        &groups
+                            .df_b
+                            .take(&resample_indices(&mut rng_b, groups.df_b.height()))
+                            .unwrap(),
+                    )
+                    .unwrap();
+                // a replicate that loses a level is discarded by the loop; skip it here too
+                let Ok(r) = b.run_single_pass(&sample, &dummies) else {
+                    continue;
+                };
+                passes += 1;
+
+                // (1) E + C + I == gap and explained + unexplained == gap, per replicate
+                let est = RepEstimates::from_pass(&r);
+                let tf = est.three_fold.endowments
+                    + est.three_fold.coefficients
+                    + est.three_fold.interaction;
+                assert!(
+                    (tf - est.total_gap).abs() < 1e-9,
+                    "{scheme:?} rep {rep}: E+C+I {tf} vs gap {}",
+                    est.total_gap
+                );
+                let tw = est.two_fold.explained + est.two_fold.unexplained;
+                assert!(
+                    (tw - est.total_gap).abs() < 1e-9,
+                    "{scheme:?} rep {rep}: explained+unexplained {tw}"
+                );
+                let sum_u: f64 = est
+                    .detailed_unexplained
+                    .iter()
+                    .map(|c| c.contribution)
+                    .sum();
+                assert!(
+                    (sum_u - est.two_fold.unexplained).abs() < 1e-9,
+                    "{scheme:?} rep {rep}: detail does not add up"
+                );
+
+                // (2) the shares are the replicate's own pooled resample, counted independently
+                for var in ["Department", "Location"] {
+                    let want = level_counts(&sample, var);
+                    let got = &r.shares[var];
+                    assert_eq!(
+                        got.levels.len(),
+                        want.len(),
+                        "{scheme:?} rep {rep} {var}: level set"
+                    );
+                    for l in &got.levels {
+                        assert!(
+                            (l.share - want[&l.level]).abs() < 1e-12,
+                            "{scheme:?} rep {rep} {var}[{}]: {} vs {}",
+                            l.level,
+                            l.share,
+                            want[&l.level]
+                        );
+                    }
+                }
+                if r.shares["Department"] != point.shares["Department"] {
+                    differs_from_point += 1;
+                }
+            }
+            assert!(
+                passes >= 30,
+                "{scheme:?}: only {passes} of 40 replicates estimable"
+            );
+            assert!(
+                differs_from_point >= passes / 2,
+                "{scheme:?}: replicate shares equal the point sample's in {} of {passes} replicates; \
+                 they should be the replicate's own",
+                passes - differs_from_point
+            );
+        }
     }
 }

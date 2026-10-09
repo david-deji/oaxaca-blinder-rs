@@ -1,6 +1,6 @@
 {
   "_meta": {
-    "generated_utc": "2026-08-29 02:42:55 UTC",
+    "generated_utc": "2026-10-09 14:07:30 UTC",
     "r_version": "4.6.1",
     "oaxaca_version": "0.1.5",
     "quantreg_version": "6.1",
@@ -295,5 +295,471 @@
       }
     },
     "tolerance_note": "MEASURED-then-pinned (MJ-3): record engine-vs-ddecompose agreement on this fixture, pin to it (~1e-3..1e-2). Do NOT assert 1e-4 on faith."
+  },
+  "quantile_detail_normalized": {
+    "available": true,
+    "probs": [0.10000000000000001, 0.5, 0.90000000000000002],
+    "reweighting": false,
+    "bootstrap": false,
+    "normalize_factors": "raw and TRUE stored side by side",
+    "per_reference": {
+      "GroupB": {
+        "raw": {
+          "quantile_0.1": {
+            "detailed_composition": {
+              "__ob_intercept__": 0,
+              "Age": -0.065092838371593409,
+              "Experience_Years": 0.061260029193517695,
+              "Education_Level_Master": 0.0065383364811605893,
+              "Education_Level_PhD": 0.0090789579976711665,
+              "Department_Finance": 0.00042850583567041224,
+              "Department_HR": 2.0918983259331247e-05,
+              "Department_Marketing": -5.7877701197642717e-05,
+              "Department_Product": 0.0009375407414844647,
+              "Department_Sales": 5.138519697174028e-05,
+              "Location_Chicago": -5.8238359566482878e-05,
+              "Location_New York": 2.7795382675699235e-05,
+              "Location_San Francisco": 0.00012448560223888173,
+              "Location_Seattle": -0.00027367006636958794
+            },
+            "detailed_structure": {
+              "__ob_intercept__": 0.17884321898803002,
+              "Age": -0.26032792476594047,
+              "Experience_Years": 0.11692479552291601,
+              "Education_Level_Master": -0.017509763582163385,
+              "Education_Level_PhD": 0.0025364199165436307,
+              "Department_Finance": -0.00073601134938563843,
+              "Department_HR": -0.0021591340424475039,
+              "Department_Marketing": 0.0042803874803564231,
+              "Department_Product": 0.0023847893726362326,
+              "Department_Sales": -0.0085158211380953319,
+              "Location_Chicago": -0.0073352672563543539,
+              "Location_New York": 0.0012845247133419124,
+              "Location_San Francisco": -0.006180759895305336,
+              "Location_Seattle": -0.0043642046122031927
+            }
+          },
+          "quantile_0.5": {
+            "detailed_composition": {
+              "__ob_intercept__": 0,
+              "Age": 0.02235333642719084,
+              "Experience_Years": -0.0087569198898291289,
+              "Education_Level_Master": 0.0042652049930256009,
+              "Education_Level_PhD": 0.0021345631313408817,
+              "Department_Finance": 0.00053727455942922161,
+              "Department_HR": -0.00029160276816272979,
+              "Department_Marketing": -0.00033760765961501731,
+              "Department_Product": -0.00042311883039107198,
+              "Department_Sales": 6.5324702658989438e-05,
+              "Location_Chicago": -9.4551549277748295e-05,
+              "Location_New York": 0.00057807210833007387,
+              "Location_San Francisco": 0.00011120768217900024,
+              "Location_Seattle": -0.00041465580815409041
+            },
+            "detailed_structure": {
+              "__ob_intercept__": 0.33827064329466872,
+              "Age": -0.2313198531115459,
+              "Experience_Years": 0.036861590943749356,
+              "Education_Level_Master": -0.092575854828803955,
+              "Education_Level_PhD": -0.035951984539327443,
+              "Department_Finance": 0.0022375121784202383,
+              "Department_HR": -0.0026653032601056323,
+              "Department_Marketing": -0.0027249249875832479,
+              "Department_Product": -0.0025015211270354148,
+              "Department_Sales": 0.0056641251123291545,
+              "Location_Chicago": -0.0014189556474124019,
+              "Location_New York": -0.0037498268305689187,
+              "Location_San Francisco": -0.00088346949037851341,
+              "Location_Seattle": -0.0079750989518774171
+            }
+          },
+          "quantile_0.9": {
+            "detailed_composition": {
+              "__ob_intercept__": 0,
+              "Age": 0.028954630746238053,
+              "Experience_Years": -0.016751901563050731,
+              "Education_Level_Master": -0.0027821029407748277,
+              "Education_Level_PhD": -0.0029534121531367141,
+              "Department_Finance": 0.0030814152653166928,
+              "Department_HR": -0.00083861459287419213,
+              "Department_Marketing": -0.0001076255655870096,
+              "Department_Product": -0.00036005107274895455,
+              "Department_Sales": -0.0006026249934232078,
+              "Location_Chicago": 8.402216191561937e-05,
+              "Location_New York": -1.8195262278845653e-05,
+              "Location_San Francisco": -6.1540186461850853e-05,
+              "Location_Seattle": 0.00017246774254549247
+            },
+            "detailed_structure": {
+              "__ob_intercept__": 0.0084464477424663897,
+              "Age": -0.044491377777623242,
+              "Experience_Years": 0.020047858956669828,
+              "Education_Level_Master": -0.0021952494256413935,
+              "Education_Level_PhD": -0.00695670011896736,
+              "Department_Finance": 0.0028362168745903159,
+              "Department_HR": -0.00069686936765502722,
+              "Department_Marketing": -0.0030526731637574699,
+              "Department_Product": 0.0041015227906775996,
+              "Department_Sales": 0.0022663387343987151,
+              "Location_Chicago": 0.0054122743352731442,
+              "Location_New York": 0.0017131109346974324,
+              "Location_San Francisco": 0.0037939196443280334,
+              "Location_Seattle": 0.0020245188770649384
+            }
+          }
+        },
+        "normalized": {
+          "quantile_0.1": {
+            "detailed_composition": {
+              "__ob_intercept__": 0,
+              "Age": -0.065092838371592521,
+              "Experience_Years": 0.061260029193517251,
+              "Education_Level_Bachelor": 0.011555935307552667,
+              "Education_Level_Master": -0.00068313513426871558,
+              "Education_Level_PhD": 0.0047444943055477973,
+              "Department_Engineering": 0.00032609576694446647,
+              "Department_Finance": -0.00014648363920309561,
+              "Department_HR": 0.00018510734592144806,
+              "Department_Marketing": 0.00012659544277976225,
+              "Department_Product": 0.00078030193575681639,
+              "Department_Sales": 0.00010885620398896033,
+              "Location_Austin": 0.00022800956936442273,
+              "Location_Chicago": -1.49726018302326e-05,
+              "Location_New York": -0.00034971478823062844,
+              "Location_San Francisco": 6.117260574287596e-05,
+              "Location_Seattle": -0.00010412222606790821
+            },
+            "detailed_structure": {
+              "__ob_intercept__": 0.15039728194800794,
+              "Age": -0.26032792476574418,
+              "Experience_Years": 0.11692479552285917,
+              "Education_Level_Bachelor": 0.0022497643065525763,
+              "Education_Level_Master": -0.014123795040275985,
+              "Education_Level_PhD": 0.0037045923835885841,
+              "Department_Engineering": 0.00079305901845589267,
+              "Department_Finance": 8.1771331516166312e-05,
+              "Department_HR": -0.0013651241138976783,
+              "Department_Marketing": 0.0050772501391885515,
+              "Department_Product": 0.0032339520866416401,
+              "Department_Sales": -0.0077094493783224204,
+              "Location_Austin": 0.0033155532518696594,
+              "Location_Chicago": -0.003983568230678719,
+              "Location_New York": 0.0047709488959317807,
+              "Location_San Francisco": -0.0028619206639990914,
+              "Location_Seattle": -0.0010519373397709702
+            }
+          },
+          "quantile_0.5": {
+            "detailed_composition": {
+              "__ob_intercept__": 0,
+              "Age": 0.02235333642719084,
+              "Experience_Years": -0.0087569198898290734,
+              "Education_Level_Bachelor": 0.00417204418200183,
+              "Education_Level_Master": 0.001658034059924901,
+              "Education_Level_PhD": 0.00056968988243974797,
+              "Department_Engineering": 3.8749166077336051e-05,
+              "Department_Finance": 0.00046894995999216928,
+              "Department_HR": -0.00027209266475852582,
+              "Department_Marketing": -0.00031568716503218262,
+              "Department_Product": -0.00044180313486405845,
+              "Department_Sales": 7.2153842504650394e-05,
+              "Location_Austin": 0.00036111124200631246,
+              "Location_Chicago": -2.6029199290273416e-05,
+              "Location_New York": -1.9811423777852603e-05,
+              "Location_San Francisco": 1.0935422275411256e-05,
+              "Location_Seattle": -0.00014613360813635345
+            },
+            "detailed_structure": {
+              "__ob_intercept__": 0.19248521889453407,
+              "Age": -0.23131985311151615,
+              "Experience_Years": 0.036861590943739753,
+              "Education_Level_Bachelor": 0.043583401932189923,
+              "Education_Level_Master": -0.026981415686334061,
+              "Education_Level_PhD": -0.013321644992536826,
+              "Department_Engineering": -5.0339255887174236e-06,
+              "Department_Finance": 0.0022323213198996673,
+              "Department_HR": -0.0026703432215764563,
+              "Department_Marketing": -0.0027299830566997578,
+              "Department_Product": -0.0025069111696623264,
+              "Department_Sales": 0.0056590066843922975,
+              "Location_Austin": 0.0027670610296605912,
+              "Location_Chicago": 0.0013782715579925471,
+              "Location_New York": -0.00084016206102520571,
+              "Location_San Francisco": 0.0018863339188949979,
+              "Location_Seattle": -0.0052107803018303003
+            }
+          },
+          "quantile_0.9": {
+            "detailed_composition": {
+              "__ob_intercept__": 0,
+              "Age": 0.028954630746237608,
+              "Experience_Years": -0.016751901563050731,
+              "Education_Level_Bachelor": -0.0041086481028325822,
+              "Education_Level_Master": -0.00021454913723276646,
+              "Education_Level_PhD": -0.0014123178538462261,
+              "Department_Engineering": 0.0010460079122795868,
+              "Department_Finance": 0.0012370382412577822,
+              "Department_HR": -0.00031195235478978685,
+              "Department_Marketing": 0.00048410357585975013,
+              "Department_Product": -0.00086442141907287079,
+              "Department_Sales": -0.00041827691485115531,
+              "Location_Austin": -0.00018146918817226214,
+              "Location_Chicago": 4.9587633777430952e-05,
+              "Location_New York": 0.00028225907580927898,
+              "Location_San Francisco": -1.1150379986139152e-05,
+              "Location_Seattle": 3.7527314292097429e-05
+            },
+            "detailed_structure": {
+              "__ob_intercept__": 0.011610707609923665,
+              "Age": -0.044491377777769348,
+              "Experience_Years": 0.020047858956715792,
+              "Education_Level_Bachelor": 0.0049521337527759224,
+              "Education_Level_Master": 0.005257873131827912,
+              "Education_Level_PhD": -0.0043853435167226021,
+              "Department_Engineering": -0.00084596572417264954,
+              "Department_Finance": 0.0019638781182491349,
+              "Department_HR": -0.0015438494392192442,
+              "Department_Marketing": -0.0039026962774947847,
+              "Department_Product": 0.0031957105704301693,
+              "Department_Sales": 0.0014061721467493807,
+              "Location_Austin": -0.00255994960510745,
+              "Location_Chicago": 0.002824416458950727,
+              "Location_New York": -0.00097876867979084263,
+              "Location_San Francisco": 0.0012314329236558774,
+              "Location_Seattle": -0.00053289361247713031
+            }
+          }
+        }
+      },
+      "GroupA": {
+        "raw": {
+          "quantile_0.1": {
+            "detailed_composition": {
+              "__ob_intercept__": 0,
+              "Age": -0.067320287782139054,
+              "Experience_Years": 0.063769292217790152,
+              "Education_Level_Master": 0.0062038399608394523,
+              "Education_Level_PhD": 0.0091632561567348558,
+              "Department_Finance": 0.00034930158708210146,
+              "Department_HR": 8.9253169100473283e-05,
+              "Department_Marketing": -0.0002095389889014811,
+              "Department_Product": 0.0010051273771250202,
+              "Department_Sales": 0.00014427798741056992,
+              "Location_Chicago": 2.5354027617341575e-05,
+              "Location_New York": 0.00015058520779396038,
+              "Location_San Francisco": 2.039296515749878e-05,
+              "Location_Seattle": -7.6453461724145444e-05
+            },
+            "detailed_structure": {
+              "__ob_intercept__": 0.17884321898803002,
+              "Age": -0.25810047535539482,
+              "Experience_Years": 0.11441553249864356,
+              "Education_Level_Master": -0.017175267061842248,
+              "Education_Level_PhD": 0.0024521217574799414,
+              "Department_Finance": -0.00065680710079732765,
+              "Department_HR": -0.002227468228288646,
+              "Department_Marketing": 0.0044320487680602622,
+              "Department_Product": 0.0023172027369956771,
+              "Department_Sales": -0.0086087139285341615,
+              "Location_Chicago": -0.0074188596435381792,
+              "Location_New York": 0.0011617348882236515,
+              "Location_San Francisco": -0.0060766672582239535,
+              "Location_Seattle": -0.0045614212168486349
+            }
+          },
+          "quantile_0.5": {
+            "detailed_composition": {
+              "__ob_intercept__": 0,
+              "Age": 0.020374089402793061,
+              "Experience_Years": -0.0079658522060470083,
+              "Education_Level_Master": 0.0024966887500345591,
+              "Education_Level_PhD": 0.00093969547887460397,
+              "Department_Finance": 0.00077805952958885042,
+              "Department_HR": -0.00020724889076630722,
+              "Department_Marketing": -0.00024105900965989101,
+              "Department_Product": -0.00049401372739960037,
+              "Department_Sales": 3.538953692848359e-06,
+              "Location_Chicago": -7.8381192325529397e-05,
+              "Location_New York": 0.00021962000852468726,
+              "Location_San Francisco": 9.6328820907541288e-05,
+              "Location_Seattle": -5.4264379071511208e-05
+            },
+            "detailed_structure": {
+              "__ob_intercept__": 0.33827064329466872,
+              "Age": -0.22934060608714812,
+              "Experience_Years": 0.036070523259967235,
+              "Education_Level_Master": -0.090807338585812913,
+              "Education_Level_PhD": -0.034757116886861165,
+              "Department_Finance": 0.0019967272082606095,
+              "Department_HR": -0.0027496571375020549,
+              "Department_Marketing": -0.0028214736375383742,
+              "Department_Product": -0.0024306262300268864,
+              "Department_Sales": 0.0057259108612952954,
+              "Location_Chicago": -0.0014351260043646208,
+              "Location_New York": -0.0033913747307635321,
+              "Location_San Francisco": -0.00086859062910705446,
+              "Location_Seattle": -0.0083354903809599971
+            }
+          },
+          "quantile_0.9": {
+            "detailed_composition": {
+              "__ob_intercept__": 0,
+              "Age": 0.028573948215563583,
+              "Experience_Years": -0.016321664751681286,
+              "Education_Level_Master": -0.0028240397316782739,
+              "Education_Level_PhD": -0.0031846187484491362,
+              "Department_Finance": 0.0033866285294503543,
+              "Department_HR": -0.00081655945412868053,
+              "Department_Marketing": 5.3575043381358457e-07,
+              "Department_Product": -0.00024381098479581489,
+              "Department_Sales": -0.00062734680541338267,
+              "Location_Chicago": 2.2344118571349016e-05,
+              "Location_New York": 0.00014556382300368671,
+              "Location_San Francisco": 2.3547240899943558e-06,
+              "Location_Seattle": 8.0980570321964379e-05
+            },
+            "detailed_structure": {
+              "__ob_intercept__": 0.0084464477424663897,
+              "Age": -0.044110695246948772,
+              "Experience_Years": 0.019617622145300384,
+              "Education_Level_Master": -0.0021533126347379472,
+              "Education_Level_PhD": -0.0067254935236549379,
+              "Department_Finance": 0.0025310036104566544,
+              "Department_HR": -0.00071892450640053882,
+              "Department_Marketing": -0.003160834479778293,
+              "Department_Product": 0.0039852827027244599,
+              "Department_Sales": 0.00229106054638889,
+              "Location_Chicago": 0.0054739523786174141,
+              "Location_New York": 0.0015493518494149,
+              "Location_San Francisco": 0.003730024733776188,
+              "Location_Seattle": 0.0021160060492884662
+            }
+          }
+        },
+        "normalized": {
+          "quantile_0.1": {
+            "detailed_composition": {
+              "__ob_intercept__": 0,
+              "Age": -0.06732028778213639,
+              "Experience_Years": 0.063769292217788376,
+              "Education_Level_Bachelor": 0.01145242737497662,
+              "Education_Level_Master": -0.00095294804593553523,
+              "Education_Level_PhD": 0.0048676167885328969,
+              "Department_Engineering": 0.00027618581612797941,
+              "Department_Finance": -0.00013768399654240848,
+              "Department_HR": 0.00022831200253904498,
+              "Department_Marketing": -5.3300021740124073e-05,
+              "Department_Product": 0.00087195444975524811,
+              "Department_Sales": 0.0001929528816769846,
+              "Location_Austin": 2.6718475777780303e-05,
+              "Location_Chicago": 3.0423968775100414e-05,
+              "Location_New York": 0.00010634804535666941,
+              "Location_San Francisco": 1.2973860915456979e-05,
+              "Location_Seattle": -5.6585611980362492e-05
+            },
+            "detailed_structure": {
+              "__ob_intercept__": 0.15039728194800794,
+              "Age": -0.25810047535520031,
+              "Experience_Years": 0.11441553249858805,
+              "Education_Level_Bachelor": 0.0023532722391286232,
+              "Education_Level_Master": -0.013853982128609166,
+              "Education_Level_PhD": 0.0035814699006034845,
+              "Department_Engineering": 0.00084296896927237974,
+              "Department_Finance": 7.2971688855479186e-05,
+              "Department_HR": -0.0014083287705152752,
+              "Department_Marketing": 0.0052571456037084369,
+              "Department_Product": 0.0031422995726432083,
+              "Department_Sales": -0.0077935460560104447,
+              "Location_Austin": 0.0035168443454563019,
+              "Location_Chicago": -0.0040289648012840525,
+              "Location_New York": 0.0043148860623444824,
+              "Location_San Francisco": -0.0028137219191716723,
+              "Location_Seattle": -0.0010994739538585159
+            }
+          },
+          "quantile_0.5": {
+            "detailed_composition": {
+              "__ob_intercept__": 0,
+              "Age": 0.020374089402793061,
+              "Experience_Years": -0.0079658522060471748,
+              "Education_Level_Bachelor": 0.0021668439859230462,
+              "Education_Level_Master": 0.0011425965088656467,
+              "Education_Level_PhD": 0.00012694373412046453,
+              "Department_Engineering": 3.9065968449794879e-05,
+              "Department_Finance": 0.00070917632728651186,
+              "Department_HR": -0.00018757927819916618,
+              "Department_Marketing": -0.00021895929922825103,
+              "Department_Product": -0.0005128507895338294,
+              "Department_Sales": 1.0423926680846389e-05,
+              "Location_Austin": 0.00019311974907303738,
+              "Location_Chicago": -4.1735922125812983e-05,
+              "Location_New York": -0.00010012389380879947,
+              "Location_San Francisco": 4.2703922485714391e-05,
+              "Location_Seattle": 8.9339402411044936e-05
+            },
+            "detailed_structure": {
+              "__ob_intercept__": 0.19248521889453407,
+              "Age": -0.22934060608711837,
+              "Experience_Years": 0.036070523259957854,
+              "Education_Level_Bachelor": 0.045588602128268707,
+              "Education_Level_Master": -0.026465978135274806,
+              "Education_Level_PhD": -0.012878898844217543,
+              "Department_Engineering": -5.350727961176251e-06,
+              "Department_Finance": 0.0019920949526053247,
+              "Department_HR": -0.002754856608135816,
+              "Department_Marketing": -0.0028267109225036894,
+              "Department_Product": -0.0024358635149925555,
+              "Department_Sales": 0.0057207366002161014,
+              "Location_Austin": 0.0029350525225938662,
+              "Location_Chicago": 0.0013939782808280866,
+              "Location_New York": -0.00075984959099425879,
+              "Location_San Francisco": 0.0018545654186846948,
+              "Location_Seattle": -0.0054462533123776982
+            }
+          },
+          "quantile_0.9": {
+            "detailed_composition": {
+              "__ob_intercept__": 0,
+              "Age": 0.02857394821556225,
+              "Experience_Years": -0.016321664751680398,
+              "Education_Level_Bachelor": -0.0043364875814378701,
+              "Education_Level_Master": -0.00011410573269257044,
+              "Education_Level_PhD": -0.0015580651659967693,
+              "Department_Engineering": 0.0010992474653308791,
+              "Department_Finance": 0.0014483766816293688,
+              "Department_HR": -0.00026309124083561883,
+              "Department_Marketing": 0.00062238263252883258,
+              "Department_Product": -0.00077385269698167572,
+              "Department_Sales": -0.00043361580612548412,
+              "Location_Austin": -2.6051670674030931e-05,
+              "Location_Chicago": 1.7400706436719766e-05,
+              "Location_New York": 0.00018869697165164686,
+              "Location_San Francisco": 9.5886719400713367e-06,
+              "Location_Seattle": 6.1608556632595157e-05
+            },
+            "detailed_structure": {
+              "__ob_intercept__": 0.011610707609923665,
+              "Age": -0.044110695247093989,
+              "Experience_Years": 0.019617622145345459,
+              "Education_Level_Bachelor": 0.0051799732313812102,
+              "Education_Level_Master": 0.005157429727287716,
+              "Education_Level_PhD": -0.0042395962045720589,
+              "Department_Engineering": -0.00089920527722394186,
+              "Department_Finance": 0.0017525396778775484,
+              "Department_HR": -0.0015927105531734122,
+              "Department_Marketing": -0.0040409753341638672,
+              "Department_Product": 0.0031051418483389742,
+              "Department_Sales": 0.0014215110380237095,
+              "Location_Austin": -0.0027153671226056815,
+              "Location_Chicago": 0.0028566033862914382,
+              "Location_New York": -0.00088520657563321051,
+              "Location_San Francisco": 0.0012106938717296668,
+              "Location_Seattle": -0.00055697485481762804
+            }
+          }
+        }
+      }
+    },
+    "tolerance_note": "SHIFT (normalised - raw) compared, measured-then-pinned per tau in quantile_detail_golden_test.rs"
   }
 }

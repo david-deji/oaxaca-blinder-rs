@@ -26,8 +26,13 @@ pub struct DecompositionRequest {
     pub predictors: Vec<String>,
     pub categorical_predictors: Option<Vec<String>>,
     pub three_fold: Option<bool>,
-    pub quantile: Option<f64>,                  // For RIF Regression
-    pub reference_coefficients: Option<String>, // "Pooled", "GroupA", "GroupB", "Weighted"
+    pub quantile: Option<f64>, // For RIF Regression
+    /// REQUIRED by `decompose` and `verify_adjustments`: exactly one of `"GroupA"`, `"GroupB"`,
+    /// `"Pooled"`, `"PooledNoIndicator"`, `"Weighted"`. Absent or any other string is an error
+    /// (0120-MERIDIAN S4); there is no default scheme. Typed `Option` only because this struct
+    /// is flattened into the frontier and defensibility requests, which fit their own pooled
+    /// model and ignore the field.
+    pub reference_coefficients: Option<String>,
     pub bootstrap_reps: Option<usize>,
 }
 
@@ -52,6 +57,9 @@ pub struct ExcludedRow {
 
 #[derive(Serialize, Debug)]
 pub struct DetailedComponent {
+    /// Predictor name, `{variable}_{level}` for a categorical level (EVERY level, the
+    /// alphabetically first included, once the engine normalises), or `intercept_token()` for
+    /// the constant, which is not a driver.
     pub name: String,
     pub estimate: f64,
     pub std_err: Option<f64>,
@@ -148,6 +156,15 @@ pub enum RangeTarget {
     UpperBound, // High Retention (Upper CI)
 }
 
+/// One term of the fair-wage model: either a coefficient (`OptimizationResult::model_coefficients`)
+/// or a coefficient times one employee's value (`Adjustment::contributions`).
+///
+/// RAW MODEL TERMS, not drivers (0120-MERIDIAN S3 ruling). The model is the reference group's
+/// OLS fit under treatment coding, so a categorical level's term is measured against the
+/// alphabetically first level, which has no entry: rename that level and every other level's
+/// term changes. No consumer may rank these or present them as findings; the normalised
+/// per-level numbers are `DecompositionResult::detailed_explained` / `detailed_unexplained`.
+/// The constant is the entry whose `name` equals `intercept_token()`.
 #[derive(Serialize, Debug)]
 pub struct Contribution {
     pub name: String,

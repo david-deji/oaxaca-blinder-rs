@@ -46,23 +46,20 @@ fn test_reference_groups() {
         "the Neumark alias must keep computing Pooled"
     );
 
-    // PooledNoIndicator is the estimator Neumark's name promised: same data, different number.
+    // PooledNoIndicator is the estimator Neumark's name promised. On THIS data both groups have
+    // identical characteristics, so every scheme returns the whole gap as unexplained and the two
+    // pooled schemes coincide; that they DIFFER where they should is asserted on a skewed design in
+    // normalization_oracle_test.rs (`s4_pooled_no_indicator_is_not_pooled`). Here: it runs and adds up.
     let mut builder_omega = OaxacaBuilder::new(df, "wage", "gender", "F");
     builder_omega
         .predictors(vec!["education", "experience"])
         .reference_coefficients(ReferenceCoefficients::PooledNoIndicator);
     let results_omega = builder_omega.run().expect("PooledNoIndicator failed");
-    let (omega, pooled) = (
-        results_omega.unexplained().unwrap().estimate,
-        results_pooled.unexplained().unwrap().estimate,
-    );
     assert!(
-        (omega - pooled).abs() > 1e-6,
-        "PooledNoIndicator ({omega}) must differ from Pooled ({pooled})"
-    );
-    // Both are valid two-folds: explained + unexplained == gap.
-    assert!(
-        (results_omega.explained().unwrap().estimate + omega - results_omega.total_gap).abs()
+        (results_omega.explained().unwrap().estimate
+            + results_omega.unexplained().unwrap().estimate
+            - results_omega.total_gap)
+            .abs()
             < 1e-9
     );
 }

@@ -293,6 +293,10 @@ impl PyOaxacaBlinder {
         builder
             .predictors(&pred_refs)
             .categorical_predictors(&cat_refs)
+            // Same rule as the CLI and the engine (0120-MERIDIAN T1): categorical predictors are
+            // normalised. This module is not compiled today (`pub mod python` is commented out
+            // in lib.rs); the call is here so re-enabling it does not fork the rule.
+            .normalize_all_categoricals()
             .bootstrap_reps(self.bootstrap_reps);
 
         if let Some(w) = &self.weights {

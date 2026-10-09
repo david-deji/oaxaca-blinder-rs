@@ -879,6 +879,102 @@ mod tests {
         assert!(resp.result.is_some());
     }
 
+    fn tool_schema(resp: JsonRpcResponse, name: &str) -> Value {
+        resp.result.unwrap()["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|t| t["name"] == name)
+            .unwrap_or_else(|| panic!("tool {name} listed"))
+            .clone()
+    }
+
+    // 0120-MERIDIAN S4 / T6: the scheme is required and exact, and the schema says so.
+    #[tokio::test]
+    async fn schema_requires_reference_coefficients_and_names_every_scheme() {
+        for tool in ["forensic_decomposition", "verify_adjustments"] {
+            let req = JsonRpcRequest {
+                _jsonrpc: "2.0".to_string(),
+                method: "tools/list".to_string(),
+                params: None,
+                id: Some(json!(1)),
+            };
+            let t = tool_schema(handle_protocol(req).await.unwrap(), tool);
+            let required: Vec<&str> = t["inputSchema"]["required"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|v| v.as_str().unwrap())
+                .collect();
+            assert!(
+                required.contains(&"reference_coefficients"),
+                "{tool} must require reference_coefficients"
+            );
+            let prop = &t["inputSchema"]["properties"]["reference_coefficients"];
+            let enum_vals: Vec<&str> = prop["enum"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|v| v.as_str().unwrap())
+                .collect();
+            let accepted = [
+                "GroupA",
+                "GroupB",
+                "Pooled",
+                "PooledNoIndicator",
+                "Weighted",
+            ];
+            assert_eq!(enum_vals, accepted);
+            let description = prop["description"].as_str().unwrap();
+            for scheme in accepted {
+                assert!(
+                    description.contains(scheme),
+                    "{tool}: the description must explain {scheme}"
+                );
+            }
+        }
+    }
+
+    fn decomposition_args(scheme: Option<&str>) -> Value {
+        let mut a = json!({
+            "csv_content": "wage,x,gender\n10,1,F\n12,2,F\n11,3,F\n13,4,F\n15,5,F\n20,1,M\n22,2,M\n21,3,M\n23,4,M\n25,5,M\n",
+            "outcome_variable": "wage",
+            "group_variable": "gender",
+            "reference_group": "F",
+            "predictors": ["x"],
+            "bootstrap_reps": 2
+        });
+        if let Some(s) = scheme {
+            a["reference_coefficients"] = json!(s);
+        }
+        a
+    }
+
+    #[tokio::test]
+    async fn a_missing_or_misspelt_scheme_is_refused_through_the_tool_call() {
+        for bad in [None, Some("pooled"), Some("Neumark")] {
+            for tool in ["forensic_decomposition"] {
+                let res = handle_tool_call(Some(
+                    json!({ "name": tool, "arguments": decomposition_args(bad) }),
+                ))
+                .await;
+                let msg = res.unwrap_err().to_string();
+                assert!(
+                    msg.starts_with("UNKNOWN_REFERENCE_COEFFICIENTS"),
+                    "{bad:?}: {msg}"
+                );
+            }
+        }
+        let ok = handle_tool_call(Some(json!({ "name": "forensic_decomposition", "arguments": decomposition_args(Some("PooledNoIndicator")) }))).await.unwrap();
+        let text = ok["content"][0]["text"].as_str().unwrap();
+        let parsed: Value = serde_json::from_str(text).unwrap();
+        assert_eq!(
+            parsed["run_metadata"]["reference_coefficients_used"],
+            "PooledNoIndicator"
+        );
+        assert_eq!(parsed["run_metadata"]["method"], "oaxaca-blinder-mean");
+    }
+
     #[tokio::test]
     async fn test_handle_tool_call_missing_arguments() {
         let res = handle_tool_call(Some(json!({ "name": "forensic_decomposition" }))).await;
