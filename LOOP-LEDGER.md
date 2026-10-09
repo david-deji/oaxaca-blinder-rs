@@ -39,6 +39,7 @@
 | Date | Picked | Appetite | Reason | Declined (ids) | Proposal file |
 |---|---|---|---|---|---|
 | 2026-10-08 | **A, then B, C, D** (David queued all four, in that order) | scoped | A: the only finding where money reaches the wrong person, reachable with one blank cell; B, C, D follow in order, each re-grounded before it starts | none declined | `ground/2026-10-08-proposal.md` |
+| 2026-10-09 | **Release 0.3.0 after D** (David): the consolidation after D becomes a release review of everything since v0.2.0 (2025-11-26, 184 commits), one breaking release carrying C and D; 0.3.0, no 1.0 stability promise yet | scoped | crates.io holds oaxaca_blinder 0.2.2 for outside users; C and D both change outputs, so one break instead of two | release before D; library-only release; 1.0.0 | `ground/2026-10-09-release-review.md` (inventory, in progress) |
 
 ## Receipts
 | Epic | verify-live receipt | Result | Commit |

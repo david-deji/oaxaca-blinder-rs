@@ -135,6 +135,114 @@ def app_tree_problems(app: Path, frontend_src: Path, app_receipt, halted_at):
     return problems, note
 
 
+def ci_checks_0120(add, verified, published):
+    """0120-MERIDIAN: the CI the commit this receipt branches from, and the baselines CI recorded for it.
+
+    `main_ci_green_on_base`  the CI run on the commit this branch was cut from (git merge-base with origin/main)
+                             finished with every job success except the non-blocking benchmark, `gate` included.
+    `ci_wasm_baselines`      the raw blobs that run built (its wasm-raw-seq and wasm-raw-threaded artifacts) equal
+                             the baselines committed at that commit, the blobs built here, and the raw hash in
+                             each manifest the app ships. Three independent builds, one hash.
+    Needs the gh CLI and network; a missing gh is a failed check, never a skip.
+    """
+    base = git(["merge-base", "HEAD", "origin/main"])
+    if not base:
+        add("main_ci_green_on_base", False, "no merge base with origin/main (run `git fetch origin`)")
+        add("ci_wasm_baselines", False, "not run: no merge base with origin/main")
+        return
+    rc, out = run(["gh", "run", "list", "--workflow", "CI", "--branch", "main", "--commit", base, "--json",
+                   "databaseId,status,conclusion,headSha,event", "--limit", "10"], 60)
+    runs = []
+    try:
+        runs = [r for r in json.loads(out) if r.get("headSha") == base and r.get("event") == "push"]
+    except ValueError:
+        pass
+    if rc != 0 or not runs:
+        add("main_ci_green_on_base", False, f"no CI push run found on main for {base[:8]} (gh exit {rc}): {out.strip()[:160]}")
+        add("ci_wasm_baselines", False, "not run: no CI run to read the baselines from")
+        return
+    run_id = str(runs[0]["databaseId"])
+    rc, out = run(["gh", "run", "view", run_id, "--json", "status,conclusion,jobs"], 60)
+    try:
+        view = json.loads(out)
+    except ValueError:
+        view = None
+    if rc != 0 or not view:
+        add("main_ci_green_on_base", False, f"could not read run {run_id} (gh exit {rc}): {out.strip()[:160]}")
+        add("ci_wasm_baselines", False, "not run: the CI run could not be read")
+        return
+    jobs = {j["name"]: (j.get("conclusion") or j.get("status")) for j in view["jobs"]}
+    gate = jobs.get("gate")
+    bad = {n: c for n, c in jobs.items() if c != "success" and not n.startswith("Benchmark")}
+    ok = view.get("status") == "completed" and view.get("conclusion") == "success" and gate == "success" and not bad
+    add("main_ci_green_on_base", ok,
+        f"CI run {run_id} on main at {base[:8]}: run {view.get('status')}/{view.get('conclusion')}, gate {gate}, {len(jobs)} jobs"
+        + ("" if not bad else f"; not success: {bad}"),
+        ci_run_id=int(run_id), ci_commit=base, ci_jobs=jobs)
+
+    dest = ROOT / "target" / "ci-artifacts" / run_id
+    shas, problems = {}, []
+    for key, art, fname in (("sequential", "wasm-raw-seq", "raw-sha256.txt"), ("threaded", "wasm-raw-threaded", "raw-sha256.txt")):
+        d = dest / art
+        d.mkdir(parents=True, exist_ok=True)
+        rc, out = run(["gh", "run", "download", run_id, "-n", art, "-D", str(d)], 120)
+        f = d / fname
+        if rc != 0 or not f.is_file():
+            problems.append(f"{key}: artifact {art} not downloaded (gh exit {rc}): {out.strip()[:120]}")
+            continue
+        shas[key] = f.read_text().split()[0]
+    baseline = {"sequential": git(["show", f"{base}:engine/pay_equity_engine.wasm.sha256"]).split()[:1],
+                "threaded": git(["show", f"{base}:engine/pay_equity_engine.threaded.wasm.sha256"]).split()[:1]}
+    rows = {}
+    for key in ("sequential", "threaded"):
+        want = (baseline[key] or [None])[0]
+        ci = shas.get(key)
+        local = ((verified or {}).get(key) or {}).get("built")
+        shipped = (published.get(key) or {}).get("manifest_raw")
+        rows[key] = {"ci_raw_sha256": ci, "baseline_at_base": want, "built_here": local, "shipped_manifest_raw": shipped}
+        if not (ci and want and local and shipped and ci == want == local == shipped):
+            problems.append(f"{key}: ci {str(ci)[:12]} baseline {str(want)[:12]} built-here {str(local)[:12]} shipped-manifest {str(shipped)[:12]} are not one hash")
+    add("ci_wasm_baselines", not problems,
+        "the raw blobs CI built, the baselines committed at that commit, the blobs built here and the manifests the app ships are one hash per artifact: "
+        + "; ".join(f"{k} {v['ci_raw_sha256'][:12]}" for k, v in rows.items() if v["ci_raw_sha256"])
+        if not problems else "; ".join(problems)[:1200],
+        hashes=rows)
+
+
+def probe_checks_0120(add, frontend_src):
+    """0120-MERIDIAN: the shipped blobs, run in node on the engine's own 10 000-row employers file."""
+    rc, out = run(["node", "scripts/lib/shipped_blob_probe.mjs", str(frontend_src)], 600)
+    try:
+        probe = json.loads(out.strip().splitlines()[-1])
+    except (ValueError, IndexError):
+        probe = None
+    names = [("relabel", "shipped_blob_relabel_invariance"), ("carve_out", "shipped_blob_carve_out_invariance"),
+             ("t8_zero_budget_identity", "shipped_blob_t8_zero_budget_identity")]
+    for key, name in names:
+        if probe is None or rc != 0:
+            add(name, False, f"the probe wrote no result (exit {rc}): {out.strip()[-200:]}")
+            continue
+        parts, ok = [], True
+        for art, r in probe["artifacts"].items():
+            c = (r.get("checks") or {}).get(key)
+            if c is None:
+                ok = False
+                parts.append(f"{art}: {r.get('error', 'no result')[:160]}")
+                continue
+            ok = ok and c.get("ok") is True
+            teeth = c.get("comparator_sees_a_nudge", c.get("comparator_sees_a_shift"))
+            ok = ok and teeth is True
+            if key == "relabel":
+                parts.append(f"{art}: {c['rows']} Department rows map one to one after Engineering becomes zz_Engineering, worst difference {c['worst_abs_difference']:.2e} (limit 1e-9), comparator catches a 0.01 nudge: {teeth}")
+            elif key == "carve_out":
+                parts.append(f"{art}: 20 Engineering rows moved to a new department Legal, {c['untouched_departments']} untouched departments move at most {c['worst_untouched_move']:.2e} (limit 1e-4), comparator catches a 0.01 nudge: {teeth}")
+            else:
+                p, r2 = c["pooled"], c["reference"]
+                parts.append(f"{art}: Pooled optimiser starts at {p['optimize_pooled_original']:.9f}, decomposition {p['decompose_pooled']:.9f}, independent group-indicator fit {p['independent_group_indicator_coefficient']:.9f}; "
+                             f"Reference optimiser {r2['optimize_reference_original']:.9f}, GroupB decomposition {r2['decompose_groupb']:.9f}, independent fit {r2['independent_mean_shortfall_against_reference_line']:.9f}; comparator catches a shift: {teeth}")
+        add(name, ok, " | ".join(parts)[:1500])
+
+
 def main() -> int:
     if len(sys.argv) < 2 or not sys.argv[1]:
         print("usage: bash scripts/verify-live.sh <epic-id>", file=sys.stderr)
@@ -297,6 +405,12 @@ def main() -> int:
     add("app_tree_committed", not problems,
         "the app receipt's tree is clean, nothing under the published directories or scripts/ is uncommitted, " + (tracked_note or "")
         if not problems else "; ".join(problems)[:1200])
+
+    # 6. 0120-MERIDIAN: CI on the base commit, the baselines it recorded, and the shipped blobs run in node
+    if epic.startswith("0120"):
+        print("verify-live: 0120 checks (CI on the base commit, shipped-blob probe)", file=sys.stderr, flush=True)
+        ci_checks_0120(add, verified, facts)
+        probe_checks_0120(add, FRONTEND_SRC)
 
     app_clean = None
     app_uncommitted = None
