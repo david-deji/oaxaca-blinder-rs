@@ -137,8 +137,9 @@ pub enum WarningCode {
     /// The Imbens-Rubin normalised difference of a continuous predictor exceeds
     /// [`SUPPORT_NORMALISED_DIFFERENCE`] in absolute value (`subject` = the predictor).
     NormalisedDifference,
-    /// A fitted group has fewer than [`SUPPORT_MIN_RESIDUAL_DF`] residual degrees of freedom
-    /// (`subject` = `"reference"` or `"target"`). At zero or below the run is refused instead.
+    /// A fitted regression has fewer than [`SUPPORT_MIN_RESIDUAL_DF`] residual degrees of freedom
+    /// (`subject` = `"reference"`, `"target"`, or `"pooled"` for the pooled fit of the Pooled
+    /// optimise target). At zero or below the run is refused instead.
     FewResidualDf,
     /// In percentile mode, more than [`QUANTILE_TIE_SHARE`] of a group's rows equal the group's
     /// own percentile value (`subject` = `"reference"` or `"target"`).
@@ -208,7 +209,8 @@ pub struct SupportDiagnostics {
     pub target_count: usize,
     /// Design columns of each group's regression, intercept and every level dummy included.
     pub model_columns: usize,
-    /// `count - model_columns` per group. Signed: a value at or below zero never reaches a
+    /// `count - model_columns` per group (under the Pooled optimise target the fit that matters
+    /// is the pooled one, whose df is `interval.degrees_of_freedom`). Signed: a value at or below zero never reaches a
     /// result, the run is refused (`INSUFFICIENT_RESIDUAL_DF`).
     pub reference_residual_df: i64,
     pub target_residual_df: i64,
@@ -216,7 +218,8 @@ pub struct SupportDiagnostics {
     pub predictors: Vec<PredictorSupport>,
     /// Target rows whose leverage `x' (X_ref' X_ref)^-1 x` exceeds the largest leverage among
     /// the reference rows: the fair wage for them extends the reference pay line beyond the
-    /// observed range.
+    /// observed range. Under the Pooled optimise target the leverage is the pooled design's,
+    /// with the indicator at 0, against its reference rows.
     pub extrapolated_target_count: usize,
 }
 
@@ -251,8 +254,15 @@ pub struct QuantileGroupReport {
 
 #[derive(Deserialize, Debug)]
 pub enum OptimizationTarget {
-    Reference, // Match Group A (Current "Perfect Equity")
-    Pooled,    // Match Market Average (Zero Statistical Gap)
+    /// Match the reference group's own pay line.
+    Reference,
+    /// Match the pooled line with a target-group indicator, read at indicator 0. At the
+    /// midpoint, `original_unexplained_gap` is that indicator's coefficient: the
+    /// decomposition's `Pooled` unexplained gap (Elder et al. 2010). `model_coefficients` and
+    /// each row's `contributions` are the pooled terms of the model's own columns, without the
+    /// indicator. (Before T8 this stacked both groups with no indicator, which is
+    /// `PooledNoIndicator`, Neumark.)
+    Pooled,
 }
 
 #[derive(Deserialize, Debug)]
@@ -340,14 +350,15 @@ pub struct Adjustment {
 /// `is_defensible` (0120-MERIDIAN S7 / T14): Student t on the baseline regression's residual
 /// degrees of freedom, `predict.lm(interval = "prediction")`.
 ///
-/// Exact `predict.lm` for the Reference optimise target. Under the Pooled target the fair wage
-/// comes from the pooled fit while the interval is still built on the reference regression, so
-/// it is an approximation there until T8 lands.
+/// Exact `predict.lm` on the fit the fair wage is read off, for both optimise targets: the
+/// baseline group's regression for Reference, the pooled regression with a group indicator for
+/// Pooled (T8), evaluated at indicator 0.
 #[derive(Serialize, Debug, Clone, PartialEq)]
 pub struct IntervalBasis {
     /// The level used; 0.95 when the request gave none. A level outside [0.50, 0.999] is refused.
     pub confidence_level: f64,
-    /// Residual degrees of freedom of the baseline regression (`n - k`), always positive here.
+    /// Residual degrees of freedom of the regression behind the fair wage, always positive here:
+    /// `n - k` of the baseline group for Reference, `n_reference + n_target - k - 1` for Pooled.
     pub degrees_of_freedom: usize,
     /// The t quantile that multiplied the prediction standard error.
     pub critical_value: f64,

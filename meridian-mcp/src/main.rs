@@ -575,7 +575,7 @@ async fn handle_protocol(req: JsonRpcRequest) -> Option<JsonRpcResponse> {
                 },
                 {
                     "name": "simulate_remediation",
-                    "description": "Simulate budget allocation to fix identified pay gaps.",
+                    "description": "Simulate budget allocation to fix identified pay gaps. target is Reference (the reference group's own pay line) or Pooled (the pooled line with a target-group indicator, the decomposition's Pooled line); the prediction interval, extrapolated flags and few_residual_df warning come from the same fit as the fair wage.",
                     "inputSchema": {
                         "type": "object",
                         "properties": {

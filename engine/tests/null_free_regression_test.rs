@@ -54,6 +54,17 @@
 //!     checked against their own invariants (paid exactly to the bound, totals add up) and every
 //!     other field still equals the golden.
 //!
+//! 0120-MERIDIAN T8 (still NOT regenerated). One case moved BY DESIGN: `optimize/noisy/pooled_target`.
+//! The golden pins the pre-T8 Pooled target, which stacked both groups with no group indicator
+//! (Neumark). The target now fits the pooled regression WITH the indicator and reads fair wages
+//! at indicator 0, with the interval from that same fit, so every fair wage, payment, total and
+//! gap of that case moved, and its interval has `n - k - 1` residual df. The old text cannot be
+//! the expectation for those fields. They are held to an independent oracle instead
+//! (`POOLED_TARGET_CASES`, `check_pooled_target_case`): the pooled `lm` of the fixture's own
+//! cells, fitted in plain `std` by `support::ols`, which shares no code with the engine (and
+//! `pooled_target_test` holds the same line to R's `lm` / `predict.lm`). Every field outside
+//! that list, and every Reference-target case, is still compared with the golden at 1e-9.
+//!
 //!   MERIDIAN_PRINT_GOLDEN=json cargo test -p pay-equity-engine --test null_free_regression_test -- --nocapture
 //!   (prints `JSON<TAB>name<TAB>json` per case; strip the `JSON<TAB>` prefix to build the golden)
 
@@ -416,6 +427,21 @@ fn family_of(name: &str) -> Family {
 /// Optimise cases whose payments ARE the interval (`range_target` LowerBound / UpperBound).
 const RANGE_TARGET_CASES: [&str; 2] = ["optimize/noisy/lower_bound", "optimize/noisy/upper_bound"];
 
+/// Optimise cases whose target is Pooled: moved by T8, held to an independent pooled `lm`.
+const POOLED_TARGET_CASES: [&str; 1] = ["optimize/noisy/pooled_target"];
+
+/// Fields of a Pooled-target optimise result that T8 moved (the fair wage, what is paid, and
+/// every total and gap derived from them). The rest of the result still equals the golden.
+const POOLED_TARGET_MOVED: [&str; 7] = [
+    "adjustments",
+    "total_cost",
+    "required_budget",
+    "new_gap",
+    "original_unexplained_gap",
+    "new_unexplained_gap",
+    "model_coefficients",
+];
+
 /// FixtureF's analysed rows per group on the null-free cases (no blank cell, no third group).
 const REFERENCE_ROWS: f64 = 60.0;
 const TARGET_ROWS: f64 = 40.0;
@@ -531,11 +557,17 @@ fn scope_s6_to_s8(name: &str, want: &mut Value, got: &mut Value) -> Result<(), S
         let engine_dof = basis["degrees_of_freedom"]
             .as_u64()
             .ok_or(format!("{name}: interval.degrees_of_freedom missing"))?;
-        let own_dof = REFERENCE_ROWS as u64
-            - want["model_coefficients"]
-                .as_array()
-                .ok_or("model_coefficients")?
-                .len() as u64;
+        let model_columns = want["model_coefficients"]
+            .as_array()
+            .ok_or("model_coefficients")?
+            .len() as u64;
+        // The Reference target's interval is the baseline group's own fit (`n_ref - k`); the
+        // Pooled target's is the pooled fit with the indicator (`n_ref + n_target - k - 1`).
+        let own_dof = if POOLED_TARGET_CASES.contains(&name) {
+            (REFERENCE_ROWS + TARGET_ROWS) as u64 - model_columns - 1
+        } else {
+            REFERENCE_ROWS as u64 - model_columns
+        };
         if engine_dof != own_dof {
             return Err(format!(
                 "{name}: interval.degrees_of_freedom {engine_dof}, the fixture's own is {own_dof}"
@@ -572,6 +604,15 @@ fn scope_s6_to_s8(name: &str, want: &mut Value, got: &mut Value) -> Result<(), S
                 "{name}: an adjustment has no boolean `extrapolated`"
             ));
         }
+    }
+
+    if POOLED_TARGET_CASES.contains(&name) {
+        check_pooled_target_case(name, got)?;
+        for k in POOLED_TARGET_MOVED {
+            take(want, k);
+            take(got, k);
+        }
+        return Ok(());
     }
 
     if range_target {
@@ -699,6 +740,101 @@ fn scope_s6_to_s8(name: &str, want: &mut Value, got: &mut Value) -> Result<(), S
                 take(w, k);
             }
         }
+    }
+    Ok(())
+}
+
+/// The independent oracle for a Pooled-target optimise case on the noisy FixtureF (T8).
+///
+/// The pooled regression `Salary ~ 1 + Experience + Level + group` is fitted from the fixture's
+/// own cells by `support::ols` (plain `std`, no engine code). Held to it, at 1e-9: the model
+/// terms (indicator dropped), `original_unexplained_gap` (= the indicator's coefficient), every
+/// fair wage at indicator 0, its prediction-interval bounds on the pooled fit's `n - k - 1` df,
+/// and the payments (every row below its fair wage by more than 1e-6 is paid up to it).
+fn check_pooled_target_case(name: &str, got: &Value) -> Result<(), String> {
+    let fixture = FixtureF::noisy();
+    let (mut x, mut y) = (Vec::new(), Vec::new());
+    for i in 0..support::N_ROWS {
+        let mut row = fixture.features(i);
+        row.push(if support::is_target_row(i) { 1.0 } else { 0.0 });
+        x.push(row);
+        y.push(fixture.salary_cell(i).ok_or("noisy fixture has no blank")?);
+    }
+    let fit = support::ols(&x, &y);
+    let k = fit.p - 1;
+    let gamma = fit.beta[k];
+
+    let coefficients = got["model_coefficients"]
+        .as_array()
+        .ok_or(format!("{name}: model_coefficients"))?;
+    if coefficients.len() != k {
+        return Err(format!(
+            "{name}: {} model terms, the pooled fit has {k} without the indicator",
+            coefficients.len()
+        ));
+    }
+    for (j, term) in coefficients.iter().enumerate() {
+        if rel_diff(num(term, "value"), fit.beta[j]) > REL_TOL {
+            return Err(format!(
+                "{name}: model term {j} {:e}, pooled lm {:e}",
+                num(term, "value"),
+                fit.beta[j]
+            ));
+        }
+    }
+    if rel_diff(num(got, "original_unexplained_gap"), gamma) > REL_TOL {
+        return Err(format!(
+            "{name}: original_unexplained_gap {:e}, the pooled indicator coefficient is {gamma:e}",
+            num(got, "original_unexplained_gap")
+        ));
+    }
+
+    let t = support::t_95(fit.n as f64 - fit.p as f64);
+    let rows = got["adjustments"].as_array().ok_or("adjustments")?;
+    let mut expected_paid = 0;
+    let mut paid_total = 0.0;
+    for i in (0..support::N_ROWS).filter(|&i| support::is_target_row(i)) {
+        let features = fixture.features(i);
+        let fair = support::dot(&fit.beta[..k], &features);
+        let current = fixture.salary_cell(i).unwrap();
+        if fair - current <= 1e-6 {
+            continue;
+        }
+        expected_paid += 1;
+        paid_total += fair - current;
+        let row = rows
+            .iter()
+            .find(|r| r["index"].as_u64() == Some(i as u64))
+            .ok_or(format!("{name}: underpaid row {i} has no adjustment"))?;
+        let mut extended = features.clone();
+        extended.push(0.0);
+        let h = support::quad_form(&fit.xtx_inv, &extended);
+        let margin = t * (fit.sigma2 * (1.0 + h)).sqrt();
+        for (k_, want) in [
+            ("fair_wage", fair),
+            ("fair_wage_lower_bound", fair - margin),
+            ("fair_wage_upper_bound", fair + margin),
+            ("adjustment", fair - current),
+        ] {
+            if rel_diff(num(row, k_), want) > REL_TOL {
+                return Err(format!(
+                    "{name}: row {i} {k_} {:e}, pooled lm {want:e}",
+                    num(row, k_)
+                ));
+            }
+        }
+    }
+    if expected_paid == 0 || rows.len() != expected_paid {
+        return Err(format!(
+            "{name}: {} adjustments, the pooled lm underpays {expected_paid} rows",
+            rows.len()
+        ));
+    }
+    if rel_diff(num(got, "total_cost"), paid_total) > 1e-6 {
+        return Err(format!(
+            "{name}: total_cost {:e}, the pooled lm shortfall sums to {paid_total:e}",
+            num(got, "total_cost")
+        ));
     }
     Ok(())
 }
