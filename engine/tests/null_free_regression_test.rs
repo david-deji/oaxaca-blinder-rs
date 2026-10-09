@@ -1,21 +1,28 @@
-//! 0118-MERIDIAN V10: files with no blank cell produce exactly the output they produced before.
+//! 0118-MERIDIAN V10: files with no blank cell produce the numbers they produced before.
 //!
 //! The 0118 change reads employee identity from the row ordinals the builder reports instead of
 //! recomputing it from the raw group column. On a file with no blank model cell and no third
-//! group value those two are the same list, so every number the engine returns must be
-//! bit-identical to the pre-0118 engine. This test pins that.
+//! group value those two are the same list, so every number the engine returns must match the
+//! pre-0118 engine. This test pins that.
 //!
-//! HOW THE GOLDEN WAS MADE. `fixtures/0118-null-free-golden.txt` holds one SHA-256 per case,
-//! over the canonical JSON (serde_json, sorted keys, shortest-round-trip floats) of the engine's
-//! result with the four fields 0118 added removed (`analysed_reference_count`,
-//! `analysed_target_count`, `excluded_rows`, `adjustments_on_excluded_rows`). The hashes were
-//! recorded by running THIS FILE, unmodified, against the pre-0118 engine source (commit
-//! cfd6c6b, the tip of `main` when 0118 started), where those four fields do not exist and the
-//! removal is a no-op. They are not regenerated from the current engine: a changed hash here is
-//! a changed number on a null-free file.
+//! HOW THE GOLDEN WAS MADE. `fixtures/0118-null-free-golden.txt` holds one line per case,
+//! `name<TAB>canonical-json`: the engine's result (serde_json) with the four fields 0118 added
+//! removed (`analysed_reference_count`, `analysed_target_count`, `excluded_rows`,
+//! `adjustments_on_excluded_rows`). It was recorded by running THIS FILE against the pre-0118
+//! engine source (commit 8e4e552, `main` before the 0118 epic), where those four fields do not
+//! exist and the removal is a no-op. It is not regenerated from the current engine: a changed
+//! number here is a changed number on a null-free file.
 //!
-//!   MERIDIAN_PRINT_GOLDEN=hash cargo test -p pay-equity-engine --test null_free_regression_test -- --nocapture
-//!   MERIDIAN_PRINT_GOLDEN=json ...   (prints each case's JSON, for diffing two engines)
+//! TOLERANCE. Strings, bools, nulls, integers, object keys and array lengths must match exactly.
+//! Every float must satisfy |a-b| <= 1e-9 * max(1, |a|, |b|). Bit-identity across machines is not
+//! available: the linear algebra underneath (nalgebra over matrixmultiply) picks AVX/FMA or
+//! scalar kernels at run time from the CPU it finds, and those round the last bit differently,
+//! so the same engine gives different low bits on different x86-64 hosts. 1e-9 sits about six
+//! orders of magnitude above that noise and far below any real change. The worst relative
+//! difference per case is printed with --nocapture and named in the failure message.
+//!
+//!   MERIDIAN_PRINT_GOLDEN=json cargo test -p pay-equity-engine --test null_free_regression_test -- --nocapture
+//!   (prints `JSON<TAB>name<TAB>json` per case; strip the `JSON<TAB>` prefix to build the golden)
 
 #[path = "support/engine_requests.rs"]
 mod engine_requests;
@@ -33,7 +40,6 @@ use pay_equity_engine::types::{
 };
 use serde::Serialize;
 use serde_json::Value;
-use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use support::FixtureF;
 
@@ -52,11 +58,6 @@ fn canonical<T: Serialize>(result: &T) -> String {
         }
     }
     serde_json::to_string(&v).unwrap()
-}
-
-fn digest(text: &str) -> String {
-    let bytes = Sha256::digest(text.as_bytes());
-    bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
 fn adjustments() -> Vec<ProposedAdjustment> {
@@ -275,34 +276,77 @@ fn golden_path() -> std::path::PathBuf {
         .join("tests/fixtures/0118-null-free-golden.txt")
 }
 
+const REL_TOL: f64 = 1e-9;
+
+fn rel_diff(a: f64, b: f64) -> f64 {
+    (a - b).abs() / 1.0_f64.max(a.abs()).max(b.abs())
+}
+
+/// Structural comparison. Returns the worst relative float difference seen, or the path and
+/// reason of the first mismatch.
+fn compare(path: &str, want: &Value, got: &Value) -> Result<f64, String> {
+    match (want, got) {
+        (Value::Null, Value::Null) => Ok(0.0),
+        (Value::Bool(a), Value::Bool(b)) if a == b => Ok(0.0),
+        (Value::String(a), Value::String(b)) if a == b => Ok(0.0),
+        (Value::Number(a), Value::Number(b)) => {
+            if (a.is_i64() || a.is_u64()) && (b.is_i64() || b.is_u64()) {
+                return if a == b {
+                    Ok(0.0)
+                } else {
+                    Err(format!("{path}: integer {a} != {b}"))
+                };
+            }
+            let (x, y) = (a.as_f64().unwrap(), b.as_f64().unwrap());
+            let d = rel_diff(x, y);
+            if d <= REL_TOL {
+                Ok(d)
+            } else {
+                Err(format!("{path}: {x:e} vs {y:e} (relative diff {d:e})"))
+            }
+        }
+        (Value::Array(a), Value::Array(b)) => {
+            if a.len() != b.len() {
+                return Err(format!("{path}: array length {} vs {}", a.len(), b.len()));
+            }
+            let mut worst = 0.0_f64;
+            for (i, (x, y)) in a.iter().zip(b).enumerate() {
+                worst = worst.max(compare(&format!("{path}[{i}]"), x, y)?);
+            }
+            Ok(worst)
+        }
+        (Value::Object(a), Value::Object(b)) => {
+            let ka: Vec<&String> = a.keys().collect();
+            let kb: Vec<&String> = b.keys().collect();
+            if ka != kb {
+                return Err(format!("{path}: keys {ka:?} vs {kb:?}"));
+            }
+            let mut worst = 0.0_f64;
+            for (k, x) in a {
+                worst = worst.max(compare(&format!("{path}.{k}"), x, &b[k])?);
+            }
+            Ok(worst)
+        }
+        _ => Err(format!("{path}: {want} vs {got}")),
+    }
+}
+
 #[test]
-fn null_free_outputs_are_bit_identical_to_the_pre_0118_engine() {
+fn null_free_outputs_match_the_pre_0118_engine() {
     let cases = cases();
 
-    match std::env::var("MERIDIAN_PRINT_GOLDEN").as_deref() {
-        Ok("hash") => {
-            for (name, json) in &cases {
-                println!("GOLDEN\t{name}\t{}", digest(json));
-            }
-            return;
+    if std::env::var("MERIDIAN_PRINT_GOLDEN").as_deref() == Ok("json") {
+        for (name, json) in &cases {
+            println!("JSON\t{name}\t{json}");
         }
-        Ok("json") => {
-            for (name, json) in &cases {
-                println!("JSON\t{name}\t{json}");
-            }
-            return;
-        }
-        _ => {}
+        return;
     }
 
     let golden = std::fs::read_to_string(golden_path()).expect("golden file present");
     let want: HashMap<&str, &str> = golden
         .lines()
         .filter(|l| !l.trim().is_empty() && !l.starts_with('#'))
-        .map(|l| {
-            let mut parts = l.split('\t');
-            (parts.next().unwrap(), parts.next().unwrap())
-        })
+        .map(|l| l.split_once('\t').expect("name<TAB>json line"))
         .collect();
 
     assert_eq!(
@@ -312,16 +356,20 @@ fn null_free_outputs_are_bit_identical_to_the_pre_0118_engine() {
     );
     let mut moved = Vec::new();
     for (name, json) in &cases {
-        let got = digest(json);
-        match want.get(name.as_str()) {
-            Some(expected) if *expected == got => {}
-            Some(_) => moved.push(name.clone()),
-            None => panic!("case {name} has no golden entry"),
+        let expected = want
+            .get(name.as_str())
+            .unwrap_or_else(|| panic!("case {name} has no golden entry"));
+        let want_v: Value = serde_json::from_str(expected).expect("golden json parses");
+        let got_v: Value = serde_json::from_str(json).expect("result json parses");
+        match compare("$", &want_v, &got_v) {
+            Ok(worst) => println!("{name}: worst relative difference {worst:e}"),
+            Err(why) => moved.push(format!("{name}: {why}")),
         }
     }
     assert!(
         moved.is_empty(),
-        "output changed on a null-free file for: {moved:?}. Re-run with MERIDIAN_PRINT_GOLDEN=json \
-         against the pre-0118 engine to see which number moved."
+        "output changed on a null-free file:\n{}\nRe-run with MERIDIAN_PRINT_GOLDEN=json against \
+         the pre-0118 engine (8e4e552) to compare.",
+        moved.join("\n")
     );
 }
