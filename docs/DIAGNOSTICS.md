@@ -95,7 +95,7 @@ row twice in the density); it now reads `sum(w)`. Unweighted runs are untouched.
 
 | Check | Oracle | Tolerance | Measured |
 |---|---|---|---|
-| V6 support block, normalised difference, leverage, extrapolated count | base R, `ddecompose:::get_normalized_difference` (x sqrt 2) | 1e-12 | exact to print precision |
+| V6 support block, normalised difference, leverage, extrapolated count, 9 fixtures | base R, `ddecompose:::get_normalized_difference` (x sqrt 2) | 1e-12 | 3.3e-16 |
 | V7 prediction intervals, three levels, 10 000 rows and 5 df | `predict.lm(interval = "prediction")` | 1e-9 | 2.9e-12, 2.1e-15 |
 | V7 t quantile and `pt` | `qt`, `pt` | 1e-10 | 2.4e-12 |
 | V7 frontier group test | pooled `lm` | 1e-9 | see `intervals_test` |

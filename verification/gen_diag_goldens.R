@@ -18,6 +18,10 @@
 # were produced by the 2026-10-09 re-ground (ground/2026-10-09-C-reground.md section 0) and are
 # inputs here, hashed in the golden.
 #
+# NOT USED: mem_profile_50k.csv. It is git-ignored (the memory-ceiling job generates it), so a golden
+# built on it could not be checked for staleness on a fresh clone. The 10 000-row employers fixture
+# has the same shape.
+#
 # WHAT IS CHECKED, AND AGAINST WHAT
 #  V6  support: per continuous predictor the baseline [min, max] and type-7 [p1, p99], the share
 #      of target rows outside each, the Imbens-Rubin normalised difference (asserted here to be
@@ -64,7 +68,7 @@ gr <- rbind(data.frame(pay = cont_pay, grp = "Cont", x = round(runif(30, 0, 10),
             data.frame(pay = grid_pay, grp = "Grid", x = round(runif(30, 0, 10), 3)))
 write.table(gr, file.path(FIX, "diag_grid.csv"), sep = ",", row.names = FALSE, quote = FALSE)
 
-FIXTURES <- c("employers_trust_fixture.csv", "parity_fixture.csv", "mem_profile_50k.csv", "diag_nooverlap.csv",
+FIXTURES <- c("employers_trust_fixture.csv", "parity_fixture.csv", "diag_nooverlap.csv",
               "diag_linear_nooverlap.csv", "diag_kink_overlap.csv", "diag_tiny.csv", "diag_df5.csv", "diag_grid.csv")
 path_of <- function(f) file.path(FIX, f)
 fixture_hash <- setNames(lapply(FIXTURES, function(f) sha(path_of(f))), FIXTURES)
@@ -114,7 +118,6 @@ support <- list(
   employers = support_case(path_of("employers_trust_fixture.csv"), "Salary", "Gender", c("Age", "Experience_Years"), "Male"),
   parity = support_case(path_of("parity_fixture.csv"), "log_wage", "gender", c("education", "experience", "tenure"), "M"),
   fixture_f = support_case(file.path(REPO_ROOT, "engine/tests/fixtures/0118-fixture-f.csv"), "Salary", "Gender", "Experience", "Male"),
-  mem_profile_50k = support_case(path_of("mem_profile_50k.csv"), "Salary", "Gender", c("Age", "Experience_Years"), "Male"),
   wage5 = support_case(file.path(REPO_ROOT, "oaxaca_blinder/tests/data/wage.csv"), "wage", "gender", "education", "M"),
   nooverlap = support_case(path_of("diag_nooverlap.csv"), "wage", "gender", "edu", "M"),
   linear_nooverlap = support_case(path_of("diag_linear_nooverlap.csv"), "wage", "gender", "edu", "M"),

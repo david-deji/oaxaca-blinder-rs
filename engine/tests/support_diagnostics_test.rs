@@ -26,11 +26,10 @@ fn golden() -> &'static DiagGolden {
 }
 
 /// (golden case, fixture file)
-const CASES: [(&str, &str); 10] = [
+const CASES: [(&str, &str); 9] = [
     ("employers", "employers_trust_fixture.csv"),
     ("parity", "parity_fixture.csv"),
     ("fixture_f", "0118-fixture-f.csv"),
-    ("mem_profile_50k", "mem_profile_50k.csv"),
     ("wage5", "wage.csv"),
     ("nooverlap", "diag_nooverlap.csv"),
     ("linear_nooverlap", "diag_linear_nooverlap.csv"),
@@ -229,7 +228,7 @@ fn v6_warnings_fire_exactly_where_the_thresholds_say() {
 
 #[test]
 fn v6_ordinary_fixtures_are_silent_on_range_extrapolation_and_degrees_of_freedom() {
-    for case in ["employers", "fixture_f", "mem_profile_50k", "parity"] {
+    for case in ["employers", "fixture_f", "parity"] {
         let res = decompose_inner(decomposition(case)).unwrap();
         assert_eq!(res.support.extrapolated_target_count, 0, "{case}");
         for w in &res.warnings {

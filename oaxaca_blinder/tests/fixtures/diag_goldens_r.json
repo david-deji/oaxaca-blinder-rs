@@ -1,6 +1,6 @@
 {
   "_meta": {
-    "generated_utc": "2026-10-09 14:59:27 UTC",
+    "generated_utc": "2026-10-09 15:39:24 UTC",
     "r_version": "4.6.1",
     "packages": {
       "ddecompose": "1.0.0",
@@ -10,11 +10,10 @@
     },
     "seed": 20261009,
     "rngkind": "Mersenne-Twister,Inversion,Rejection",
-    "generator_sha256": "31d424130d22e544161a5675b1c4040a27f76dbb0220d4f3eb7d2af07838e172",
+    "generator_sha256": "01d407dd8df2aca70ee383d308f64671831dd0c83a14dde04f5137ea5ec2a313",
     "fixture_sha256": {
       "employers_trust_fixture.csv": "91582bcc86845bfbf1e1b376abb0ac03fe6c4a6bff4a093e1a5b895a32cfeb7d",
       "parity_fixture.csv": "eefc16ea537f3c20346f3d36d9a056d80e6e8f96aee06f10e0299219a14bbf7d",
-      "mem_profile_50k.csv": "b79835fd53cf5ab167783d593c22057c8d17bc748b0a6c15944fae06dcef3114",
       "diag_nooverlap.csv": "1970adc1328244d8995dbc614ccb7cf4273ba99545c025588f176ac05c1413d1",
       "diag_linear_nooverlap.csv": "2d9bccde3133fdb40fd2e0be2476188982e73d0cb85243977a026be997f8e795",
       "diag_kink_overlap.csv": "57e57d33bd30477fcfc342414d6e29b7506e27fbc340a189e222196e6f08642f",
@@ -148,45 +147,6 @@
           "target_outside_p01_p99_share": 0,
           "normalised_difference": 0.005193057869946326,
           "ddecompose_normalized_difference": 0.0036720464349332149
-        }
-      }
-    },
-    "mem_profile_50k": {
-      "outcome": "Salary",
-      "group": "Gender",
-      "predictors": ["Age", "Experience_Years"],
-      "reference_group": "Male",
-      "reference_count": 25540,
-      "target_count": 24460,
-      "model_columns": 3,
-      "reference_residual_df": 25537,
-      "target_residual_df": 24457,
-      "reference_max_leverage": 0.00054266814143776564,
-      "extrapolated_target_count": 0,
-      "per_predictor": {
-        "Age": {
-          "reference_min": 19,
-          "reference_max": 62,
-          "reference_p01": 21,
-          "reference_p99": 59,
-          "target_min": 19,
-          "target_max": 62,
-          "target_outside_range_share": 0,
-          "target_outside_p01_p99_share": 0.019051512673753067,
-          "normalised_difference": -0.031808364688072938,
-          "ddecompose_normalized_difference": -0.022491910369391098
-        },
-        "Experience_Years": {
-          "reference_min": 0,
-          "reference_max": 39,
-          "reference_p01": 0,
-          "reference_p99": 35,
-          "target_min": 0,
-          "target_max": 39,
-          "target_outside_range_share": 0,
-          "target_outside_p01_p99_share": 0.0094031071136549474,
-          "normalised_difference": -0.029293646344416221,
-          "ddecompose_normalized_difference": -0.02071373597581723
         }
       }
     },
