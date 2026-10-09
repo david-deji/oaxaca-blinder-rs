@@ -16,6 +16,12 @@
 //! `x_a`/`y_a` end up holding the *reference* (advantaged) group, from which `beta_fair`
 //! (the fair-wage standard) is solved. **All three bindings are correct as committed.**
 //!
+//! 0118-MERIDIAN: the three call sites now read `get_data_matrices_with_rows()`, which names the
+//! groups `reference` and `target` instead of A/B, and bind them to the same local `x_a`/`y_a`
+//! (reference) and `x_b`/`y_b` (target). The legacy tuple's A = target convention above still
+//! holds for `get_data_matrices()`, which is a thin wrapper over it. The tests below guard the
+//! behaviour either way.
+//!
 //! ## Why this file exists
 //!
 //! A prior working session began "fixing" the frontier binding at `analysis.rs:929`

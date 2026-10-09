@@ -1,14 +1,17 @@
+use crate::rows::{analysed_mask, check_alignment, read_csv, KeySupply};
 use crate::types::*;
 use nalgebra::{DMatrix, DVector};
-use oaxaca_blinder::{OaxacaBuilder, ReferenceCoefficients};
+use oaxaca_blinder::{OaxacaBuilder, ReferenceCoefficients, RowAccounting};
 use polars::prelude::*;
 use statrs::distribution::{ContinuousCDF, Normal};
-use std::io::Cursor;
 
 pub fn decompose_inner(req: DecompositionRequest) -> Result<DecompositionResult, String> {
     // 1. Load Data
-    let cursor = Cursor::new(&req.csv_data);
-    let mut df = CsvReader::new(cursor).finish().map_err(|e| e.to_string())?;
+    let mut df = read_csv(&req.csv_data)?;
+
+    // 0118-MERIDIAN S5: kept un-cast so an excluded row's stable key can be minted from the
+    // raw cells if (and only if) some row turns out to be excluded. See `KeySupply`.
+    let raw_df = df.clone();
 
     // Cast to Float64 with error checking
     let cast_cols = [&req.outcome_variable]
@@ -34,13 +37,28 @@ pub fn decompose_inner(req: DecompositionRequest) -> Result<DecompositionResult,
         }
     }
 
-    run_decomposition_on_df(df, &req)
+    run_decomposition_on_df(df, &req, KeySupply::FromRaw(&raw_df))
+}
+
+/// Which original rows are analysed and which are excluded for this request's model, from the
+/// builder's single cleaning pass (0118-MERIDIAN S1). Errors are the builder's, verbatim.
+fn row_accounting(df: &DataFrame, req: &DecompositionRequest) -> Result<RowAccounting, String> {
+    let mut builder = OaxacaBuilder::new(
+        df.clone(),
+        &req.outcome_variable,
+        &req.group_variable,
+        &req.reference_group,
+    );
+    builder.predictors(req.predictors.iter().map(|s| s.as_str()));
+    if let Some(cats) = &req.categorical_predictors {
+        builder.categorical_predictors(cats.iter().map(|s| s.as_str()));
+    }
+    builder.analysed_rows().map_err(|e| e.to_string())
 }
 
 pub fn verify_inner(req: VerificationRequest) -> Result<DecompositionResult, String> {
     // 1. Load Data
-    let cursor = Cursor::new(&req.decomposition_params.csv_data);
-    let mut df = CsvReader::new(cursor).finish().map_err(|e| e.to_string())?;
+    let mut df = read_csv(&req.decomposition_params.csv_data)?;
 
     // 0017-MERIDIAN P4: mint the stable key table HERE, on the raw parse, before the Float64
     // cast below. Casting changes a cell's text rendering, so a table built after it would
@@ -84,21 +102,31 @@ pub fn verify_inner(req: VerificationRequest) -> Result<DecompositionResult, Str
     // whichever employee now sits at that offset.
     let mut unresolved_row_keys: usize = 0;
 
+    // 0118-MERIDIAN S3: an adjustment addressed to a row the analysis excluded (a blank model
+    // cell) or to a row that does not exist is skipped and counted, never applied and never an
+    // error: the app replays persisted ledger rows on project load, so a row can legitimately
+    // have lost its inputs since the ledger was saved. Which rows are analysed is a property of
+    // the inputs, and adjustments only ever move a non-blank wage, so it is read off the frame
+    // before the adjustments are applied.
+    let accounting = row_accounting(&df, &req.decomposition_params)?;
+    let analysed = analysed_mask(
+        accounting.total_rows,
+        &accounting.reference_rows,
+        &accounting.target_rows,
+    );
+    let mut adjustments_on_excluded_rows: usize = 0;
+
     for adj in &req.adjustments {
         let Some(row_idx) = row_keys.resolve(adj.index, adj.row_key.as_deref()) else {
             unresolved_row_keys += 1;
             continue;
         };
-        if row_idx < wage_vec.len() {
-            if let Some(val) = wage_vec[row_idx] {
-                wage_vec[row_idx] = Some(val + adj.value);
-            }
-        } else {
-            return Err(format!(
-                "Adjustment index {} is out of bounds (dataset has {} rows)",
-                row_idx,
-                wage_vec.len()
-            ));
+        if !analysed.get(row_idx).copied().unwrap_or(false) {
+            adjustments_on_excluded_rows += 1;
+            continue;
+        }
+        if let Some(val) = wage_vec[row_idx] {
+            wage_vec[row_idx] = Some(val + adj.value);
         }
     }
 
@@ -107,46 +135,51 @@ pub fn verify_inner(req: VerificationRequest) -> Result<DecompositionResult, Str
     df.with_column(new_series).map_err(|e| e.to_string())?;
 
     // 3. Run Analysis on Mutated DataFrame
-    let mut result = run_decomposition_on_df(df, &req.decomposition_params)?;
+    let mut result =
+        run_decomposition_on_df(df, &req.decomposition_params, KeySupply::Ready(&row_keys))?;
     result.unresolved_row_keys = Some(unresolved_row_keys);
+    result.adjustments_on_excluded_rows = adjustments_on_excluded_rows;
     Ok(result)
 }
 
 fn run_decomposition_on_df(
     df: DataFrame,
     req: &DecompositionRequest,
+    keys: KeySupply<'_>,
 ) -> Result<DecompositionResult, String> {
     // Calculate Summary Stats (on provided data)
     let total_count = df.height();
     let group_col = df.column(&req.group_variable).map_err(|e| e.to_string())?;
+    // A non-string group column keeps its historical error text.
+    group_col.str().map_err(|e| e.to_string())?;
 
-    // Filter for Reference Group (Group A)
-    let mask_a = group_col
-        .str()
-        .map_err(|e| e.to_string())?
-        .equal(req.reference_group.as_str());
+    // 0118-MERIDIAN S1/S5: the summary describes the ANALYSED rows (complete cases), the same
+    // rows the decomposition below uses; `total_count` stays the raw row count. The group
+    // check (S2) runs inside `row_accounting`, before any figure is computed.
+    let accounting = row_accounting(&df, req)?;
 
-    let group_a_df = df.filter(&mask_a).map_err(|e| e.to_string())?;
-    let group_a_count = group_a_df.height();
-    let group_a_mean = group_a_df
-        .column(&req.outcome_variable)
-        .map_err(|e| e.to_string())?
-        .f64()
-        .map_err(|e| e.to_string())?
-        .mean()
-        .unwrap_or(0.0);
-
-    // Filter for Other Group (Group B)
-    let mask_b = !mask_a;
-    let group_b_df = df.filter(&mask_b).map_err(|e| e.to_string())?;
-    let group_b_count = group_b_df.height();
-    let group_b_mean = group_b_df
-        .column(&req.outcome_variable)
-        .map_err(|e| e.to_string())?
-        .f64()
-        .map_err(|e| e.to_string())?
-        .mean()
-        .unwrap_or(0.0);
+    // Group A of this summary is the REFERENCE group, group B every other analysed row. The
+    // mean is taken over the filtered frame exactly as before (same polars `mean`), so on a
+    // complete-case file the figures are bit-identical to the pre-0118 engine.
+    let mean_over = |rows: &[usize]| -> Result<f64, String> {
+        let mut selected = vec![false; total_count];
+        for &i in rows {
+            selected[i] = true;
+        }
+        let mask = BooleanChunked::from_slice("analysed".into(), &selected);
+        let filtered = df.filter(&mask).map_err(|e| e.to_string())?;
+        Ok(filtered
+            .column(&req.outcome_variable)
+            .map_err(|e| e.to_string())?
+            .f64()
+            .map_err(|e| e.to_string())?
+            .mean()
+            .unwrap_or(0.0))
+    };
+    let group_a_count = accounting.reference_rows.len();
+    let group_a_mean = mean_over(&accounting.reference_rows)?;
+    let group_b_count = accounting.target_rows.len();
+    let group_b_mean = mean_over(&accounting.target_rows)?;
 
     let summary = DataSummary {
         total_count,
@@ -358,6 +391,11 @@ fn run_decomposition_on_df(
         run_metadata,
         // Not applicable at this level — `verify_inner` overwrites it with its own count.
         unresolved_row_keys: None,
+        analysed_reference_count: accounting.reference_rows.len(),
+        analysed_target_count: accounting.target_rows.len(),
+        excluded_rows: keys.excluded(&accounting.excluded_rows),
+        // `verify_inner` overwrites it with its own count; `decompose` consumes none.
+        adjustments_on_excluded_rows: 0,
     })
 }
 
@@ -366,8 +404,7 @@ fn run_decomposition_on_df(
 /// clarabel's default build is single-threaded direct LDL, no rayon (L5). No parallel site.
 pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, String> {
     // 1. Load Data
-    let cursor = Cursor::new(req.csv_data);
-    let mut df = CsvReader::new(cursor).finish().map_err(|e| e.to_string())?;
+    let mut df = read_csv(&req.csv_data)?;
 
     // 0017-MERIDIAN P4: mint the stable key table on the RAW parse, before the Float64 cast
     // below and before any group split, so the table is indexed by exactly the same DataFrame
@@ -439,28 +476,6 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
         problem_builder.categorical_predictors(cats.iter().copied());
     }
 
-    // Identify Target AND Reference Group Indices
-    let group_col = df.column(&req.group_variable).map_err(|e| e.to_string())?;
-    let is_reference_mask = group_col
-        .str()
-        .map_err(|e| e.to_string())?
-        .equal(req.reference_group.as_str());
-
-    // Using capacities could improve performance further if we knew sizes,
-    // but without counting we just default to standard allocation.
-    let mut target_indices = Vec::new();
-    let mut reference_indices = Vec::new();
-
-    for (idx, is_ref_opt) in is_reference_mask.into_iter().enumerate() {
-        if let Some(is_ref) = is_ref_opt {
-            if is_ref {
-                reference_indices.push(idx);
-            } else {
-                target_indices.push(idx);
-            }
-        }
-    }
-
     use crate::types::{Adjustment, AllocationStrategy, OptimizationResult, OptimizationTarget};
 
     // 4. Determine Fair Wage Standard (Target)
@@ -469,59 +484,48 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
         .as_ref()
         .unwrap_or(&OptimizationTarget::Reference);
 
-    // Prepare Matrices.
-    // get_data_matrices() returns (X_A = NON-reference, y_A, X_B = reference, y_B) — see
-    // builder.rs:73 (group_b_name = reference_group). This binding routes the reference
-    // (advantaged) group into local x_a/y_a so beta_fair is solved from it. Correct as
-    // committed — do NOT "fix" it. Guardrail: ab_binding_regression_test.
-    let (raw_x_b, y_b, raw_x_a, y_a, mut feature_names) = problem_builder
-        .get_data_matrices()
-        .map_err(|e| format!("Oaxaca Error: {}", e))?;
-
-    // 0017-MERIDIAN P4 — row-key alignment gate.
+    // Prepare Matrices (0118-MERIDIAN S1/S3).
     //
-    // `target_indices` / `reference_indices` above enumerate the RAW parsed frame (`:454-462`),
-    // but the matrices just destructured come from `get_data_matrices()` -> `clean_dataframe()`
-    // -> `df.drop_nulls(..)` (`oaxaca_blinder/src/builder.rs:343`, `:929-953`). A null in ANY
-    // model column drops that row from the matrix while leaving it in the index vectors, so
-    // every later pairing in that group — `orig_idx: target_indices[i]`, `reference_indices[i]`
-    // — is shifted from the first dropped row onward. That is the carried null-drop
-    // misalignment (`docs/0017-p4/design-engine.md` §4): a wrong dollar figure, pre-existing,
-    // and deliberately not repaired here because repairing it changes numeric output for every
-    // null-bearing CSV and moves the P1/P2 measured baselines.
+    // `get_data_matrices_with_rows` returns the reference and target groups under those names,
+    // plus the ORIGINAL row ordinal of every matrix row, from the same single cleaning pass
+    // that produced the matrices. The locals below keep this file's historical names: `x_a` /
+    // `y_a` hold the REFERENCE (advantaged) group, from which `beta_fair` is solved, and
+    // `x_b` / `y_b` the TARGET group. The reference-is-"a" binding is correct as committed; the
+    // legacy tuple of `get_data_matrices()` is the other way round (A = target), which is why
+    // this call site no longer destructures it. Guardrail: ab_binding_regression_test.
     //
-    // What must NOT also happen is minting a durable identity over that wrong figure. `row_key`
-    // is persisted by the client and carries the consultant's overrides and signed CNESST
-    // narratives across re-uploads; a key read at a shifted `orig_idx` names employee X while
-    // the row's fair wage, bounds and contributions belong to employee Y, and the client's
-    // fingerprint-gated re-key (§2.4) is proved on the assumption that this cannot happen.
-    //
-    // So when a frame disagrees, that group emits NO keys — its `Adjustment.row_key` is `None`
-    // and the client falls back to its documented keys-absent path
-    // (`ledgerAnnotations.store.js` `ENGINE_KEYS_ABSENT`), which is the unchanged pre-P4
-    // positional behaviour. Withholding a key costs an annotation nothing; a wrong key that
-    // reaches the ledger is unrecoverable, because the CSV fingerprint still matches.
-    //
-    // The two groups are gated INDEPENDENTLY, not by an AND. `split_groups` partitions the
-    // already-cleaned frame, so a null in a reference row shortens `y_a` alone and leaves the
-    // target group's `target_indices[i]` pairing exact. Since the common request emits target
-    // rows only (`adjust_both_groups` and `forensic_mode` both off), an AND would surrender
-    // stable keys on every CSV with a null anywhere in the advantaged group — the ordinary
-    // case — for no safety gain.
-    let target_rows_aligned = y_b.len() == target_indices.len();
-    let reference_rows_aligned = y_a.len() == reference_indices.len();
-
-    if !target_rows_aligned || !reference_rows_aligned {
-        eprintln!(
-            "pay-equity-engine: row keys withheld. Null-dropping left {} of {} target rows and \
-             {} of {} reference rows; for a misaligned group a key minted from the raw-frame \
-             ordinal would name the wrong employee, so that group stays positional (`index`).",
-            y_b.len(),
-            target_indices.len(),
-            y_a.len(),
-            reference_indices.len()
-        );
-    }
+    // Every employee identity emitted below (`Adjustment.index`, `row_key`, the raw wage lookup)
+    // is `target_rows[i]` / `reference_rows[i]` for matrix row `i`. Before this, the ordinals
+    // were enumerated from the RAW group column while the matrices had already lost every row
+    // with a blank model cell, so from the first blank onward each employee carried the next
+    // employee's fair wage and the last employee in the group was never paid.
+    let matrices = problem_builder
+        .get_data_matrices_with_rows()
+        .map_err(crate::rows::matrices_error)?;
+    let oaxaca_blinder::DataMatricesWithRows {
+        reference: reference_group_matrices,
+        target: target_group_matrices,
+        predictor_names: mut feature_names,
+        excluded_rows: builder_excluded_rows,
+        ..
+    } = matrices;
+    let (raw_x_a, y_a, reference_rows) = (
+        reference_group_matrices.x,
+        reference_group_matrices.y,
+        reference_group_matrices.rows,
+    );
+    let (raw_x_b, y_b, target_rows) = (
+        target_group_matrices.x,
+        target_group_matrices.y,
+        target_group_matrices.rows,
+    );
+    check_alignment(
+        "reference",
+        raw_x_a.nrows(),
+        y_a.len(),
+        reference_rows.len(),
+    )?;
+    check_alignment("target", raw_x_b.nrows(), y_b.len(), target_rows.len())?;
 
     let cols_a = raw_x_a.ncols();
     let predictors_count = req.predictors.len();
@@ -709,7 +713,7 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
                     source: GroupSource::GroupB,
                     diff,
                     fair_wage: fair_midpoint,
-                    orig_idx: target_indices[i],
+                    orig_idx: target_rows[i],
                     is_eligible: true,
                 });
             } else if is_forensic {
@@ -718,7 +722,7 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
                     source: GroupSource::GroupB,
                     diff,
                     fair_wage: fair_midpoint,
-                    orig_idx: target_indices[i],
+                    orig_idx: target_rows[i],
                     is_eligible: false,
                 });
             }
@@ -728,7 +732,7 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
                 source: GroupSource::GroupB,
                 diff,
                 fair_wage: fair_midpoint,
-                orig_idx: target_indices[i],
+                orig_idx: target_rows[i],
                 is_eligible: false,
             });
         }
@@ -769,7 +773,7 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
                         source: GroupSource::GroupA,
                         diff,
                         fair_wage: fair,
-                        orig_idx: reference_indices[i],
+                        orig_idx: reference_rows[i],
                         is_eligible: true,
                     });
                 } else if is_forensic {
@@ -778,7 +782,7 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
                         source: GroupSource::GroupA,
                         diff,
                         fair_wage: fair,
-                        orig_idx: reference_indices[i],
+                        orig_idx: reference_rows[i],
                         is_eligible: false,
                     });
                 }
@@ -789,7 +793,7 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
                     source: GroupSource::GroupA,
                     diff,
                     fair_wage: fair,
-                    orig_idx: reference_indices[i],
+                    orig_idx: reference_rows[i],
                     is_eligible: false,
                 });
             }
@@ -854,22 +858,6 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
         contribs
     };
 
-    // The single emission point for `row_key`, so neither allocation strategy can bypass the
-    // alignment gate above. A group whose model frame lost rows to null-dropping gets `None`:
-    // `orig_idx` is shifted there, so the key would name a different employee than the fair
-    // wage, bounds and contributions emitted alongside it.
-    let row_key_at = |orig_idx: usize, source: &GroupSource| -> Option<String> {
-        let aligned = match source {
-            GroupSource::GroupA => reference_rows_aligned,
-            GroupSource::GroupB => target_rows_aligned,
-        };
-        if aligned {
-            row_keys.key_at(orig_idx)
-        } else {
-            None
-        }
-    };
-
     match strategy {
         AllocationStrategy::Greedy => {
             for pot in potential_adjustments {
@@ -885,7 +873,12 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
                     0.0
                 };
 
-                let current_wage = wage_array.get(pot.orig_idx).unwrap_or(0.0);
+                let current_wage = wage_array.get(pot.orig_idx).ok_or_else(|| {
+                    format!(
+                        "Internal row alignment error: analysed row {} has no outcome value",
+                        pot.orig_idx
+                    )
+                })?;
                 let fair_wage = pot.fair_wage;
                 let new_wage = current_wage + pay_amount; // Don't add negative pay amounts!
 
@@ -898,7 +891,7 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
 
                 adjustments.push(Adjustment {
                     index: pot.orig_idx,
-                    row_key: row_key_at(pot.orig_idx, &pot.source),
+                    row_key: row_keys.key_at(pot.orig_idx),
                     adjustment: pay_amount,
                     current_wage,
                     new_wage,
@@ -931,7 +924,12 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
                     0.0
                 };
 
-                let current_wage = wage_array.get(pot.orig_idx).unwrap_or(0.0);
+                let current_wage = wage_array.get(pot.orig_idx).ok_or_else(|| {
+                    format!(
+                        "Internal row alignment error: analysed row {} has no outcome value",
+                        pot.orig_idx
+                    )
+                })?;
                 let fair_wage = pot.fair_wage;
                 let new_wage = current_wage + pay_amount;
 
@@ -944,7 +942,7 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
 
                 adjustments.push(Adjustment {
                     index: pot.orig_idx,
-                    row_key: row_key_at(pot.orig_idx, &pot.source),
+                    row_key: row_keys.key_at(pot.orig_idx),
                     adjustment: pay_amount,
                     current_wage,
                     new_wage,
@@ -996,17 +994,18 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
         new_unexplained_gap,
         required_budget: total_need,
         model_coefficients,
-        // These three describe the DERIVATION RULE the table was built under, not whether this
-        // run emitted keys. On a `!row_keys_aligned` run every `Adjustment.row_key` is `None`
-        // and the client refuses adoption on the rows themselves ('absent'/'partial'), which is
-        // the correct silent pre-P4 path — so the discriminator stays `rowKeyV1` rather than
-        // being mutated into an unknown space, whose only effect would be an operator-facing
-        // warning naming the wrong cause.
+        // These three describe the DERIVATION RULE the table was built under. Every emitted
+        // `Adjustment.row_key` is read at the row's own original ordinal (0118-MERIDIAN S3), so
+        // a row has a key exactly when the table could mint one for it.
         row_key_space: crate::row_key::ROW_KEY_SPACE.to_string(),
         row_key_source: row_keys.source(),
         row_key_column: row_keys.column(),
         // optimize consumes no ProposedAdjustment, so there is nothing to resolve here.
         unresolved_row_keys: None,
+        analysed_reference_count: reference_rows.len(),
+        analysed_target_count: target_rows.len(),
+        excluded_rows: crate::rows::excluded_with_keys(&builder_excluded_rows, Some(&row_keys)),
+        adjustments_on_excluded_rows: 0,
     })
 }
 
@@ -1019,8 +1018,7 @@ pub fn calculate_efficient_frontier_inner(
     req: EfficientFrontierRequest,
 ) -> Result<Vec<FrontierPoint>, String> {
     // 1. Load Data
-    let cursor = Cursor::new(&req.decomposition_params.csv_data);
-    let mut df = CsvReader::new(cursor).finish().map_err(|e| e.to_string())?;
+    let mut df = read_csv(&req.decomposition_params.csv_data)?;
 
     // Cast to Float64 with error checking
     let cast_cols = [&req.decomposition_params.outcome_variable]
@@ -1094,15 +1092,33 @@ pub fn calculate_efficient_frontier_inner(
     let total_need = opt_result.required_budget;
     let max_budget = req.max_budget.unwrap_or(total_need * 1.1);
 
-    // 3. Pre-compute Matrices for Fast OLS
-    // get_data_matrices() returns (X_A = NON-reference, y_A, X_B = reference, y_B) — see
-    // builder.rs:73 (group_b_name = reference_group). This binding routes the reference group
-    // into local x_a/y_a, matching original_to_pooled (reference -> pooled slots [0..n_a)).
-    // Correct as committed — do NOT "fix" it to (x_a, y_a, x_b, y_b); that inverts gap-closure.
+    // 3. Pre-compute Matrices for Fast OLS (0118-MERIDIAN S1/S3)
+    // `get_data_matrices_with_rows` names the groups: the locals `x_a`/`y_a` hold the REFERENCE
+    // group and `x_b`/`y_b` the TARGET group, matching the pooled design below (reference rows
+    // first, then target). Correct as committed — do NOT swap them; that inverts gap-closure.
     // Guardrail: ab_binding_regression_test::test_frontier_adjustments_target_underpaid_group.
-    let (x_b, y_b, x_a, y_a, _feature_names) = problem_builder
-        .get_data_matrices()
-        .map_err(|e| format!("Oaxaca Error: {}", e))?;
+    // The ordinal lists are what map an `Adjustment.index` onto a pooled slot.
+    let matrices = problem_builder
+        .get_data_matrices_with_rows()
+        .map_err(crate::rows::matrices_error)?;
+    let oaxaca_blinder::DataMatricesWithRows {
+        reference: reference_group_matrices,
+        target: target_group_matrices,
+        predictor_names: _feature_names,
+        ..
+    } = matrices;
+    let (x_a, y_a, reference_rows) = (
+        reference_group_matrices.x,
+        reference_group_matrices.y,
+        reference_group_matrices.rows,
+    );
+    let (x_b, y_b, target_rows) = (
+        target_group_matrices.x,
+        target_group_matrices.y,
+        target_group_matrices.rows,
+    );
+    check_alignment("reference", x_a.nrows(), y_a.len(), reference_rows.len())?;
+    check_alignment("target", x_b.nrows(), y_b.len(), target_rows.len())?;
 
     let n_a = x_a.nrows();
     let n_b = x_b.nrows();
@@ -1182,26 +1198,16 @@ pub fn calculate_efficient_frontier_inner(
     let step_size = max_budget / (steps as f64);
     let mut points = Vec::new();
 
-    // Map `adjustments` to Pooled Indices
-    let group_col = df
-        .column(&req.decomposition_params.group_variable)
-        .map_err(|e| e.to_string())?;
-    let group_col_iter = group_col.str().map_err(|e| e.to_string())?.into_iter();
-
-    let mut original_to_pooled = std::collections::HashMap::new();
-    let mut a_counter = 0;
-    let mut b_counter = 0;
-
-    for (orig_idx, val_opt) in group_col_iter.enumerate() {
-        if let Some(val) = val_opt {
-            if val == req.decomposition_params.reference_group {
-                original_to_pooled.insert(orig_idx, a_counter);
-                a_counter += 1;
-            } else {
-                original_to_pooled.insert(orig_idx, n_a + b_counter);
-                b_counter += 1;
-            }
-        }
+    // Map `adjustments` to Pooled Indices: an `Adjustment.index` is an original row ordinal, the
+    // pooled design is reference rows first (slots 0..n_a) then target rows (n_a..), both in
+    // matrix order, so the slot of an ordinal is its position in its own group's ordinal list.
+    let mut original_to_pooled: std::collections::HashMap<usize, usize> =
+        std::collections::HashMap::with_capacity(n_pooled);
+    for (slot, &ordinal) in reference_rows.iter().enumerate() {
+        original_to_pooled.insert(ordinal, slot);
+    }
+    for (slot, &ordinal) in target_rows.iter().enumerate() {
+        original_to_pooled.insert(ordinal, n_a + slot);
     }
 
     struct PendingPay {

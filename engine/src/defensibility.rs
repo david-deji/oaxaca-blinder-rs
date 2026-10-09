@@ -1,3 +1,4 @@
+use crate::rows::{check_alignment, excluded_with_keys, read_csv};
 use crate::types::*;
 use nalgebra::DVector;
 use oaxaca_blinder::{OaxacaBuilder, ReferenceCoefficients};
@@ -10,7 +11,6 @@ use statrs::distribution::{ContinuousCDF, Normal};
 // runs, and P1 persists them as aggregates that a recompute must reproduce bit for bit.
 // BTreeMap fixes the reduction order to ascending row index, so the sums are byte-reproducible.
 use std::collections::BTreeMap;
-use std::io::Cursor;
 
 /// Every inbound `ProposedAdjustment` that resolves to one DataFrame row, folded into the single
 /// entry that row is scored as. See the collapse in `check_defensibility_inner`.
@@ -31,8 +31,7 @@ struct MergedAdjustment {
 /// trivial and serial; no solve, no fan-out site.
 pub fn check_defensibility_inner(req: VerificationRequest) -> Result<OptimizationResult, String> {
     // 1. Load Data
-    let cursor = Cursor::new(&req.decomposition_params.csv_data);
-    let mut df = CsvReader::new(cursor).finish().map_err(|e| e.to_string())?;
+    let mut df = read_csv(&req.decomposition_params.csv_data)?;
 
     // 0017-MERIDIAN P4: stable key table, built on the raw parse before the Float64 cast and
     // before the predictor overrides below mutate any cell. Same bytes in, same keys out, so
@@ -116,6 +115,15 @@ pub fn check_defensibility_inner(req: VerificationRequest) -> Result<Optimizatio
                 let new_s = s
                     .cast(&DataType::Float64)
                     .map_err(|_| format!("Column '{}' contains non-numeric data.", col))?;
+
+                // 0118-MERIDIAN S4: a non-strict cast turns an unparseable cell ("N/A") into a
+                // NULL, which would silently drop that employee from the model and shift every
+                // later pairing. Refuse it by name, exactly as `optimize`, `verify_adjustments`
+                // and `calculate_efficient_frontier` do.
+                if new_s.null_count() > s.null_count() {
+                    return Err(format!("Column '{}' contains non-numeric data.", col));
+                }
+
                 df.with_column(new_s).map_err(|e| e.to_string())?;
             }
         } else {
@@ -179,14 +187,41 @@ pub fn check_defensibility_inner(req: VerificationRequest) -> Result<Optimizatio
         problem_builder.categorical_predictors(cats.iter().copied());
     }
 
-    // Get Matrices.
-    // get_data_matrices() returns (X_A = NON-reference, y_A, X_B = reference, y_B) — see
-    // builder.rs:73 (group_b_name = reference_group). This binding deliberately routes the
-    // reference (advantaged) group into local x_a/y_a so beta_fair is solved from it.
-    // Correct as committed — do NOT "fix" it. Guardrail: ab_binding_regression_test.
-    let (raw_x_b, _, raw_x_a, y_a, mut feature_names) = problem_builder
-        .get_data_matrices()
-        .map_err(|e| format!("Oaxaca Error: {}", e))?;
+    // Get Matrices (0118-MERIDIAN S1/S3). Taken AFTER the predictor-override step above, so a
+    // blank predictor cell that an override fills brings its row back into the analysis, and
+    // every ordinal below describes the frame that was actually modelled.
+    //
+    // `get_data_matrices_with_rows` names the groups: `x_a`/`y_a` below hold the REFERENCE
+    // (advantaged) group, from which `beta_fair` is solved, and `x_b` the TARGET group. Correct
+    // as committed — do NOT swap them. Guardrail: ab_binding_regression_test.
+    let matrices = problem_builder
+        .get_data_matrices_with_rows()
+        .map_err(crate::rows::matrices_error)?;
+    let oaxaca_blinder::DataMatricesWithRows {
+        reference: reference_group_matrices,
+        target: target_group_matrices,
+        predictor_names: mut feature_names,
+        excluded_rows: builder_excluded_rows,
+        ..
+    } = matrices;
+    let (raw_x_a, y_a, reference_rows) = (
+        reference_group_matrices.x,
+        reference_group_matrices.y,
+        reference_group_matrices.rows,
+    );
+    let (raw_x_b, target_rows) = (target_group_matrices.x, target_group_matrices.rows);
+    check_alignment(
+        "reference",
+        raw_x_a.nrows(),
+        y_a.len(),
+        reference_rows.len(),
+    )?;
+    check_alignment(
+        "target",
+        raw_x_b.nrows(),
+        target_group_matrices.y.len(),
+        target_rows.len(),
+    )?;
 
     let cols_a = raw_x_a.ncols();
     let predictors_count = predictors.len();
@@ -251,29 +286,18 @@ pub fn check_defensibility_inner(req: VerificationRequest) -> Result<Optimizatio
 
     // Process Specific Adjustments
     let mut results = Vec::new();
+    let mut adjustments_on_excluded_rows: usize = 0;
 
-    // Mapping Original Index -> Matrix Row
-    let group_col = df
-        .column(&req.decomposition_params.group_variable)
-        .map_err(|e| e.to_string())?;
-    let groups_iter = group_col.str().map_err(|e| e.to_string())?.into_iter();
-
-    // Orig -> (MatrixRow, IsGroupA). BTreeMap, not HashMap: the three f64 accumulations below
-    // iterate this map, so its order is the float reduction order (D14).
+    // Mapping Original Row Ordinal -> (Matrix Row, IsReference), over ANALYSED rows only: a row
+    // with a blank model cell is in neither list, so it can be neither scored nor counted in any
+    // aggregate below. BTreeMap, not HashMap: the three f64 accumulations below iterate this
+    // map, so its order is the float reduction order (D14); ascending ordinal, as before.
     let mut map_orig_to_matrix: BTreeMap<usize, (usize, bool)> = BTreeMap::new();
-    let mut idx_a = 0;
-    let mut idx_b = 0;
-
-    for (idx, val_opt) in groups_iter.enumerate() {
-        if let Some(val) = val_opt {
-            if val == req.decomposition_params.reference_group {
-                map_orig_to_matrix.insert(idx, (idx_a, true));
-                idx_a += 1;
-            } else {
-                map_orig_to_matrix.insert(idx, (idx_b, false));
-                idx_b += 1;
-            }
-        }
+    for (matrix_row, &ordinal) in reference_rows.iter().enumerate() {
+        map_orig_to_matrix.insert(ordinal, (matrix_row, true));
+    }
+    for (matrix_row, &ordinal) in target_rows.iter().enumerate() {
+        map_orig_to_matrix.insert(ordinal, (matrix_row, false));
     }
 
     let wage_series = df
@@ -353,6 +377,11 @@ pub fn check_defensibility_inner(req: VerificationRequest) -> Result<Optimizatio
                 is_defensible: Some(is_defensible),
                 defensibility_message: msg,
             });
+        } else {
+            // 0118-MERIDIAN S3: addressed to an excluded or unknown row. The app replays
+            // persisted ledger rows on project load, so this is not an error, but it is never
+            // silent: the count rides on the result.
+            adjustments_on_excluded_rows += 1;
         }
     }
 
@@ -486,5 +515,9 @@ pub fn check_defensibility_inner(req: VerificationRequest) -> Result<Optimizatio
         row_key_source: row_keys.source(),
         row_key_column: row_keys.column(),
         unresolved_row_keys: Some(unresolved_row_keys),
+        analysed_reference_count: reference_rows.len(),
+        analysed_target_count: target_rows.len(),
+        excluded_rows: excluded_with_keys(&builder_excluded_rows, Some(&row_keys)),
+        adjustments_on_excluded_rows,
     })
 }

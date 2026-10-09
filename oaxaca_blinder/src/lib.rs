@@ -70,6 +70,7 @@ mod estimation;
 mod inference;
 mod math;
 mod rng;
+mod rows;
 mod types;
 
 pub mod akm;
@@ -109,6 +110,7 @@ pub use matching::engine::MatchingEngine;
 #[allow(deprecated)]
 pub use quantile_decomposition::QuantileDecompositionBuilder;
 pub use rng::{RunMetadata, DEFAULT_SEED};
+pub use rows::{DataMatricesWithRows, ExcludedRow, ExclusionReason, GroupMatrices, RowAccounting};
 pub use types::{ComponentResult, DecompositionDetail, OaxacaResults, TwoFoldResults};
 
 /// Quantile-regression coefficient solver, exposed for the statistical-trust-layer QR

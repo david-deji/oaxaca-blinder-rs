@@ -410,11 +410,13 @@ mod tests {
         }
     }
 
-    // --- 0017-MERIDIAN P4: row-key alignment gate (analysis.rs `row_keys_aligned`) ---------
+    // --- 0017-MERIDIAN P4 row keys, 0118-MERIDIAN row ordinals -------------------------------
     //
     // Six reference (Male) rows on wage = 30000 + 2000*education exactly, and six target
-    // (Female) rows on the same line minus 5000. Raw ordinals 0-5 are Male, 6-11 are Female,
-    // so `target_indices` is [6,7,8,9,10,11] and every Female is underpaid by 5000.
+    // (Female) rows on the same line minus 5000. Raw ordinals 0-5 are Male, 6-11 are Female and
+    // every Female is underpaid by 5000. A blank cell drops that employee from the analysis; it
+    // must not move any OTHER employee's figures or key (0118 S6: these tests used to pin the
+    // shifted pairing and the withheld keys as expected output).
     fn row_key_alignment_csv(blank_first_female_education: bool) -> Vec<u8> {
         row_key_alignment_csv_with(blank_first_female_education, false)
     }
@@ -503,76 +505,115 @@ mod tests {
         }
     }
 
-    /// The gate. F-000's education is blank, so `clean_dataframe` drops raw row 6 and the
-    /// target matrix has 5 rows while `target_indices` still has 6. Every pairing in that group
-    /// is shifted by one — a carried, pre-existing wrong-dollar defect (design-engine.md §4).
-    /// P4 must not bind a durable, persisted, CNESST-facing identity on top of it, so this run
-    /// emits no keys at all and the client stays positional.
+    /// F-000's education is blank, so the model drops F-000 and ONLY F-000. Every other target
+    /// employee keeps their own ordinal, their own key and their own fair wage, and the last
+    /// target employee (F-005, ordinal 11) is paid. Every expected number below is read off the
+    /// CSV cells in `row_key_alignment_csv_with`, never off the engine: employee `n` (0-based
+    /// among Females) has education `10 + 2n`, current wage `45000 + 4000n`, and the Male line
+    /// gives a fair wage of `30000 + 2000*education = 50000 + 4000n`.
     #[test]
-    fn row_keys_are_withheld_when_a_null_shifts_the_model_frame() {
+    fn a_blank_target_cell_drops_that_employee_and_nobody_else() {
         let result = optimize_inner(row_key_alignment_request(row_key_alignment_csv(true)))
-            .expect("optimization must still succeed — the gate withholds keys, not results");
+            .expect("optimization failed");
 
-        // The misalignment is real and unrepaired: five model rows, six raw target ordinals.
-        assert_eq!(
-            result.adjustments.len(),
-            5,
-            "the null row is dropped from the model, so only five rows are emitted"
-        );
         let indices: Vec<usize> = result.adjustments.iter().map(|a| a.index).collect();
         assert_eq!(
             indices,
-            vec![6, 7, 8, 9, 10],
-            "orig_idx is drawn off the head of target_indices, so F-005 (ordinal 11) is never \
-             emitted and receives no adjustment"
+            vec![7, 8, 9, 10, 11],
+            "F-000 (ordinal 6) is the only employee missing; F-005 (ordinal 11) is paid"
         );
 
-        // Ordinal 6 is F-000 — excluded from the model entirely — yet it carries F-001's
-        // figures: fair wage 30000 + 2000*12 = 54000, not F-000's own 50000. This is exactly
-        // the wrong-employee pairing a row key must not be minted over.
-        let shifted = &result.adjustments[0];
-        assert_eq!(shifted.index, 6);
-        assert!(
-            (shifted.fair_wage - 54000.0).abs() < 1.0,
-            "ordinal 6 carries F-001's fair wage ({}), confirming the shift",
-            shifted.fair_wage
-        );
-
-        // The gate: no durable identity is minted over any of it.
         for adj in &result.adjustments {
+            let n = adj.index - 6; // F-00n
+            let education = 10.0 + 2.0 * n as f64;
+            let expected_fair = 30000.0 + 2000.0 * education;
+            let expected_current = 45000.0 + 4000.0 * n as f64;
+            assert!(
+                (adj.fair_wage - expected_fair).abs() < 0.01,
+                "F-00{n} (index {}) fair_wage {} should be its own {}",
+                adj.index,
+                adj.fair_wage,
+                expected_fair
+            );
+            assert!(
+                (adj.current_wage - expected_current).abs() < 1e-9,
+                "F-00{n} current_wage {} should be its own {}",
+                adj.current_wage,
+                expected_current
+            );
+            assert!(
+                (adj.adjustment - 5000.0).abs() < 0.01,
+                "F-00{n} is underpaid by exactly 5000, got {}",
+                adj.adjustment
+            );
+            // The key names the employee whose dollars these are.
             assert_eq!(
-                adj.row_key, None,
-                "index {} must carry no row key on a misaligned run — a key here would name \
-                 one employee while holding another's dollars",
+                adj.row_key.as_deref(),
+                Some(format!("c:F-{:03}", n).as_str()),
+                "index {} must carry F-00{n}'s own key",
                 adj.index
             );
         }
 
-        // The derivation rule is still reported (the CSV does have a usable id column); only
-        // the per-row keys are withheld, which is the client's silent keys-absent path.
+        // Five employees paid 5000 each.
+        assert!(
+            (result.total_cost - 25000.0).abs() < 0.05,
+            "{}",
+            result.total_cost
+        );
+        assert!((result.required_budget - 25000.0).abs() < 0.05);
+
+        // The excluded employee is reported, by key and by the blank column.
+        assert_eq!(result.analysed_target_count, 5);
+        assert_eq!(result.analysed_reference_count, 6);
+        assert_eq!(result.excluded_rows.len(), 1);
+        let excluded = &result.excluded_rows[0];
+        assert_eq!(excluded.index, 6);
+        assert_eq!(excluded.row_key.as_deref(), Some("c:F-000"));
+        assert_eq!(excluded.columns, vec!["education".to_string()]);
+        assert_eq!(
+            serde_json::to_value(&excluded.reasons).unwrap(),
+            serde_json::json!(["numericPredictor"])
+        );
+
+        // The derivation rule is reported as before.
         assert_eq!(result.row_key_space, crate::row_key::ROW_KEY_SPACE);
     }
 
-    /// The gate is per-run, not sticky: the same optimizer on the same shape without the null
-    /// still mints keys. Guards against a fix that disables keys globally.
+    /// Keys are never withheld: a blank cell anywhere leaves every analysed employee's key in
+    /// place, and a run with no blank mints the same keys for the same employees. (Pre-0118 the
+    /// engine emitted NO keys on a misaligned run; that gate is gone because there is no longer
+    /// a misalignment to guard.)
     #[test]
-    fn the_alignment_gate_does_not_leak_across_runs() {
-        let misaligned = optimize_inner(row_key_alignment_request(row_key_alignment_csv(true)))
-            .expect("misaligned run failed");
-        let aligned = optimize_inner(row_key_alignment_request(row_key_alignment_csv(false)))
-            .expect("aligned run failed");
+    fn keys_are_emitted_on_every_run_with_or_without_a_blank() {
+        let with_blank = optimize_inner(row_key_alignment_request(row_key_alignment_csv(true)))
+            .expect("run with a blank failed");
+        let without_blank = optimize_inner(row_key_alignment_request(row_key_alignment_csv(false)))
+            .expect("run without a blank failed");
 
-        assert!(misaligned.adjustments.iter().all(|a| a.row_key.is_none()));
-        assert!(aligned.adjustments.iter().all(|a| a.row_key.is_some()));
+        assert!(with_blank.adjustments.iter().all(|a| a.row_key.is_some()));
+        assert!(without_blank
+            .adjustments
+            .iter()
+            .all(|a| a.row_key.is_some()));
+
+        // The same employee has the same key whether or not another employee's cell is blank.
+        for adj in &with_blank.adjustments {
+            let twin = without_blank
+                .adjustments
+                .iter()
+                .find(|b| b.index == adj.index)
+                .expect("every analysed employee is in the complete run too");
+            assert_eq!(adj.row_key, twin.row_key, "index {}", adj.index);
+        }
     }
 
-    /// The gate is per-group, not global. `split_groups` partitions the ALREADY-cleaned frame,
-    /// so a null in a reference (Male) row shortens `y_a` alone and leaves every
-    /// `target_indices[i]` pairing exact. The default request emits target rows only, so
-    /// withholding their keys here would surrender stable identity on the ordinary case — a
-    /// null anywhere in the advantaged group — and buy no safety.
+    /// A blank in a REFERENCE row drops that reference employee and nothing else. The target
+    /// pairing, keys and fair wages are exactly those of the complete file (M-000 sits on the
+    /// same line as the other five males, so the reference fit is unchanged), and the excluded
+    /// list names the reference employee.
     #[test]
-    fn a_reference_side_null_does_not_withhold_target_row_keys() {
+    fn a_reference_side_blank_leaves_the_target_pairing_untouched() {
         let result = optimize_inner(row_key_alignment_request(row_key_alignment_csv_with(
             false, true,
         )))
@@ -603,6 +644,12 @@ mod tests {
                 expected_fair
             );
         }
+
+        assert_eq!(result.analysed_reference_count, 5);
+        assert_eq!(result.analysed_target_count, 6);
+        assert_eq!(result.excluded_rows.len(), 1);
+        assert_eq!(result.excluded_rows[0].index, 0);
+        assert_eq!(result.excluded_rows[0].row_key.as_deref(), Some("c:M-000"));
     }
 
     // --- check_defensibility: one row, at most one adjustment (defensibility.rs) -------------

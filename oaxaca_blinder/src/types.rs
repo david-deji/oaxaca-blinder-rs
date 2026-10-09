@@ -99,6 +99,16 @@ impl OaxacaResults {
     /// # Returns
     ///
     /// A vector of `BudgetAdjustment` structs detailing who should get a raise and how much.
+    ///
+    /// # Row indices (0118-MERIDIAN S3: out of scope)
+    ///
+    /// The indices this method returns are positions within the CLEANED group frame (rows with
+    /// a blank model cell already dropped), NOT original row ordinals of the input file. They
+    /// are therefore not safe to map back to an employee when any row was excluded. No shipped
+    /// surface calls this method (the engine's `optimize` has its own allocator that reads
+    /// original ordinals from `OaxacaBuilder::get_data_matrices_with_rows`, and the Python
+    /// binding in `python.rs` is not compiled). A caller that needs employee identity should use
+    /// `get_data_matrices_with_rows` instead.
     pub fn optimize_budget(&self, budget: f64, target_gap: f64) -> Vec<BudgetAdjustment> {
         let current_gap = self.total_gap;
         // If the gap is already smaller than or equal to the target, no adjustments needed.
