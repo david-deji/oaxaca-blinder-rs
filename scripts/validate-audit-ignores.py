@@ -56,6 +56,9 @@ def compiled_in(crate: str, version: str) -> bool:
         ["cargo", "tree", "-i", f"{crate}@{version}", "--workspace", "--all-features",
          "--target", "all", "-e", "normal", "--locked"],
         cwd=ROOT, capture_output=True, text=True)
+    if proc.returncode != 0:
+        # A failed cargo tree must never read as an empty tree (that would class a compiled-in crate as lock-only).
+        sys.exit(f"cargo tree failed for {crate}@{version} (rc={proc.returncode}): {proc.stderr.strip()[:400]}")
     return bool(proc.stdout.strip())
 
 
