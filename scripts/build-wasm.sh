@@ -40,25 +40,9 @@
 
 set -euo pipefail
 
-NIGHTLY="nightly-2025-06-27"            # E1-proven pin (Phase 0); single source of truth
-WASM_BINDGEN_VERSION="0.2.106"
-MAX_MEMORY="342228992"                  # 326 MiB — memory-budget domain's sized maximum (INV-05)
-STACK_SIZE="1048576"                    # 1 MiB per-thread stack (memory-budget)
-
-RAW_WASM="target/wasm32-unknown-unknown/release/pay_equity_engine.wasm"
-SEQ_BASELINE="engine/pay_equity_engine.wasm.sha256"
-THREADED_BASELINE="engine/pay_equity_engine.threaded.wasm.sha256"
-
-# Host-path remaps: reproducible across machines. Under -Zbuild-std the ~/.rustup remap is
-# load-bearing (std source paths embed into the threaded blob).
-REMAP="--remap-path-prefix $HOME/.cargo=/cargo --remap-path-prefix $PWD=/src --remap-path-prefix $HOME/.rustup=/rustup"
-
-# Static threaded flags — injected via RUSTFLAGS in the nightly pass ONLY (never in
-# .cargo/config.toml), so they cannot contaminate the stable sequential baseline (Strategy A).
-# E2 RESOLVED (verified 2026-07-18): the MINIMAL set below links — +atomics makes rustc
-# auto-emit --shared-memory/--import-memory to lld, so the wasm-bindgen-rayon recipe needs only
-# the target-features plus the memory-budget caps; no explicit --shared-memory/--import-memory.
-THREAD_FLAGS="-C target-feature=+atomics,+bulk-memory,+mutable-globals -C link-arg=--max-memory=$MAX_MEMORY -C link-arg=-zstack-size=$STACK_SIZE"
+# Flags, pins and the build functions live in scripts/wasm-recipe.sh, shared with CI (0119 S1).
+# shellcheck source=scripts/wasm-recipe.sh
+source "$(dirname "${BASH_SOURCE[0]}")/wasm-recipe.sh"
 
 # 1. wasm-bindgen-cli at the pinned version (must match the crate's wasm-bindgen dep).
 if wasm-bindgen --version 2>/dev/null | grep -q "$WASM_BINDGEN_VERSION"; then
@@ -68,30 +52,31 @@ else
     cargo install wasm-bindgen-cli --version "$WASM_BINDGEN_VERSION" --locked
 fi
 
+# 2. Pinned nightly with rust-src + the wasm target (threaded pass), then the preflight: it fails,
+# printing host triple and toolchain dirs, when anything the recipe needs is missing.
+echo "== ensuring pinned nightly ($NIGHTLY) + rust-src + wasm target =="
+rustup toolchain install "$NIGHTLY" --component rust-src --target wasm32-unknown-unknown
+wasm_preflight
+
 # ---------------------------------------------------------------------------
 # Artifact 1 — SEQUENTIAL (stable, --features wasm). Glue emitted here, before the threaded
 # pass overwrites the raw wasm.
 # ---------------------------------------------------------------------------
 echo "== [seq] building sequential wasm (stable, --features wasm) =="
-RUSTFLAGS="$REMAP" cargo build -p pay-equity-engine --features wasm --target wasm32-unknown-unknown --release
-SEQ_HASH=$(sha256sum "$RAW_WASM" | cut -d' ' -f1)
+wasm_build_seq target/seq.raw.wasm
+SEQ_HASH=$(sha256sum target/seq.raw.wasm | cut -d' ' -f1)
 echo "$SEQ_HASH  pay_equity_engine.wasm" > "$SEQ_BASELINE"
-wasm-bindgen "$RAW_WASM" --out-dir engine/pkg --target web \
+wasm-bindgen target/seq.raw.wasm --out-dir engine/pkg --target web \
     --remove-name-section --remove-producers-section
 
 # ---------------------------------------------------------------------------
 # Artifact 2 — THREADED (pinned nightly, build-std, atomics). Overwrites the raw wasm.
 # ---------------------------------------------------------------------------
-echo "== [threaded] ensuring pinned nightly ($NIGHTLY) + rust-src + wasm target =="
-rustup toolchain install "$NIGHTLY" --component rust-src --target wasm32-unknown-unknown
-
 echo "== [threaded] building threaded wasm (build-std + atomics + link args) =="
-RUSTFLAGS="$THREAD_FLAGS $REMAP" cargo "+$NIGHTLY" build \
-    -p pay-equity-engine --features wasm-threads --target wasm32-unknown-unknown --release \
-    -Zbuild-std=panic_abort,std --locked
-THREADED_HASH=$(sha256sum "$RAW_WASM" | cut -d' ' -f1)
+wasm_build_threaded target/threaded.raw.wasm
+THREADED_HASH=$(sha256sum target/threaded.raw.wasm | cut -d' ' -f1)
 echo "$THREADED_HASH  pay_equity_engine.threaded.wasm" > "$THREADED_BASELINE"
-wasm-bindgen "$RAW_WASM" --out-dir engine/pkg-threaded --target web \
+wasm-bindgen target/threaded.raw.wasm --out-dir engine/pkg-threaded --target web \
     --remove-name-section --remove-producers-section
 
 # wasm-bindgen does not emit a package.json for the threaded (--target web + rayon snippets)

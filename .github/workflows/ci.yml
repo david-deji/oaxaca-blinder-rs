@@ -35,10 +35,10 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Run Clippy
-        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+        run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
 
       - name: Run Tests
-        run: cargo test --workspace --all-features
+        run: cargo test --locked --workspace --all-features
 
   wasm-verify:
     name: WASM Build + Verify (dual-artifact, Strategy A)
@@ -71,26 +71,24 @@ jobs:
         with:
           tool: wasm-bindgen-cli@0.2.106
 
+      - name: Preflight (toolchains, components, targets, wasm-bindgen)
+        run: |
+          source scripts/wasm-recipe.sh
+          wasm_preflight
+
       - name: Build SEQUENTIAL artifact (stable, --target web)
         run: |
+          source scripts/wasm-recipe.sh
           mkdir -p wasm-out
-          RUSTFLAGS="--remap-path-prefix $HOME/.cargo=/cargo --remap-path-prefix $PWD=/src --remap-path-prefix $HOME/.rustup=/rustup" \
-            cargo build -p pay-equity-engine --features wasm --target wasm32-unknown-unknown --release
-          cp target/wasm32-unknown-unknown/release/pay_equity_engine.wasm wasm-out/seq.wasm
+          wasm_build_seq wasm-out/seq.wasm
           # Smoke the binding step (output NOT hashed: wasm-bindgen output is not the hashed unit).
           wasm-bindgen wasm-out/seq.wasm \
             --out-dir engine/pkg --target web --remove-name-section --remove-producers-section
 
       - name: Build THREADED artifact (nightly, build-std, atomics, --target web)
         run: |
-          RUSTFLAGS="-C target-feature=+atomics,+bulk-memory,+mutable-globals \
-            -C link-arg=--max-memory=342228992 -C link-arg=-zstack-size=1048576 \
-            --remap-path-prefix $HOME/.cargo=/cargo --remap-path-prefix $PWD=/src \
-            --remap-path-prefix $HOME/.rustup=/rustup" \
-            cargo +nightly-2025-06-27 build -p pay-equity-engine \
-              --features wasm-threads --target wasm32-unknown-unknown --release \
-              -Zbuild-std=panic_abort,std --locked
-          cp target/wasm32-unknown-unknown/release/pay_equity_engine.wasm wasm-out/threaded.wasm
+          source scripts/wasm-recipe.sh
+          wasm_build_threaded wasm-out/threaded.wasm
           wasm-bindgen wasm-out/threaded.wasm \
             --out-dir engine/pkg-threaded --target web \
             --remove-name-section --remove-producers-section
@@ -145,23 +143,14 @@ jobs:
           fi
           echo "Threaded raw WASM sha256 verified: $ACTUAL"
 
-      - name: Threaded reproducibility double-build (two non-default target dirs — no cache masking, W8)
+      - name: Threaded reproducibility double-build (two non-default target dirs, no cache masking, W8)
         if: ${{ !cancelled() }}
         run: |
-          FLAGS="-C target-feature=+atomics,+bulk-memory,+mutable-globals \
-            -C link-arg=--max-memory=342228992 -C link-arg=-zstack-size=1048576 \
-            --remap-path-prefix $HOME/.cargo=/cargo --remap-path-prefix $PWD=/src \
-            --remap-path-prefix $HOME/.rustup=/rustup"
-          RUSTFLAGS="$FLAGS" CARGO_TARGET_DIR=target-repro-a \
-            cargo +nightly-2025-06-27 build -p pay-equity-engine \
-              --features wasm-threads --target wasm32-unknown-unknown --release \
-              -Zbuild-std=panic_abort,std --locked
-          RUSTFLAGS="$FLAGS" CARGO_TARGET_DIR=target-repro-b \
-            cargo +nightly-2025-06-27 build -p pay-equity-engine \
-              --features wasm-threads --target wasm32-unknown-unknown --release \
-              -Zbuild-std=panic_abort,std --locked
-          A=$(sha256sum target-repro-a/wasm32-unknown-unknown/release/pay_equity_engine.wasm | cut -d' ' -f1)
-          B=$(sha256sum target-repro-b/wasm32-unknown-unknown/release/pay_equity_engine.wasm | cut -d' ' -f1)
+          source scripts/wasm-recipe.sh
+          CARGO_TARGET_DIR=target-repro-a wasm_build_threaded wasm-out/repro-a.wasm
+          CARGO_TARGET_DIR=target-repro-b wasm_build_threaded wasm-out/repro-b.wasm
+          A=$(sha256sum wasm-out/repro-a.wasm | cut -d' ' -f1)
+          B=$(sha256sum wasm-out/repro-b.wasm | cut -d' ' -f1)
           if [ "$A" != "$B" ]; then
             echo "build-std threaded output not byte-reproducible across fresh recompiles: $A vs $B"; exit 1
           fi
@@ -214,7 +203,7 @@ jobs:
       # `--all-features` in the quality job does NOT isolate this crate-scoped feature, so the ceiling
       # gets its own job. Fails if peak live bytes at 50k / N_max_const=8 reach the --max-memory budget.
       - name: Memory-ceiling test (tracking allocator)
-        run: cargo test -p oaxaca_blinder --features mem-profile --test memory_ceiling_test -- --nocapture
+        run: cargo test --locked -p oaxaca_blinder --features mem-profile --test memory_ceiling_test -- --nocapture
 
   browser-parity:
     name: Browser Byte-Parity (COI, threaded WASM, seq/t2/t4)
@@ -243,7 +232,7 @@ jobs:
       # vs wasm(threads=1) at a per-numeric-field <=1e-6 tolerance. Native (host-target) build, so this
       # runs on stable, not the pinned wasm nightly.
       - name: Generate native baseline JSON (D3, INV-02 native<->wasm leg)
-        run: cargo run -p pay-equity-engine --example native_baseline > verification/browser-parity/native-baseline.json
+        run: cargo run --locked -p pay-equity-engine --example native_baseline > verification/browser-parity/native-baseline.json
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -286,4 +275,4 @@ jobs:
           shared-key: "rust-stable"
 
       - name: Rust method benchmark (release, median, serial)
-        run: cargo run -p oaxaca_blinder --release --example bench_methods
+        run: cargo run --locked -p oaxaca_blinder --release --example bench_methods
