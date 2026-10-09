@@ -39,35 +39,47 @@ wasm_seq_flags() {
     echo "$REMAP --remap-path-prefix $sysroot/lib/rustlib/src/rust=/rustc/$commit"
 }
 
-# wasm_preflight — fail early, with the facts needed to diagnose a different machine.
+# wasm_preflight [seq|threaded|all] [--no-bindgen] — fail early, with the facts needed to diagnose a different
+# machine. A CI job that builds only one artifact checks only what that artifact needs (default: all);
+# --no-bindgen is for a job that builds raw blobs and never runs wasm-bindgen (the double-build).
 wasm_preflight() {
-    local want_channel active host sysroot
-    want_channel=$(sed -n 's/^channel *= *"\(.*\)"/\1/p' rust-toolchain.toml)
-    active=$(rustc --version | cut -d' ' -f2)
-    host=$(rustc -vV | sed -n 's/^host: //p')
-    sysroot=$(rustc --print sysroot)
-    echo "wasm-recipe preflight: host=$host toolchain=$active sysroot=$sysroot"
-    local bad=0
-    if [ "$active" != "$want_channel" ]; then
-        echo "  ERROR: stable pass needs rustc $want_channel (rust-toolchain.toml), active is $active" >&2; bad=1
-    fi
-    if ! rustup target list --installed 2>/dev/null | grep -qx wasm32-unknown-unknown; then
-        echo "  ERROR: target wasm32-unknown-unknown missing on toolchain $active" >&2; bad=1
-    fi
-    local nightly_dir
-    nightly_dir=$(rustc +"$NIGHTLY" --print sysroot 2>/dev/null) || nightly_dir=""
-    if [ -z "$nightly_dir" ]; then
-        echo "  ERROR: toolchain $NIGHTLY is not installed (threaded pass)" >&2; bad=1
+    local mode="${1:-all}" want_channel active host sysroot bad=0
+    case "$mode" in seq|threaded|all) ;; *) echo "wasm_preflight: unknown mode '$mode'" >&2; return 2 ;; esac
+    # The threaded-only mode must not touch the default toolchain (a job that installs only the pinned
+    # nightly has no 1.90.0), so the host triple comes from whichever toolchain the mode is about.
+    if [ "$mode" = threaded ]; then
+        host=$(rustc +"$NIGHTLY" -vV | sed -n 's/^host: //p')
     else
-        echo "wasm-recipe preflight: threaded toolchain dir=$nightly_dir"
-        if [ ! -d "$nightly_dir/lib/rustlib/src/rust/library" ]; then
-            echo "  ERROR: component rust-src missing on $NIGHTLY (build-std needs it): $nightly_dir" >&2; bad=1
+        host=$(rustc -vV | sed -n 's/^host: //p')
+    fi
+    if [ "$mode" != threaded ]; then
+        want_channel=$(sed -n 's/^channel *= *"\(.*\)"/\1/p' rust-toolchain.toml)
+        active=$(rustc --version | cut -d' ' -f2)
+        sysroot=$(rustc --print sysroot)
+        echo "wasm-recipe preflight: host=$host toolchain=$active sysroot=$sysroot"
+        if [ "$active" != "$want_channel" ]; then
+            echo "  ERROR: stable pass needs rustc $want_channel (rust-toolchain.toml), active is $active" >&2; bad=1
         fi
-        if [ ! -d "$nightly_dir/lib/rustlib/wasm32-unknown-unknown" ]; then
-            echo "  ERROR: target wasm32-unknown-unknown missing on $NIGHTLY: $nightly_dir" >&2; bad=1
+        if ! rustup target list --installed 2>/dev/null | grep -qx wasm32-unknown-unknown; then
+            echo "  ERROR: target wasm32-unknown-unknown missing on toolchain $active" >&2; bad=1
         fi
     fi
-    if ! wasm-bindgen --version 2>/dev/null | grep -q "$WASM_BINDGEN_VERSION"; then
+    if [ "$mode" != seq ]; then
+        local nightly_dir
+        nightly_dir=$(rustc +"$NIGHTLY" --print sysroot 2>/dev/null) || nightly_dir=""
+        if [ -z "$nightly_dir" ]; then
+            echo "  ERROR: toolchain $NIGHTLY is not installed (threaded pass), host=$host" >&2; bad=1
+        else
+            echo "wasm-recipe preflight: host=$host threaded toolchain dir=$nightly_dir"
+            if [ ! -d "$nightly_dir/lib/rustlib/src/rust/library" ]; then
+                echo "  ERROR: component rust-src missing on $NIGHTLY (build-std needs it): $nightly_dir" >&2; bad=1
+            fi
+            if [ ! -d "$nightly_dir/lib/rustlib/wasm32-unknown-unknown" ]; then
+                echo "  ERROR: target wasm32-unknown-unknown missing on $NIGHTLY: $nightly_dir" >&2; bad=1
+            fi
+        fi
+    fi
+    if [ "${2:-}" != "--no-bindgen" ] && ! wasm-bindgen --version 2>/dev/null | grep -q "$WASM_BINDGEN_VERSION"; then
         echo "  ERROR: wasm-bindgen-cli $WASM_BINDGEN_VERSION required, found: $(wasm-bindgen --version 2>&1 | head -1)" >&2; bad=1
     fi
     [ "$bad" -eq 0 ] || return 1
