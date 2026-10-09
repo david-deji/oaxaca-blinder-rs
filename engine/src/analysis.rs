@@ -1,11 +1,37 @@
 use crate::rows::{analysed_mask, check_alignment, read_csv, KeySupply};
+use crate::support::{self, Fitted, IntervalModel};
 use crate::types::*;
 use nalgebra::{DMatrix, DVector};
 use oaxaca_blinder::{OaxacaBuilder, ReferenceCoefficients, RowAccounting};
 use polars::prelude::*;
-use statrs::distribution::{ContinuousCDF, Normal};
+
+/// The scheme a decomposition request names. Strict (0120-MERIDIAN S4): an absent value or any
+/// string other than `GroupA`, `GroupB`, `Pooled`, `PooledNoIndicator`, `Weighted` is an error.
+/// It used to fall back to `Pooled`, which made the scheme with the least external
+/// verification the silent default for every caller that forgot the field.
+fn parse_reference_coefficients(
+    req: &DecompositionRequest,
+) -> Result<ReferenceCoefficients, String> {
+    ReferenceCoefficients::parse_name(req.reference_coefficients.as_deref())
+        .map_err(|e| e.to_string())
+}
+
+/// Stamps the engine-layer provenance fields on a result's `run_metadata`. Set here and not in
+/// the library so a raw library run keeps the bytes it always had.
+fn stamp_engine_metadata(
+    meta: &mut oaxaca_blinder::RunMetadata,
+    scheme: ReferenceCoefficients,
+    method: &str,
+) {
+    meta.reference_coefficients_used = Some(scheme.canonical_name().to_string());
+    meta.engine_version = Some(env!("CARGO_PKG_VERSION").to_string());
+    meta.method = Some(method.to_string());
+}
 
 pub fn decompose_inner(req: DecompositionRequest) -> Result<DecompositionResult, String> {
+    // Refuse a missing or unknown scheme before reading any data.
+    parse_reference_coefficients(&req)?;
+
     // 1. Load Data
     let mut df = read_csv(&req.csv_data)?;
 
@@ -57,6 +83,9 @@ fn row_accounting(df: &DataFrame, req: &DecompositionRequest) -> Result<RowAccou
 }
 
 pub fn verify_inner(req: VerificationRequest) -> Result<DecompositionResult, String> {
+    // Refuse a missing or unknown scheme before reading any data.
+    parse_reference_coefficients(&req.decomposition_params)?;
+
     // 1. Load Data
     let mut df = read_csv(&req.decomposition_params.csv_data)?;
 
@@ -196,12 +225,40 @@ fn run_decomposition_on_df(
         .map(|c| c.iter().map(|s| s.as_str()).collect());
     let reps = req.bootstrap_reps.unwrap_or(100);
 
-    // Parse Reference Coefficients
-    let ref_coef = match req.reference_coefficients.as_deref() {
-        Some("GroupA") => ReferenceCoefficients::GroupA,
-        Some("GroupB") => ReferenceCoefficients::GroupB,
-        Some("Weighted") => ReferenceCoefficients::Weighted,
-        _ => ReferenceCoefficients::Pooled, // Default
+    let ref_coef = parse_reference_coefficients(req)?;
+
+    // 1b. Support and small-sample diagnostics (0120-MERIDIAN S6), taken from the SAME analysed
+    // rows and design the decomposition below uses, before it runs: a group with no residual
+    // degrees of freedom is refused here with a named error, not deep inside the estimator.
+    // The design is read in the builder's own coding; leverage and the continuous columns are
+    // invariant to how the categorical levels are normalised afterwards.
+    let (support_block, mut warnings, group_outcomes) = {
+        let mut probe = OaxacaBuilder::new(
+            df.clone(),
+            &req.outcome_variable,
+            &req.group_variable,
+            &req.reference_group,
+        );
+        probe.predictors(predictors.iter().copied());
+        if let Some(cats) = &cats_vec {
+            probe.categorical_predictors(cats.iter().copied());
+        }
+        let matrices = probe
+            .get_data_matrices_with_rows()
+            .map_err(crate::rows::matrices_error)?;
+        let (support_block, warnings) = support::support_diagnostics(
+            &matrices.reference.x,
+            &matrices.target.x,
+            &matrices.predictor_names,
+            &req.predictors,
+            Fitted::Both,
+            None,
+        )?;
+        let outcomes = (
+            matrices.reference.y.iter().copied().collect::<Vec<f64>>(),
+            matrices.target.y.iter().copied().collect::<Vec<f64>>(),
+        );
+        (support_block, warnings, outcomes)
     };
 
     // 2. Build and Run Oaxaca or Quantile Decomposition
@@ -234,6 +291,10 @@ fn run_decomposition_on_df(
         if let Some(cats) = &cats_vec {
             builder.categorical_predictors(cats.iter().copied());
         }
+        // Every categorical predictor is normalised on every run (0120-MERIDIAN T1), under the
+        // pooled-sample population shares (D1): a level's driver row is its deviation from
+        // the company-wide average employee, not from whichever level sorts first.
+        builder.normalize_all_categoricals();
 
         builder.bootstrap_reps(reps);
 
@@ -286,7 +347,11 @@ fn run_decomposition_on_df(
             d_exp,
             d_unexp,
             unexplained_std_err,
-            results.run_metadata().clone(),
+            {
+                let mut meta = results.run_metadata().clone();
+                stamp_engine_metadata(&mut meta, ref_coef, "rif-quantile");
+                meta
+            },
         )
     } else {
         // STANDARD OLS DECOMPOSITION
@@ -303,6 +368,8 @@ fn run_decomposition_on_df(
         if let Some(cats) = &cats_vec {
             builder.categorical_predictors(cats.iter().copied());
         }
+        // Same rule as the quantile branch above.
+        builder.normalize_all_categoricals();
 
         builder.bootstrap_reps(reps);
 
@@ -372,8 +439,23 @@ fn run_decomposition_on_df(
             d_exp,
             d_unexp,
             unexplained_std_err,
-            results.run_metadata().clone(),
+            {
+                let mut meta = results.run_metadata().clone();
+                stamp_engine_metadata(&mut meta, ref_coef, "oaxaca-blinder-mean");
+                meta
+            },
         )
+    };
+
+    // 3. Percentile report (S8): the actual percentile gap beside the RIF total.
+    let quantile_report = match req.quantile {
+        Some(q) => {
+            let (report, qwarnings) =
+                support::quantile_report(q, &group_outcomes.0, &group_outcomes.1, total);
+            warnings.extend(qwarnings);
+            Some(report)
+        }
+        None => None,
     };
 
     Ok(DecompositionResult {
@@ -396,6 +478,9 @@ fn run_decomposition_on_df(
         excluded_rows: keys.excluded(&accounting.excluded_rows),
         // `verify_inner` overwrites it with its own count; `decompose` consumes none.
         adjustments_on_excluded_rows: 0,
+        support: support_block,
+        warnings,
+        quantile_report,
     })
 }
 
@@ -443,24 +528,6 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
         .categorical_predictors
         .as_ref()
         .map(|c| c.iter().map(|s| s.as_str()).collect());
-
-    // 2. Calculate Original Gap (need a separate builder pass)
-    let mut gap_builder = OaxacaBuilder::new(
-        df.clone(),
-        &req.outcome_variable,
-        &req.group_variable,
-        &req.reference_group,
-    );
-    gap_builder.predictors(predictors.iter().copied());
-    gap_builder.reference_coefficients(ReferenceCoefficients::Pooled);
-
-    if let Some(cats) = &cats_vec {
-        gap_builder.categorical_predictors(cats.iter().copied());
-    }
-    gap_builder.bootstrap_reps(10);
-
-    let gap_results = gap_builder.run().map_err(|e| e.to_string())?;
-    let original_gap = *gap_results.total_gap();
 
     // 3. Setup Optimization Problem and Residuals
     let mut problem_builder = OaxacaBuilder::new(
@@ -527,24 +594,26 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
     )?;
     check_alignment("target", raw_x_b.nrows(), y_b.len(), target_rows.len())?;
 
-    let cols_a = raw_x_a.ncols();
-    let predictors_count = req.predictors.len();
-
-    // Strategy for Intercept:
-    // If the matrices don't have an intercept (column of 1s), we add it.
-    let (x_a, x_b) = if cols_a > predictors_count {
-        (raw_x_a.clone(), raw_x_b.clone())
-    } else {
-        feature_names.push("Base Rate (Intercept)".to_string());
-        (
-            raw_x_a.clone().insert_column(cols_a, 1.0),
-            raw_x_b.clone().insert_column(raw_x_b.ncols(), 1.0),
-        )
-    };
+    // The builder's matrices always start with the reserved intercept column
+    // (`oaxaca_blinder::INTERCEPT_NAME`), so there is nothing to add. A second code path here
+    // used to push an extra "Base Rate (Intercept)" column and name when the matrix looked too
+    // narrow; it was unreachable, and a name nobody could filter on (0120-MERIDIAN S3).
+    let (x_a, x_b) = (raw_x_a, raw_x_b);
 
     // Safety fallback for feature names
     while feature_names.len() < x_b.ncols() {
         feature_names.push(format!("Feature {}", feature_names.len()));
+    }
+
+    // The baseline group's pay line is the standard every fair wage is read off. A line with no
+    // residual degrees of freedom has no honest range (it used to return a zero-width one), so
+    // it is refused by name before anything is solved (0120-MERIDIAN T13).
+    if y_a.len() <= x_a.ncols() {
+        return Err(support::insufficient_df_error(
+            "reference",
+            y_a.len(),
+            x_a.ncols(),
+        ));
     }
 
     // Calculate Fair Beta based on Target Mode
@@ -591,60 +660,25 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
     let predicted_y_b_fair = &x_b * &beta_fair;
     let predicted_y_a_fair = &x_a * &beta_fair;
 
-    // --- Variance Calculation for Prediction Intervals (Delta Method) ---
-    // 1. Calculate Error Variance (Sigma^2) from Reference Group Model
-    // Residuals e = y - X*beta
-    let residuals_a = &y_a - &predicted_y_a_fair;
-    let rss = residuals_a.dot(&residuals_a); // Residual Sum of Squares
-    let degrees_of_freedom = (y_a.len() as f64) - (x_a.ncols() as f64);
-
-    // Safety check for degrees of freedom
-    let sigma_squared = if degrees_of_freedom > 0.0 {
-        rss / degrees_of_freedom
-    } else {
-        0.0
+    // --- Prediction intervals (0120-MERIDIAN T14) ---
+    // Student t on the baseline regression's residual degrees of freedom, with the level taken
+    // from the request (default 95%, refused outside [50%, 99.9%]). `IntervalModel` also carries the
+    // baseline group's leverage, which decides each row's `extrapolated` flag.
+    let confidence = support::resolve_confidence(req.confidence_level)?;
+    let interval_model = IntervalModel::new(&x_a, &y_a, &beta_fair, confidence)?;
+    let calculate_interval = |features: DVector<f64>, predicted_y: f64| -> (f64, f64) {
+        interval_model.interval(&features, predicted_y)
     };
 
-    // 2. Calculate Covariance Matrix (X'X)^-1
-    // We need (X_a^T * X_a)^-1
-    // Since we used SVD to solve, we can use SVD to invert if needed, or just standard inversion.
-    // X_a is DMatrix.
-    let xt_x = x_a.transpose() * &x_a;
-    let _r = xt_x.nrows();
-    let _c = xt_x.ncols();
-    let cov_matrix = xt_x
-        .try_inverse()
-        .ok_or("Covariance matrix is singular, likely due to perfect multicollinearity.")?;
-
-    // 3. Determine Z-score for Confidence Level
-    let confidence = req.confidence_level.unwrap_or(0.95);
-    // Clamp confidence to reasonable range [0.50, 0.999]
-    let confidence = confidence.clamp(0.50, 0.999);
-
-    // Alpha = 1 - confidence
-    // Z is inverse CDF at p = 1 - alpha/2
-    // e.g. 95% -> alpha=0.05 -> p=0.975 -> z=1.96
-    let alpha = 1.0 - confidence;
-    let p_value = 1.0 - (alpha / 2.0);
-    let normal = Normal::new(0.0, 1.0).unwrap();
-    let z_score = normal.inverse_cdf(p_value);
-
-    // Closure to calculate prediction interval for a given feature vector
-    let calculate_interval = move |features: DVector<f64>, predicted_y: f64| -> (f64, f64) {
-        if sigma_squared <= 1e-9 {
-            return (predicted_y, predicted_y);
-        }
-
-        // Variance of prediction = sigma^2 * (1 + x_i' * (X'X)^-1 * x_i)
-        // Leverage h_i = x_i' * (X'X)^-1 * x_i
-        let leverage = (features.transpose() * &cov_matrix * &features)[(0, 0)];
-        let pred_variance = sigma_squared * (1.0 + leverage);
-        let pred_se = pred_variance.sqrt();
-
-        // Use calculated Z-score
-        let margin = z_score * pred_se;
-        (predicted_y - margin, predicted_y + margin)
-    };
+    // Support of the baseline pay line for the compared group (0120-MERIDIAN S6).
+    let (support_block, warnings) = support::support_diagnostics(
+        &x_a,
+        &x_b,
+        &feature_names,
+        &req.predictors,
+        Fitted::Reference,
+        Some(interval_model.leverage()),
+    )?;
     // -------------------------------------------------------------------
 
     // Calculate All Residuals
@@ -887,6 +921,7 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
                     GroupSource::GroupA => x_a.row(pot.matrix_idx).transpose(),
                     GroupSource::GroupB => x_b.row(pot.matrix_idx).transpose(),
                 };
+                let extrapolated = interval_model.is_extrapolated(&features);
                 let (lower, upper) = calculate_interval(features, fair_wage);
 
                 adjustments.push(Adjustment {
@@ -901,6 +936,7 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
                     contributions: get_contributions(pot.matrix_idx, &pot.source),
                     is_defensible: None,
                     defensibility_message: None,
+                    extrapolated,
                 });
 
                 if pay_amount > 0.0 {
@@ -938,6 +974,7 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
                     GroupSource::GroupA => x_a.row(pot.matrix_idx).transpose(),
                     GroupSource::GroupB => x_b.row(pot.matrix_idx).transpose(),
                 };
+                let extrapolated = interval_model.is_extrapolated(&features);
                 let (lower, upper) = calculate_interval(features, fair_wage);
 
                 adjustments.push(Adjustment {
@@ -952,6 +989,7 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
                     contributions: get_contributions(pot.matrix_idx, &pot.source),
                     is_defensible: None,
                     defensibility_message: None,
+                    extrapolated,
                 });
 
                 current_spend += pay_amount;
@@ -961,6 +999,13 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
 
     // Sort adjustments by index
     adjustments.sort_by_key(|a| a.index);
+
+    // 2. Original gap: the target group's mean outcome minus the reference group's, over the
+    // analysed rows. It is the same number the decomposition reports as `total_gap` (the library
+    // computes it as `y_target.mean() - y_reference.mean()`), so no regression is fitted for it:
+    // a compared group too small to fit its own regression is still a valid group to pay
+    // toward the baseline's line (0120-MERIDIAN T13 judges only the group that IS fitted).
+    let original_gap = y_b.mean() - y_a.mean();
 
     // 7. Calculate Final Metrics
     let n_target = y_b.len() as f64;
@@ -1006,6 +1051,9 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
         analysed_target_count: target_rows.len(),
         excluded_rows: crate::rows::excluded_with_keys(&builder_excluded_rows, Some(&row_keys)),
         adjustments_on_excluded_rows: 0,
+        interval: interval_model.basis.clone(),
+        support: support_block,
+        warnings,
     })
 }
 
@@ -1017,6 +1065,9 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
 pub fn calculate_efficient_frontier_inner(
     req: EfficientFrontierRequest,
 ) -> Result<Vec<FrontierPoint>, String> {
+    // Refuse a bad level before reading any data; every point echoes the level used.
+    let confidence = support::resolve_confidence(req.confidence_level)?;
+
     // 1. Load Data
     let mut df = read_csv(&req.decomposition_params.csv_data)?;
 
@@ -1127,7 +1178,9 @@ pub fn calculate_efficient_frontier_inner(
     // column `__ob_intercept__` injected by OaxacaBuilder::prepare_data — match only that name.
     // A fuzzy "intercept"/"const" match would misclassify a user predictor literally named
     // `intercept` or `const` as the intercept and silently drop it from the pooled design matrix.
-    let intercept_idx = _feature_names.iter().position(|f| f == "__ob_intercept__");
+    let intercept_idx = _feature_names
+        .iter()
+        .position(|f| f == oaxaca_blinder::INTERCEPT_NAME);
 
     let cols_a = x_a.ncols();
 
@@ -1231,36 +1284,46 @@ pub fn calculate_efficient_frontier_inner(
             .unwrap_or(std::cmp::Ordering::Equal)
     });
 
-    let normal = Normal::new(0.0, 1.0).unwrap();
+    // Student t on the pooled regression's residual degrees of freedom (0120-MERIDIAN T14).
+    // With none, the p-value is undefined: a named refusal, not the old (t = 0, p = 1) sentinel
+    // that read as "no gap".
+    let dof = n_pooled as i64 - x_pooled.ncols() as i64;
+    if dof <= 0 {
+        return Err(support::insufficient_df_error(
+            "pooled",
+            n_pooled,
+            x_pooled.ncols(),
+        ));
+    }
+    let significance_threshold = 1.0 - confidence;
 
-    let compute_t_stat = |current_y: &DMatrix<f64>| -> (f64, f64, bool) {
+    // (t, p, significant, group coefficient) of the pooled regression for one outcome vector.
+    let compute_t_stat = |current_y: &DMatrix<f64>| -> (f64, f64, bool, f64) {
         let beta = &projector * current_y;
         let predictions = &x_pooled * &beta;
         let residuals = current_y - predictions;
         let rss = residuals.dot(&residuals);
 
-        let dof = (n_pooled as f64) - (x_pooled.ncols() as f64);
-        if dof <= 0.0 {
-            return (0.0, 1.0, false);
-        }
-
-        let sigma_sq = rss / dof;
+        let sigma_sq = rss / dof as f64;
         let se_group = (sigma_sq * diag_inv_xt_x[1]).sqrt();
         let beta_group = beta[1];
 
         let t_stat = beta_group / se_group;
-        let p_val = 2.0 * normal.cdf(-t_stat.abs());
-        let sig = p_val < 0.05;
+        let p_val = support::two_sided_p(t_stat, dof as f64);
+        let sig = p_val < significance_threshold;
 
-        (t_stat, p_val, sig)
+        (t_stat, p_val, sig, beta_group)
     };
 
-    let (t0, p0, s0) = compute_t_stat(&y_pooled);
+    let (t0, p0, s0, g0) = compute_t_stat(&y_pooled);
     points.push(FrontierPoint {
         budget: 0.0,
         t_statistic: t0,
         p_value: p0,
         is_significant: s0,
+        group_coefficient: g0,
+        degrees_of_freedom: dof as usize,
+        confidence_level: confidence,
     });
 
     // Degenerate case: no positive adjustment budget (e.g. a zero-gap dataset where total_need
@@ -1303,12 +1366,15 @@ pub fn calculate_efficient_frontier_inner(
             budget_cursor = target_budget;
         }
 
-        let (t, p, s) = compute_t_stat(&current_y);
+        let (t, p, s, g) = compute_t_stat(&current_y);
         points.push(FrontierPoint {
             budget: target_budget,
             t_statistic: t,
             p_value: p,
             is_significant: s,
+            group_coefficient: g,
+            degrees_of_freedom: dof as usize,
+            confidence_level: confidence,
         });
     }
 
@@ -1346,7 +1412,7 @@ mod tests {
             categorical_predictors: Some(vec!["department".to_string()]),
             three_fold: Some(false),
             quantile: None,
-            reference_coefficients: None,
+            reference_coefficients: Some("Pooled".to_string()),
             bootstrap_reps: Some(10), // Fast test
         };
 
@@ -1444,7 +1510,7 @@ mod tests {
             categorical_predictors: None,
             three_fold: None,
             quantile: Some(0.5), // Median
-            reference_coefficients: None,
+            reference_coefficients: Some("Pooled".to_string()),
             bootstrap_reps: Some(10),
         };
 
@@ -1526,11 +1592,12 @@ mod tests {
                 categorical_predictors: None,
                 three_fold: None,
                 quantile: None,
-                reference_coefficients: None,
+                reference_coefficients: Some("Pooled".to_string()),
                 bootstrap_reps: None,
             },
             steps: Some(10),
-            max_budget: Some(50000.0), // Enough to cover gaps
+            max_budget: Some(50000.0), // Enough to cover gaps,
+            confidence_level: None,
         };
 
         // This relies on calculate_efficient_frontier_inner being available in super
@@ -1574,7 +1641,7 @@ mod tests {
             categorical_predictors: None,
             three_fold: None,
             quantile: None,
-            reference_coefficients: None,
+            reference_coefficients: Some("Pooled".to_string()),
             bootstrap_reps: Some(10),
         };
 
@@ -1598,7 +1665,7 @@ mod tests {
             categorical_predictors: None,
             three_fold: None,
             quantile: None,
-            reference_coefficients: None,
+            reference_coefficients: Some("Pooled".to_string()),
             bootstrap_reps: Some(10),
         };
 

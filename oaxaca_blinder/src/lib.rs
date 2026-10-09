@@ -62,6 +62,13 @@
 //! alternative kept for direct-API consumers, but it is off the shipped surface and has no
 //! external-oracle verification — see that module's doc for details.
 
+/// The reserved name of the constant column every design matrix starts with, and therefore the
+/// `name` of the intercept's entry in every per-variable vector the engine returns
+/// (`detailed_explained`, `detailed_unexplained`, `model_coefficients`, per-employee
+/// `contributions`). The one definition of the token (0120-MERIDIAN S3): a consumer compares
+/// against this, never against the string `intercept`, which a real HR column can be called.
+pub const INTERCEPT_NAME: &str = "__ob_intercept__";
+
 mod builder;
 mod decomposition;
 mod display;
@@ -107,6 +114,10 @@ pub use error::OaxacaError;
 pub use heckman::heckman_two_step;
 pub use jmp::decompose_changes;
 pub use matching::engine::MatchingEngine;
+pub use math::normalization::{
+    FactorShares, LevelShare, NormalizationConvention, NormalizationRecord, ShareMap,
+};
+pub use math::weights::{weighted_quantile, WeightsKind};
 #[allow(deprecated)]
 pub use quantile_decomposition::QuantileDecompositionBuilder;
 pub use rng::{RunMetadata, DEFAULT_SEED};

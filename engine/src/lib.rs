@@ -3,6 +3,7 @@ pub mod analysis;
 pub mod defensibility;
 pub mod row_key;
 mod rows;
+pub mod support;
 pub mod types;
 mod verification_test;
 
@@ -50,6 +51,16 @@ use wasm_bindgen::prelude::*;
 #[wasm_bindgen]
 pub fn init_panic_hook() {
     console_error_panic_hook::set_once();
+}
+
+/// The name under which the intercept appears in every per-variable vector the engine returns
+/// (`detailed_explained`, `detailed_unexplained`, `model_coefficients`, per-employee
+/// `contributions`). A consumer filters the constant by comparing against THIS, called once at
+/// start-up, never against the string `intercept`: an HR export can carry a column with that
+/// name, which then travels through the engine under its own name (0120-MERIDIAN S3).
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
+pub fn intercept_token() -> String {
+    oaxaca_blinder::INTERCEPT_NAME.to_string()
 }
 
 #[cfg(feature = "wasm")]
@@ -145,11 +156,12 @@ mod tests {
                 categorical_predictors: None,
                 three_fold: None,
                 quantile: None,
-                reference_coefficients: None,
+                reference_coefficients: Some("Pooled".to_string()),
                 bootstrap_reps: None,
             },
             steps: Some(10),
             max_budget: Some(10000.0),
+            confidence_level: None,
         };
 
         let js_val = serde_wasm_bindgen::to_value(&req).unwrap();

@@ -152,6 +152,7 @@ fn test_zero_weight_level_is_absent_for_estimation() {
         .predictors(vec!["education"])
         .categorical_predictors(vec!["sector"])
         .weights("w")
+        .weights_kind(oaxaca_blinder::WeightsKind::Frequency)
         .bootstrap_reps(5)
         .run();
 

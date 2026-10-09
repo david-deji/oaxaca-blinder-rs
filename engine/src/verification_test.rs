@@ -328,7 +328,7 @@ mod tests {
                 categorical_predictors: Some(vec!["department".to_string()]),
                 three_fold: None,
                 quantile: None,
-                reference_coefficients: None,
+                reference_coefficients: Some("Pooled".to_string()),
                 bootstrap_reps: None,
             },
             adjustments: vec![ProposedAdjustment {
@@ -337,6 +337,7 @@ mod tests {
                 value: 0.0,
                 predictor_overrides: None,
             }],
+            confidence_level: None,
         };
 
         let res_baseline = check_defensibility_inner(req_baseline).expect("Baseline check failed");
@@ -374,7 +375,7 @@ mod tests {
                 categorical_predictors: Some(vec!["department".to_string()]),
                 three_fold: None,
                 quantile: None,
-                reference_coefficients: None,
+                reference_coefficients: Some("Pooled".to_string()),
                 bootstrap_reps: None,
             },
             adjustments: vec![ProposedAdjustment {
@@ -383,6 +384,7 @@ mod tests {
                 value: 0.0,
                 predictor_overrides: Some(overrides),
             }],
+            confidence_level: None,
         };
 
         let res_override = check_defensibility_inner(req_override).expect("Override check failed");
@@ -668,7 +670,7 @@ mod tests {
             categorical_predictors: Some(vec!["department".to_string()]),
             three_fold: None,
             quantile: None,
-            reference_coefficients: None,
+            reference_coefficients: Some("Pooled".to_string()),
             bootstrap_reps: None,
         }
     }
@@ -704,6 +706,7 @@ mod tests {
                     predictor_overrides: None,
                 },
             ],
+            confidence_level: None,
         })
         .expect("a doubly-addressed row is collapsed, not rejected");
 
@@ -775,6 +778,7 @@ mod tests {
                     predictor_overrides: None,
                 },
             ],
+            confidence_level: None,
         })
         .expect("the same index twice is collapsed, not rejected");
 
@@ -817,6 +821,7 @@ mod tests {
                     predictor_overrides: Some(second.clone()),
                 },
             ],
+            confidence_level: None,
         })
         .expect("collapsed override run failed");
 
@@ -831,6 +836,7 @@ mod tests {
                 value: 0.0,
                 predictor_overrides: Some(both),
             }],
+            confidence_level: None,
         })
         .expect("reference override run failed");
 
@@ -872,6 +878,7 @@ mod tests {
                     predictor_overrides: None,
                 },
             ],
+            confidence_level: None,
         })
         .expect("two adjustments on two distinct rows must verify");
 

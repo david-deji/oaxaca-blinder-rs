@@ -39,7 +39,7 @@ fn request(three_fold: bool) -> DecompositionRequest {
         categorical_predictors: None,
         three_fold: Some(three_fold),
         quantile: None,
-        reference_coefficients: None,
+        reference_coefficients: Some("Pooled".to_string()),
         bootstrap_reps: Some(64), // matches compute.worker.mjs + mode_parity_test.rs
     }
 }

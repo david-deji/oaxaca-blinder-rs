@@ -1,3 +1,4 @@
+use crate::math::weights::{hmisc_quantile, WeightsKind};
 use polars::prelude::*;
 use std::f64::consts::PI;
 
@@ -29,7 +30,11 @@ pub fn calculate_rif(series: &Series, quantile: f64) -> Result<Series, PolarsErr
 ///   - **Monotone**: moving mass onto larger values raises the quantile. An earlier draft here
 ///     normalised by `W - w_last`, which silently cancelled the largest observation's weight
 ///     entirely — `upweighting_the_high_tail_raises_the_median` is the test that caught it.
-fn weighted_quantile(sorted_y: &[f64], sorted_w: &[f64], quantile: f64) -> f64 {
+pub(crate) fn weighted_quantile_frequency(
+    sorted_y: &[f64],
+    sorted_w: &[f64],
+    quantile: f64,
+) -> f64 {
     let n = sorted_y.len();
     if n == 1 {
         return sorted_y[0];
@@ -78,6 +83,28 @@ pub fn calculate_rif_weighted(
     quantile: f64,
     weights: Option<&[f64]>,
 ) -> Result<Series, PolarsError> {
+    rif_core(series, quantile, weights, WeightsKind::Frequency)
+}
+
+/// RIF under [`WeightsKind::Relative`] weights (0120-MERIDIAN S9 / T17): the weights are rescaled
+/// to sum to the count of rows that carry weight (`rifreg::check_weights`, with the
+/// zero-weight rows `Hmisc` drops left out of the count), the sample quantile is
+/// `Hmisc::wtd.quantile(type = "quantile", normwt = TRUE)`, and the density, variance and IQR
+/// read the rescaled weights. Uniform weights of any size give the unweighted RIF.
+pub fn calculate_rif_relative(
+    series: &Series,
+    quantile: f64,
+    weights: &[f64],
+) -> Result<Series, PolarsError> {
+    rif_core(series, quantile, Some(weights), WeightsKind::Relative)
+}
+
+fn rif_core(
+    series: &Series,
+    quantile: f64,
+    weights: Option<&[f64]>,
+    kind: WeightsKind,
+) -> Result<Series, PolarsError> {
     let y_vec: Vec<f64> = series.f64()?.into_no_null_iter().collect();
     let n = y_vec.len() as f64;
 
@@ -103,9 +130,16 @@ pub fn calculate_rif_weighted(
             ));
         }
     }
-    let w_vec: Vec<f64> = match weights {
-        Some(w) => w.to_vec(),
-        None => vec![1.0; y_vec.len()],
+    let w_vec: Vec<f64> = match (weights, kind) {
+        (Some(w), WeightsKind::Relative) => {
+            // Rescale to the count of rows that carry weight, as Hmisc does after dropping the
+            // zero-weight rows.
+            let carrying = w.iter().filter(|&&x| x > 0.0).count() as f64;
+            let total: f64 = w.iter().sum();
+            w.iter().map(|x| x * carrying / total).collect()
+        }
+        (Some(w), WeightsKind::Frequency) => w.to_vec(),
+        (None, _) => vec![1.0; y_vec.len()],
     };
 
     if n < 2.0 {
@@ -132,12 +166,28 @@ pub fn calculate_rif_weighted(
     pairs.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
     let sorted_y: Vec<f64> = pairs.iter().map(|p| p.0).collect();
     let sorted_w: Vec<f64> = pairs.iter().map(|p| p.1).collect();
+    // The sample quantile under the stated weight semantics. `Relative` is the Hmisc port on the
+    // rows that carry weight; `Frequency` is the expansion rule above.
+    let quantile_at = |tau: f64| -> f64 {
+        match kind {
+            WeightsKind::Frequency => weighted_quantile_frequency(&sorted_y, &sorted_w, tau),
+            WeightsKind::Relative => {
+                let (ys, ws): (Vec<f64>, Vec<f64>) = sorted_y
+                    .iter()
+                    .copied()
+                    .zip(sorted_w.iter().copied())
+                    .filter(|(_, w)| *w > 0.0)
+                    .unzip();
+                hmisc_quantile(&ys, &ws, tau)
+            }
+        }
+    };
 
     let w_total: f64 = w_vec.iter().sum();
 
     // 1. Sample quantile (Q_tau). Weighted type-7 positions; identical to the previous
     //    `(n-1)*tau` interpolation when every weight is 1.
-    let q_tau = weighted_quantile(&sorted_y, &sorted_w, quantile);
+    let q_tau = quantile_at(quantile);
 
     // 2. Density at Q_tau, Gaussian kernel, Silverman bandwidth — every ingredient weighted.
     let mean = y_vec
@@ -156,8 +206,7 @@ pub fn calculate_rif_weighted(
         / var_denom;
     let std_dev = variance.sqrt();
 
-    let iqr = weighted_quantile(&sorted_y, &sorted_w, 0.75)
-        - weighted_quantile(&sorted_y, &sorted_w, 0.25);
+    let iqr = quantile_at(0.75) - quantile_at(0.25);
 
     let min_spread = if iqr > 1e-8 {
         std_dev.min(iqr / 1.34)
@@ -170,10 +219,19 @@ pub fn calculate_rif_weighted(
     // Kish's effective sample size — (Sum w)^2 / Sum w^2 — which is exactly `n` under unit weights,
     // so the bandwidth is unchanged on the unweighted path.
     let sum_w_sq: f64 = w_vec.iter().map(|w| w * w).sum();
-    let n_eff = if sum_w_sq > 0.0 {
-        (w_total * w_total) / sum_w_sq
-    } else {
-        n
+    let n_eff = match kind {
+        // Frequency weights ARE a repeated sample (0120-MERIDIAN T17): the bandwidth reads the
+        // true sample size, so a run with `w = 2` equals the run on the row twice, density
+        // included. (Kish's N here would make it differ.) Equal to `n` under unit weights.
+        WeightsKind::Frequency => w_total,
+        // Relative weights are design weights: Kish's effective sample size.
+        WeightsKind::Relative => {
+            if sum_w_sq > 0.0 {
+                (w_total * w_total) / sum_w_sq
+            } else {
+                n
+            }
+        }
     };
 
     let h = 0.9 * min_spread * n_eff.powf(-0.2);
@@ -230,7 +288,7 @@ mod tests {
             } else {
                 y[lo] + (h - h.floor()) * (y[hi] - y[lo])
             };
-            let got = weighted_quantile(&y, &w, tau);
+            let got = weighted_quantile_frequency(&y, &w, tau);
             assert!(
                 (got - type7).abs() < 1e-12,
                 "tau={tau}: {got} != type7 {type7}"
@@ -266,8 +324,8 @@ mod tests {
     fn upweighting_the_high_tail_raises_the_median() {
         // Direction check on the weighted quantile itself, independent of the KDE.
         let y = vec![1.0, 2.0, 3.0, 4.0, 5.0];
-        let flat = weighted_quantile(&y, &[1.0; 5], 0.5);
-        let top_heavy = weighted_quantile(&y, &[1.0, 1.0, 1.0, 1.0, 20.0], 0.5);
+        let flat = weighted_quantile_frequency(&y, &[1.0; 5], 0.5);
+        let top_heavy = weighted_quantile_frequency(&y, &[1.0, 1.0, 1.0, 1.0, 20.0], 0.5);
         assert!(
             top_heavy > flat,
             "mass on the top value must pull the median up: {top_heavy} !> {flat}"
@@ -283,8 +341,8 @@ mod tests {
         let expanded = vec![1.0, 2.0, 2.0, 2.0, 3.0, 3.0, 7.0];
         let ones = vec![1.0; expanded.len()];
         for &tau in &[0.0, 0.1, 0.25, 0.5, 0.75, 0.9, 1.0] {
-            let a = weighted_quantile(&y, &w, tau);
-            let b = weighted_quantile(&expanded, &ones, tau);
+            let a = weighted_quantile_frequency(&y, &w, tau);
+            let b = weighted_quantile_frequency(&expanded, &ones, tau);
             assert!(
                 (a - b).abs() < 1e-12,
                 "tau={tau}: weighted {a} != expanded {b}"

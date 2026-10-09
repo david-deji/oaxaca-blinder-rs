@@ -124,11 +124,12 @@ mod tests {
                 categorical_predictors: None,
                 three_fold: Some(false),
                 quantile: None,
-                reference_coefficients: None,
+                reference_coefficients: Some("Pooled".to_string()),
                 bootstrap_reps: None,
             },
             steps: Some(10),
             max_budget: Some(700_000.0),
+            confidence_level: None,
         };
         let points =
             calculate_efficient_frontier_inner(req).expect("frontier should compute without error");
@@ -168,7 +169,7 @@ mod tests {
                 categorical_predictors: None,
                 three_fold: Some(false),
                 quantile: None,
-                reference_coefficients: None,
+                reference_coefficients: Some("Pooled".to_string()),
                 bootstrap_reps: None,
             },
             adjustments: vec![
@@ -191,6 +192,7 @@ mod tests {
                     predictor_overrides: None,
                 },
             ],
+            confidence_level: None,
         };
         let result = check_defensibility_inner(req).expect("defensibility must not error");
         let any_indefensible = result

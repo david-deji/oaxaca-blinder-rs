@@ -57,6 +57,41 @@ pub(crate) fn resample_indices(rng: &mut ChaCha8Rng, n: usize) -> IdxCa {
     IdxCa::from_vec("idx".into(), idx)
 }
 
+/// One bootstrap replicate of a FREQUENCY-weighted group (0120-MERIDIAN E-REV-1).
+///
+/// Under `WeightsKind::Frequency` a row with `w = 2` stands for two identical employees, so the
+/// inferential sample is `sum(w)` units, not `rows` units. A replicate draws `N = sum(w)` units
+/// with replacement, each unit being row `i` with probability `w_i / N` (multinomial), and
+/// returns the rows that were drawn at least once (ascending) with their draw counts, which
+/// become that replicate's weights. A replicate on `w = 2` is therefore distributed as a replicate
+/// on the same rows written twice with `w = 1`, which is what Stata `bsample ..., weight(fw)` draws.
+/// Weights must be whole numbers (validated before the bootstrap runs).
+pub(crate) fn resample_frequency(rng: &mut ChaCha8Rng, weights: &[f64]) -> (IdxCa, Vec<f64>) {
+    let mut cum: Vec<u64> = Vec::with_capacity(weights.len());
+    let mut acc: u64 = 0;
+    for &w in weights {
+        acc += w.max(0.0) as u64;
+        cum.push(acc);
+    }
+    let mut counts = vec![0u64; weights.len()];
+    if acc > 0 {
+        for _ in 0..acc {
+            let r = rng.gen_range(0..acc);
+            // first row whose cumulative weight exceeds r; zero-weight rows are never selected
+            counts[cum.partition_point(|&c| c <= r)] += 1;
+        }
+    }
+    let mut idx: Vec<IdxSize> = Vec::new();
+    let mut drawn: Vec<f64> = Vec::new();
+    for (i, &c) in counts.iter().enumerate() {
+        if c > 0 {
+            idx.push(i as IdxSize);
+            drawn.push(c as f64);
+        }
+    }
+    (IdxCa::from_vec("idx".into(), idx), drawn)
+}
+
 /// Outcome of a single bootstrap replicate. Replaces the silent `filter_map(...).ok()`
 /// discard with an explicit, order-preserving marker so the discard count is a pure
 /// function of `(master, rep, base frames)` and therefore thread-count-independent (D5).
@@ -108,6 +143,29 @@ pub struct RunMetadata {
     /// serialization there so the mean-path bytes are unchanged (AC-9/AC-6 baselines hold).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fixed_rif: Option<bool>,
+    /// Categorical-coefficient normalisation actually requested for this run (0120-MERIDIAN
+    /// S1): the convention, the share basis and the restriction weights of the POINT-estimate
+    /// sample (bootstrap replicates recompute theirs from each replicate's pooled resample).
+    /// `None` when the caller did not call `normalize()`, and omitted from serialization then,
+    /// so the raw-library bytes (AC-9 / AC-6 baselines) are unchanged.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub normalization: Option<crate::math::normalization::NormalizationRecord>,
+    /// The `reference_coefficients` scheme the headline was computed under. Set by the engine
+    /// layer (the library leaves it `None`, so raw-library bytes are unchanged). 0120 T11.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reference_coefficients_used: Option<String>,
+    /// Version of the `pay-equity-engine` crate that produced the result. Engine layer only.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub engine_version: Option<String>,
+    /// Method marker set by the engine layer: `"oaxaca-blinder-mean"` or `"rif-quantile"`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub method: Option<String>,
+    /// `variable=level` entries for every categorical level that was absent from a bootstrap
+    /// resample of a group and so made that replicate fail (the replicate is discarded and
+    /// counted in `bootstrap_reps_discarded`). Sorted, de-duplicated; omitted when empty. A
+    /// level listed here is estimated from fewer replicates than the others.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub bootstrap_discard_levels: Vec<String>,
 }
 
 impl RunMetadata {
@@ -122,6 +180,11 @@ impl RunMetadata {
             bootstrap_reps_succeeded: succeeded,
             bootstrap_reps_discarded: discarded,
             fixed_rif: None,
+            normalization: None,
+            reference_coefficients_used: None,
+            engine_version: None,
+            method: None,
+            bootstrap_discard_levels: Vec::new(),
         }
     }
 
@@ -195,5 +258,41 @@ mod tests {
             idx1.iter().all(|&i| (i as usize) < n),
             "every resampled index must be < n"
         );
+    }
+    /// E-REV-1: a frequency replicate draws `sum(w)` units, never selects a zero-weight row,
+    /// returns ascending distinct rows, is reproducible, and gives row `i` a mean count of `w_i`.
+    #[test]
+    fn frequency_replicate_draws_the_expanded_sample() {
+        let w = [2.0, 0.0, 5.0, 1.0, 0.0, 3.0];
+        let total: f64 = w.iter().sum();
+        let mut sum_counts = vec![0.0f64; w.len()];
+        let reps = 4000u64;
+        for rep in 0..reps {
+            let mut rng = unit_rng(DEFAULT_SEED, RngPurpose::Bootstrap, rep);
+            let (idx, counts) = resample_frequency(&mut rng, &w);
+            let idx: Vec<IdxSize> = idx.into_no_null_iter().collect();
+            assert_eq!(counts.iter().sum::<f64>(), total, "sum(w) units are drawn");
+            assert_eq!(idx.len(), counts.len());
+            assert!(idx.windows(2).all(|p| p[0] < p[1]), "ascending, distinct");
+            assert!(counts.iter().all(|&c| c >= 1.0));
+            for (i, c) in idx.iter().zip(&counts) {
+                assert!(w[*i as usize] > 0.0, "a zero-weight row was drawn");
+                sum_counts[*i as usize] += c;
+            }
+        }
+        for (i, wi) in w.iter().enumerate() {
+            let mean = sum_counts[i] / reps as f64;
+            assert!(
+                (mean - wi).abs() < 0.08,
+                "row {i}: mean count {mean} vs weight {wi}"
+            );
+        }
+        let (a, ca) = resample_frequency(&mut unit_rng(DEFAULT_SEED, RngPurpose::Bootstrap, 9), &w);
+        let (b, cb) = resample_frequency(&mut unit_rng(DEFAULT_SEED, RngPurpose::Bootstrap, 9), &w);
+        assert_eq!(
+            a.into_no_null_iter().collect::<Vec<_>>(),
+            b.into_no_null_iter().collect::<Vec<_>>()
+        );
+        assert_eq!(ca, cb);
     }
 }

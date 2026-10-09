@@ -153,6 +153,9 @@ struct McpVerificationParams {
     #[serde(flatten)]
     pub decomposition_params: McpDecompositionParams,
     pub adjustments: Vec<McpProposedAdjustment>,
+    /// Level of the prediction interval `check_defensibility` scores against (0120 S7).
+    #[serde(default)]
+    pub confidence_level: Option<f64>,
 }
 
 impl From<McpVerificationParams> for VerificationRequest {
@@ -160,8 +163,18 @@ impl From<McpVerificationParams> for VerificationRequest {
         Self {
             decomposition_params: p.decomposition_params.into(),
             adjustments: p.adjustments.into_iter().map(|a| a.into()).collect(),
+            confidence_level: p.confidence_level,
         }
     }
+}
+
+#[derive(Deserialize)]
+struct McpFrontierParams {
+    #[serde(flatten)]
+    pub decomposition_params: McpDecompositionParams,
+    /// Level whose complement is the significance threshold of each frontier point (0120 S7).
+    #[serde(default)]
+    pub confidence_level: Option<f64>,
 }
 
 #[tokio::main]
@@ -531,7 +544,7 @@ async fn handle_protocol(req: JsonRpcRequest) -> Option<JsonRpcResponse> {
             },
             "serverInfo": {
                 "name": "meridian-mcp",
-                "version": "0.1.0"
+                "version": "0.2.0"
             }
         })),
         "notifications/initialized" => {
@@ -542,7 +555,7 @@ async fn handle_protocol(req: JsonRpcRequest) -> Option<JsonRpcResponse> {
             "tools": [
                 {
                     "name": "forensic_decomposition",
-                    "description": "Perform Oaxaca-Blinder pay equity decomposition.",
+                    "description": "Perform Oaxaca-Blinder pay equity decomposition. reference_coefficients is required and names the counterfactual the headline is computed under. Per-level rows of categorical predictors in detailed_explained / detailed_unexplained are deviations from the pooled-sample share-weighted average of all levels (every level, the alphabetically first included); the constant is the entry named \"__ob_intercept__\" and is not a driver. result.run_metadata records the scheme, the normalisation convention and its level shares. result.support and result.warnings report how far the compared group's characteristics sit from the baseline group's and the residual degrees of freedom of each fitted regression; with quantile set, result.quantile_report holds the actual percentile gap, the RIF model total and the tie diagnostics.",
                     "inputSchema": {
                         "type": "object",
                         "properties": {
@@ -554,10 +567,10 @@ async fn handle_protocol(req: JsonRpcRequest) -> Option<JsonRpcResponse> {
                             "categorical_predictors": { "type": "array", "items": { "type": "string" } },
                             "three_fold": { "type": "boolean" },
                             "quantile": { "type": "number" },
-                            "reference_coefficients": { "type": "string", "enum": ["Pooled", "GroupA", "GroupB", "Weighted"] },
+                            "reference_coefficients": { "type": "string", "enum": ["GroupA", "GroupB", "Pooled", "PooledNoIndicator", "Weighted"], "description": "Whose pay structure prices the characteristics gap. GroupB: the reference group's own coefficients (the compared group is priced as if paid under the reference group's pay structure). GroupA: the compared (non-reference) group's own coefficients. Pooled: one regression on both groups with a group indicator; the unexplained gap equals the indicator's coefficient (Jann 2008 pooled). PooledNoIndicator: one regression on both groups without an indicator (Neumark 1988, Stata omega). Weighted: the sample-share-weighted average of the two groups' coefficients (Cotton 1988). Exact, case-sensitive; any other value, or none, is an error." },
                             "bootstrap_reps": { "type": "integer" }
                         },
-                        "required": ["csv_content", "outcome_variable", "group_variable", "reference_group", "predictors"]
+                        "required": ["csv_content", "outcome_variable", "group_variable", "reference_group", "predictors", "reference_coefficients"]
                     }
                 },
                 {
@@ -581,7 +594,7 @@ async fn handle_protocol(req: JsonRpcRequest) -> Option<JsonRpcResponse> {
                 },
                 {
                     "name": "verify_adjustments",
-                    "description": "Validate a set of proposed wage adjustments by re-running the decomposition.",
+                    "description": "Validate a set of proposed wage adjustments by re-running the decomposition under reference_coefficients (required; same meaning as in forensic_decomposition).",
                     "inputSchema": {
                         "type": "object",
                         "properties": {
@@ -590,6 +603,8 @@ async fn handle_protocol(req: JsonRpcRequest) -> Option<JsonRpcResponse> {
                             "group_variable": { "type": "string" },
                             "reference_group": { "type": "string" },
                             "predictors": { "type": "array", "items": { "type": "string" } },
+                            "categorical_predictors": { "type": "array", "items": { "type": "string" } },
+                            "reference_coefficients": { "type": "string", "enum": ["GroupA", "GroupB", "Pooled", "PooledNoIndicator", "Weighted"], "description": "Whose pay structure prices the characteristics gap. GroupB: the reference group's own coefficients (the compared group is priced as if paid under the reference group's pay structure). GroupA: the compared (non-reference) group's own coefficients. Pooled: one regression on both groups with a group indicator; the unexplained gap equals the indicator's coefficient (Jann 2008 pooled). PooledNoIndicator: one regression on both groups without an indicator (Neumark 1988, Stata omega). Weighted: the sample-share-weighted average of the two groups' coefficients (Cotton 1988). Exact, case-sensitive; any other value, or none, is an error." },
                             "adjustments": {
                                 "type": "array",
                                 "items": {
@@ -602,12 +617,12 @@ async fn handle_protocol(req: JsonRpcRequest) -> Option<JsonRpcResponse> {
                                 }
                             }
                         },
-                        "required": ["csv_content", "outcome_variable", "group_variable", "reference_group", "predictors", "adjustments"]
+                        "required": ["csv_content", "outcome_variable", "group_variable", "reference_group", "predictors", "reference_coefficients", "adjustments"]
                     }
                 },
                 {
                     "name": "check_defensibility",
-                    "description": "Audit specific adjustments for legal/statistical defensibility with predictor overrides.",
+                    "description": "Score each proposed adjustment against the 95% (or confidence_level) prediction range of comparable reference-group employees: the share of adjusted wages that land inside that range. Student t on the reference regression's residual degrees of freedom. Each row also says whether its fair wage extends the reference group's pay line beyond the range that group occupies (extrapolated). Predictor overrides are supported.",
                     "inputSchema": {
                         "type": "object",
                         "properties": {
@@ -616,6 +631,7 @@ async fn handle_protocol(req: JsonRpcRequest) -> Option<JsonRpcResponse> {
                             "group_variable": { "type": "string" },
                             "reference_group": { "type": "string" },
                             "predictors": { "type": "array", "items": { "type": "string" } },
+                            "confidence_level": { "type": "number", "description": "Level of the prediction range, e.g. 0.90 (a fraction, not 90). A level outside 0.50-0.999 or not finite is refused with INVALID_CONFIDENCE_LEVEL; default 0.95." },
                             "adjustments": {
                                 "type": "array",
                                 "items": {
@@ -634,7 +650,7 @@ async fn handle_protocol(req: JsonRpcRequest) -> Option<JsonRpcResponse> {
                 },
                 {
                     "name": "generate_efficient_frontier",
-                    "description": "Calculate the Efficient Frontier curve (Budget vs Statistical Significance).",
+                    "description": "Calculate the Efficient Frontier curve (Budget vs Statistical Significance). Each point carries the pooled regression's group coefficient, its Student t statistic and two-sided p-value on the pooled residual degrees of freedom.",
                     "inputSchema": {
                         "type": "object",
                         "properties": {
@@ -642,7 +658,8 @@ async fn handle_protocol(req: JsonRpcRequest) -> Option<JsonRpcResponse> {
                             "outcome_variable": { "type": "string" },
                             "group_variable": { "type": "string" },
                             "reference_group": { "type": "string" },
-                            "predictors": { "type": "array", "items": { "type": "string" } }
+                            "predictors": { "type": "array", "items": { "type": "string" } },
+                            "confidence_level": { "type": "number", "description": "A point is significant when its p-value is below 1 minus this level. A fraction, not a percentage: a level outside 0.50-0.999 or not finite is refused with INVALID_CONFIDENCE_LEVEL; default 0.95. Each point echoes the level used as confidence_level." }
                         },
                         "required": ["csv_content", "outcome_variable", "group_variable", "reference_group", "predictors"]
                     }
@@ -784,12 +801,13 @@ async fn handle_tool_call(params: Option<Value>) -> Result<Value> {
             Ok(json!({ "content": [{ "type": "text", "text": serde_json::to_string(&res)? }] }))
         }
         "generate_efficient_frontier" => {
-            let mut mcp_params: McpDecompositionParams = serde_json::from_value(arguments)?;
-            if let Some(reps) = mcp_params.bootstrap_reps {
-                mcp_params.bootstrap_reps = Some(reps.min(10000));
+            let mut frontier_params: McpFrontierParams = serde_json::from_value(arguments)?;
+            if let Some(reps) = frontier_params.decomposition_params.bootstrap_reps {
+                frontier_params.decomposition_params.bootstrap_reps = Some(reps.min(10000));
             }
             let req = EfficientFrontierRequest {
-                decomposition_params: mcp_params.into(),
+                confidence_level: frontier_params.confidence_level,
+                decomposition_params: frontier_params.decomposition_params.into(),
                 steps: Some(50),
                 max_budget: None,
             };
@@ -875,6 +893,102 @@ mod tests {
         assert!(res.is_some());
         let resp = res.unwrap();
         assert!(resp.result.is_some());
+    }
+
+    fn tool_schema(resp: JsonRpcResponse, name: &str) -> Value {
+        resp.result.unwrap()["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|t| t["name"] == name)
+            .unwrap_or_else(|| panic!("tool {name} listed"))
+            .clone()
+    }
+
+    // 0120-MERIDIAN S4 / T6: the scheme is required and exact, and the schema says so.
+    #[tokio::test]
+    async fn schema_requires_reference_coefficients_and_names_every_scheme() {
+        for tool in ["forensic_decomposition", "verify_adjustments"] {
+            let req = JsonRpcRequest {
+                _jsonrpc: "2.0".to_string(),
+                method: "tools/list".to_string(),
+                params: None,
+                id: Some(json!(1)),
+            };
+            let t = tool_schema(handle_protocol(req).await.unwrap(), tool);
+            let required: Vec<&str> = t["inputSchema"]["required"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|v| v.as_str().unwrap())
+                .collect();
+            assert!(
+                required.contains(&"reference_coefficients"),
+                "{tool} must require reference_coefficients"
+            );
+            let prop = &t["inputSchema"]["properties"]["reference_coefficients"];
+            let enum_vals: Vec<&str> = prop["enum"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|v| v.as_str().unwrap())
+                .collect();
+            let accepted = [
+                "GroupA",
+                "GroupB",
+                "Pooled",
+                "PooledNoIndicator",
+                "Weighted",
+            ];
+            assert_eq!(enum_vals, accepted);
+            let description = prop["description"].as_str().unwrap();
+            for scheme in accepted {
+                assert!(
+                    description.contains(scheme),
+                    "{tool}: the description must explain {scheme}"
+                );
+            }
+        }
+    }
+
+    fn decomposition_args(scheme: Option<&str>) -> Value {
+        let mut a = json!({
+            "csv_content": "wage,x,gender\n10,1,F\n12,2,F\n11,3,F\n13,4,F\n15,5,F\n20,1,M\n22,2,M\n21,3,M\n23,4,M\n25,5,M\n",
+            "outcome_variable": "wage",
+            "group_variable": "gender",
+            "reference_group": "F",
+            "predictors": ["x"],
+            "bootstrap_reps": 2
+        });
+        if let Some(s) = scheme {
+            a["reference_coefficients"] = json!(s);
+        }
+        a
+    }
+
+    #[tokio::test]
+    async fn a_missing_or_misspelt_scheme_is_refused_through_the_tool_call() {
+        for bad in [None, Some("pooled"), Some("Neumark")] {
+            for tool in ["forensic_decomposition"] {
+                let res = handle_tool_call(Some(
+                    json!({ "name": tool, "arguments": decomposition_args(bad) }),
+                ))
+                .await;
+                let msg = res.unwrap_err().to_string();
+                assert!(
+                    msg.starts_with("UNKNOWN_REFERENCE_COEFFICIENTS"),
+                    "{bad:?}: {msg}"
+                );
+            }
+        }
+        let ok = handle_tool_call(Some(json!({ "name": "forensic_decomposition", "arguments": decomposition_args(Some("PooledNoIndicator")) }))).await.unwrap();
+        let text = ok["content"][0]["text"].as_str().unwrap();
+        let parsed: Value = serde_json::from_str(text).unwrap();
+        assert_eq!(
+            parsed["run_metadata"]["reference_coefficients_used"],
+            "PooledNoIndicator"
+        );
+        assert_eq!(parsed["run_metadata"]["method"], "oaxaca-blinder-mean");
     }
 
     #[tokio::test]

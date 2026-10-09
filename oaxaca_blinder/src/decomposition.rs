@@ -1,22 +1,83 @@
 use nalgebra::DVector;
 use serde::Serialize;
 
-/// Represents the choice of reference coefficients for the two-fold decomposition.
+/// Which coefficient vector `β*` prices the characteristics gap in the two-fold decomposition:
+/// `explained = (x̄_A − x̄_B)'β*`, `unexplained = gap − explained`.
+///
+/// "Group A" is the NON-reference ("compared") group and "Group B" is the group named by
+/// `reference_group` (`OaxacaBuilder::split_groups`: `group_b_name = reference_group`). Which
+/// group is the advantaged one is a property of the data, not of these names.
+///
+/// External oracles (R `oaxaca` 0.1.5 `twofold$overall`, rows by `group.weight`): GroupA = 1,
+/// GroupB = 0, Weighted = the share of group A, PooledNoIndicator = −1, Pooled = −2.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ReferenceCoefficients {
-    /// Use coefficients from the advantaged group.
+    /// `β*` = the compared (non-reference) group's own coefficients.
     GroupA,
-    /// Use coefficients from the disadvantaged group.
+    /// `β*` = the reference group's own coefficients: the compared group is priced as if it
+    /// were paid under the reference group's pay structure.
     #[default]
     GroupB,
-    /// Use coefficients from a model pooled over both groups (Neumark's method).
+    /// `β*` from one regression on both groups WITH a group-indicator column; the indicator's
+    /// coefficient is dropped from `β*` and is exactly the unexplained gap (Jann 2008 `pooled`;
+    /// Fortin 2008; Elder, Goddeeris & Haider, IZA DP 4159).
     Pooled,
-    /// Use a weighted average of the two groups' coefficients (Cotton's method).
+    /// `β*` from one regression on both groups WITHOUT a group indicator (Neumark 1988; Stata
+    /// `oaxaca, omega`; R `oaxaca` weight −1). Differs from [`Pooled`](Self::Pooled): the
+    /// indicator's effect is absorbed into the other coefficients.
+    PooledNoIndicator,
+    /// `β*` = the sample-share-weighted average of the two groups' coefficients (Cotton 1988).
     Weighted,
-    /// Alias for Weighted (Cotton's method).
+    /// Alias for [`Weighted`](Self::Weighted) (Cotton's method).
     Cotton,
-    /// Alias for Pooled (Neumark's method).
+    /// Deprecated alias of [`Pooled`](Self::Pooled), kept so existing callers compile and keep
+    /// their numbers. The name is historically wrong: it computes the pooled regression WITH
+    /// the group indicator, which is not Neumark's estimator. Use
+    /// [`PooledNoIndicator`](Self::PooledNoIndicator) for Neumark.
+    #[deprecated(
+        since = "0.3.0",
+        note = "computes `Pooled` (with a group indicator), not Neumark's estimator; use `Pooled` or `PooledNoIndicator`"
+    )]
     Neumark,
+}
+
+impl ReferenceCoefficients {
+    /// The exact names the shipped surfaces accept, in documentation order.
+    pub const ACCEPTED_NAMES: [&'static str; 5] = [
+        "GroupA",
+        "GroupB",
+        "Pooled",
+        "PooledNoIndicator",
+        "Weighted",
+    ];
+
+    /// Strict parse used at every engine boundary (0120-MERIDIAN S4). An absent value or any
+    /// string outside [`ACCEPTED_NAMES`](Self::ACCEPTED_NAMES) (including `"pooled"` and the
+    /// old aliases) is an error; there is no fallback scheme.
+    pub fn parse_name(name: Option<&str>) -> Result<Self, crate::error::OaxacaError> {
+        match name {
+            Some("GroupA") => Ok(Self::GroupA),
+            Some("GroupB") => Ok(Self::GroupB),
+            Some("Pooled") => Ok(Self::Pooled),
+            Some("PooledNoIndicator") => Ok(Self::PooledNoIndicator),
+            Some("Weighted") => Ok(Self::Weighted),
+            other => Err(crate::error::OaxacaError::UnknownReferenceCoefficients {
+                given: other.map(str::to_string),
+            }),
+        }
+    }
+
+    /// The canonical name of the scheme as echoed in `run_metadata.reference_coefficients_used`.
+    pub fn canonical_name(self) -> &'static str {
+        #[allow(deprecated)]
+        match self {
+            Self::GroupA => "GroupA",
+            Self::GroupB => "GroupB",
+            Self::Pooled | Self::Neumark => "Pooled",
+            Self::PooledNoIndicator => "PooledNoIndicator",
+            Self::Weighted | Self::Cotton => "Weighted",
+        }
+    }
 }
 
 /// Holds the results of the three-fold decomposition.
@@ -140,7 +201,7 @@ mod tests {
 
     #[test]
     fn test_detailed_decomposition_sums() {
-        let predictor_names = vec!["__ob_intercept__".to_string(), "age".to_string()];
+        let predictor_names = vec![crate::INTERCEPT_NAME.to_string(), "age".to_string()];
         let beta_a = DVector::from_vec(vec![2.0, 4.0]);
         let beta_b = DVector::from_vec(vec![1.0, 3.0]);
         let xa_mean = DVector::from_vec(vec![1.0, 5.0]);

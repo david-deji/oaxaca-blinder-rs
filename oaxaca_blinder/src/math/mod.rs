@@ -6,3 +6,4 @@ pub mod ols;
 pub mod probit;
 pub mod quantile_regression;
 pub mod rif;
+pub mod weights;

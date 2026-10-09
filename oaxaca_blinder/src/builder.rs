@@ -13,10 +13,16 @@ use crate::error::OaxacaError;
 use crate::estimation::{EstimationContext, Estimator, HeckmanEstimator, OlsEstimator};
 use crate::formula::Formula;
 use crate::inference::bootstrap_stats;
-use crate::math::normalization::normalize_categorical_coefficients;
+use crate::math::normalization::{
+    factor_shares, normalize_categorical_coefficients, NormalizationConvention,
+    NormalizationRecord, ShareMap,
+};
 use crate::math::ols::ols;
-use crate::math::rif::{calculate_rif, calculate_rif_weighted};
-use crate::rng::{resample_indices, unit_rng, RepOutcome, RngPurpose, RunMetadata, DEFAULT_SEED};
+use crate::math::rif::{calculate_rif, calculate_rif_relative, calculate_rif_weighted};
+use crate::math::weights::{check_weight, rescale_to_count, WeightsKind};
+use crate::rng::{
+    resample_frequency, resample_indices, unit_rng, RngPurpose, RunMetadata, DEFAULT_SEED,
+};
 use crate::rows::{
     DataMatricesWithRows, ExcludedRow, ExclusionReason, GroupMatrices, RowAccounting,
 };
@@ -36,6 +42,9 @@ pub(crate) struct SinglePassResult {
     xb_mean: DVector<f64>,
     beta_star: DVector<f64>,
     detailed_selection: Vec<DetailedComponent>,
+    /// The restriction weights this pass normalised under (empty when it did not normalise).
+    /// Built from THIS pass's pooled rows, so a bootstrap replicate carries its own.
+    shares: ShareMap,
 }
 
 /// Lightweight per-rep bootstrap estimates — only the scalar decomposition
@@ -55,6 +64,9 @@ pub(crate) struct SinglePassResult {
 /// baseline both still hold).
 #[derive(Clone)]
 pub(crate) struct RepEstimates {
+    /// Mean gap of the replicate (tests assert E+C+I and explained+unexplained against it).
+    #[allow(dead_code)]
+    total_gap: f64,
     three_fold: ThreeFoldDecomposition,
     two_fold: TwoFoldDecomposition,
     detailed_explained: Vec<DetailedComponent>,
@@ -68,6 +80,7 @@ impl RepEstimates {
     /// freeing its residual/mean/beta allocations.
     fn from_pass(r: &SinglePassResult) -> Self {
         RepEstimates {
+            total_gap: r.total_gap,
             three_fold: r.three_fold.clone(),
             two_fold: r.two_fold.clone(),
             detailed_explained: r.detailed_explained.clone(),
@@ -77,9 +90,34 @@ impl RepEstimates {
     }
 }
 
+/// Outcome of one bootstrap replicate of the `OaxacaBuilder` paths. A failed replicate carries
+/// the `variable=level` entries that were absent from one group's resample, if that was the
+/// cause (0120-MERIDIAN F3), so the run can name which levels cost replicates.
+enum Rep {
+    Ok(RepEstimates),
+    Failed(Vec<String>),
+}
+
 /// Name of the row-ordinal column added to the frame before cleaning (0118-MERIDIAN S1).
 /// Reserved: a caller column with this name is a conflict and is refused by polars.
 const ROW_ORDINAL_COL: &str = "__ob_row_ordinal__";
+
+/// The weights column of `df` as plain floats. An integer column (a CSV of headcounts) is cast;
+/// a column that does not parse as numbers is an error rather than silent nulls.
+fn weight_values(df: &DataFrame, col: &str) -> Result<Float64Chunked, OaxacaError> {
+    let raw = df.column(col)?.as_materialized_series();
+    let cast = raw.cast(&DataType::Float64)?;
+    if cast.null_count() > raw.null_count() {
+        return Err(OaxacaError::PolarsError(PolarsError::ComputeError(
+            format!("weights column '{col}' contains non-numeric values").into(),
+        )));
+    }
+    Ok(cast.f64()?.clone())
+}
+
+/// Temporary row-position column used to name a rejected weight when the frame carries no
+/// ordinal column. Never survives `clean_dataframe`.
+const WEIGHT_POS_COL: &str = "__ob_weight_pos__";
 
 pub struct OaxacaBuilder {
     dataframe: DataFrame,
@@ -91,7 +129,9 @@ pub struct OaxacaBuilder {
     bootstrap_reps: usize,
     reference_coeffs: ReferenceCoefficients,
     normalization_vars: Vec<String>,
+    normalization_convention: NormalizationConvention,
     weights_col: Option<String>,
+    weights_kind: Option<WeightsKind>,
     selection_outcome: Option<String>,
     selection_predictors: Vec<String>,
     /// Master seed for bootstrap resampling. `None` resolves to `DEFAULT_SEED` at `run()`.
@@ -274,7 +314,7 @@ impl OaxacaBuilder {
             return Ok(levels.into_iter().flatten().map(String::from).collect());
         };
 
-        let weights = df.column(w_col)?.f64()?.clone();
+        let weights = weight_values(df, w_col)?;
         let mut present = std::collections::HashSet::new();
         for (level, weight) in levels.into_iter().zip(weights.into_iter()) {
             if let (Some(level), Some(weight)) = (level, weight) {
@@ -295,7 +335,7 @@ impl OaxacaBuilder {
     /// * `dataframe` - A `polars::DataFrame` containing the data for the analysis.
     /// * `outcome` - The name of the column representing the outcome variable (e.g., "wage").
     /// * `group` - The name of the column that divides the data into two groups (e.g., "gender").
-    /// * `reference_group` - The value within the `group` column that identifies the reference group (the lower-outcome group, or Group B).
+    /// * `reference_group` - The value within the `group` column that identifies the reference group, "Group B": the baseline whose pay structure `ReferenceCoefficients::GroupB` applies. It is a choice of baseline and says nothing about which group earns less. Every other value is the compared group, "Group A".
     pub fn new(dataframe: DataFrame, outcome: &str, group: &str, reference_group: &str) -> Self {
         Self {
             dataframe,
@@ -307,7 +347,9 @@ impl OaxacaBuilder {
             bootstrap_reps: 20,
             reference_coeffs: ReferenceCoefficients::GroupB,
             normalization_vars: Vec::new(),
+            normalization_convention: NormalizationConvention::default(),
             weights_col: None,
+            weights_kind: None,
             selection_outcome: None,
             selection_predictors: Vec::new(),
             seed: None,
@@ -339,7 +381,9 @@ impl OaxacaBuilder {
             bootstrap_reps: 20,
             reference_coeffs: ReferenceCoefficients::GroupB,
             normalization_vars: Vec::new(),
+            normalization_convention: NormalizationConvention::default(),
             weights_col: None,
+            weights_kind: None,
             selection_outcome: None,
             selection_predictors: Vec::new(),
             seed: None,
@@ -417,7 +461,17 @@ impl OaxacaBuilder {
         self
     }
 
-    /// Sets the categorical variables for which to apply coefficient normalization.
+    /// Sets the categorical variables whose detailed contributions are re-expressed as
+    /// deviations from the share-weighted average of ALL their levels (the dropped level
+    /// included), instead of from whichever level sorts first. Aggregates do not change.
+    ///
+    /// Opt-in per call: a builder that never calls this returns the raw treatment-coded
+    /// detail (the library goldens stay raw). The shipped engine and CLI call
+    /// `.normalize(categorical_predictors)` on every run (0120-MERIDIAN T1).
+    ///
+    /// Names that are not in `categorical_predictors` are ignored. With `heckman_selection`
+    /// set the normalisation is skipped on A, B and the pooled fit together and
+    /// `run_metadata.normalization` records `applied: false`.
     ///
     /// # Arguments
     ///
@@ -431,6 +485,24 @@ impl OaxacaBuilder {
         self
     }
 
+    /// Normalises every categorical predictor: shorthand for
+    /// `normalize(categorical_predictors)`. Call it AFTER the categorical predictors are set
+    /// (`categorical_predictors(..)`, or `from_formula`, which sets them from `C(..)` terms).
+    /// This is what the shipped engine and the CLI do on every run (0120-MERIDIAN T1).
+    pub fn normalize_all_categoricals(&mut self) -> &mut Self {
+        self.normalization_vars = self.categorical_predictors.clone();
+        self
+    }
+
+    /// Chooses the restriction weights for [`normalize`](Self::normalize). Default
+    /// [`NormalizationConvention::PopulationShare`] (0120-MERIDIAN D1);
+    /// [`NormalizationConvention::EqualShare`] reproduces Stata `categorical()`, R `oaxaca`
+    /// and `ddecompose(normalize_factors = TRUE)`.
+    pub fn normalization_convention(&mut self, convention: NormalizationConvention) -> &mut Self {
+        self.normalization_convention = convention;
+        self
+    }
+
     /// Sets the column name for sample weights.
     ///
     /// # Arguments
@@ -438,6 +510,22 @@ impl OaxacaBuilder {
     /// * `weights` - The name of the column containing sample weights.
     pub fn weights(&mut self, weights: &str) -> &mut Self {
         self.weights_col = Some(weights.to_string());
+        self
+    }
+
+    /// States what the weights column means (0120-MERIDIAN S9 / T17). REQUIRED whenever
+    /// [`weights`](Self::weights) is set; a run without it is refused with
+    /// [`OaxacaError::WeightsKindRequired`].
+    ///
+    /// * [`WeightsKind::Frequency`]: whole-number replication counts; `w = 2` is the row twice,
+    ///   in the point estimates and in the bootstrap (a replicate draws `sum(w)` employees, so
+    ///   standard errors and p-values match the repeated rows). A fractional weight is refused,
+    ///   naming the row.
+    /// * [`WeightsKind::Relative`]: relative importance (FTE, design weights). Each regression's
+    ///   weights are rescaled to sum to its row count, and the RIF quantile is
+    ///   `Hmisc::wtd.quantile(type = "quantile", normwt = TRUE)`. Uniform weights change nothing.
+    pub fn weights_kind(&mut self, kind: WeightsKind) -> &mut Self {
+        self.weights_kind = Some(kind);
         self
     }
 
@@ -702,12 +790,12 @@ impl OaxacaBuilder {
         let mut current_predictors = self.predictors.clone();
         current_predictors.extend_from_slice(extra_predictors);
 
-        let mut final_predictors: Vec<String> = vec!["__ob_intercept__".to_string()];
+        let mut final_predictors: Vec<String> = vec![crate::INTERCEPT_NAME.to_string()];
         final_predictors.extend_from_slice(&current_predictors);
         final_predictors.extend_from_slice(all_dummy_names);
 
         let mut x_df = df.select(&current_predictors)?;
-        let intercept_series = Series::new("__ob_intercept__".into(), vec![1.0; df.height()]);
+        let intercept_series = Series::new(crate::INTERCEPT_NAME.into(), vec![1.0; df.height()]);
         x_df.with_column(intercept_series)?;
 
         for name in all_dummy_names {
@@ -733,7 +821,7 @@ impl OaxacaBuilder {
             .collect();
 
         let weights = if let Some(w_col) = &self.weights_col {
-            let w_series = df.column(w_col)?.f64()?;
+            let w_series = weight_values(df, w_col)?;
             let w_vec: Vec<f64> = w_series
                 .into_iter()
                 .map(|opt| {
@@ -744,6 +832,13 @@ impl OaxacaBuilder {
                     })
                 })
                 .collect::<Result<Vec<f64>, _>>()?;
+            // Relative weights are rescaled so each regression's weights sum to its row count
+            // (0120-MERIDIAN T17). Frequency weights are used as given: w = 2 is the row twice.
+            let w_vec = if self.weights_kind == Some(WeightsKind::Relative) {
+                rescale_to_count(&w_vec)
+            } else {
+                w_vec
+            };
             Some(DVector::from_vec(w_vec))
         } else {
             None
@@ -797,12 +892,141 @@ impl OaxacaBuilder {
         ))
     }
 
+    /// True when this run re-expresses categorical coefficients under a share restriction:
+    /// `normalize()` was called and no Heckman selection is configured. The Heckman estimator
+    /// ignores normalisation, so with a selection model A, B and the pooled fit all stay raw
+    /// together (a half-normalised run would add up wrongly).
+    fn normalization_active(&self) -> bool {
+        !self.normalization_vars.is_empty() && self.selection_outcome.is_none()
+    }
+
+    /// Restriction weights for this pass, built from the POOLED analysed rows of `df` (group A
+    /// union group B after cleaning): sum of observation weights per level when a weights
+    /// column is set, row counts otherwise, base level included. Returned keyed by variable
+    /// name and level name, so no column position is involved. Empty when the run does not
+    /// normalise.
+    ///
+    /// Called once per `run_single_pass`; a bootstrap replicate therefore uses the shares of
+    /// its own pooled resample, and `run_metadata.normalization` records the point sample's.
+    fn compute_shares(
+        &self,
+        df: &DataFrame,
+        all_dummy_names: &[String],
+    ) -> Result<ShareMap, OaxacaError> {
+        let mut shares = ShareMap::new();
+        if !self.normalization_active() {
+            return Ok(shares);
+        }
+        let weights: Option<Vec<f64>> = match &self.weights_col {
+            Some(w_col) => Some(
+                weight_values(df, w_col)?
+                    .into_iter()
+                    .map(|v| {
+                        v.ok_or_else(|| {
+                            OaxacaError::NormalizationError(
+                                "null weight while computing level shares".to_string(),
+                            )
+                        })
+                    })
+                    .collect::<Result<Vec<f64>, _>>()?,
+            ),
+            None => None,
+        };
+        // Ignore names that are not categorical predictors (nothing was dummy-coded for them).
+        let mut vars: Vec<&String> = self
+            .normalization_vars
+            .iter()
+            .filter(|v| self.categorical_predictors.contains(v))
+            .collect();
+        vars.sort();
+        vars.dedup();
+        for var in vars {
+            let col = df.column(var)?.as_materialized_series().str()?.clone();
+            let levels: Vec<&str> = col
+                .into_iter()
+                .map(|v| {
+                    v.ok_or_else(|| {
+                        OaxacaError::NormalizationError(format!(
+                            "null level in '{}' while computing level shares",
+                            var
+                        ))
+                    })
+                })
+                .collect::<Result<Vec<&str>, _>>()?;
+            shares.insert(
+                var.clone(),
+                factor_shares(
+                    var,
+                    &levels,
+                    weights.as_deref(),
+                    all_dummy_names,
+                    self.normalization_convention,
+                )?,
+            );
+        }
+        Ok(shares)
+    }
+
+    /// The pooled-regression `beta*` of the `Pooled` (with a group indicator, whose row is
+    /// dropped) and `PooledNoIndicator` (without one) schemes, normalised under `shares`.
+    /// Returns `beta*` and, when normalising, each variable's base-level coefficient.
+    fn pooled_beta_star(
+        &self,
+        df_a: &DataFrame,
+        df_b: &DataFrame,
+        group_a_name: &str,
+        all_dummy_names: &[String],
+        with_indicator: bool,
+        shares: &ShareMap,
+    ) -> Result<(DVector<f64>, HashMap<String, f64>), OaxacaError> {
+        let mut df_pooled = df_a.vstack(df_b)?;
+        let extra: Vec<String> = if with_indicator {
+            let group_indicator = Series::new(
+                "__ob_group_indicator__".into(),
+                df_pooled
+                    .column(&self.group)?
+                    .as_materialized_series()
+                    .equal(group_a_name)?
+                    .into_series()
+                    .cast(&DataType::Float64)?,
+            );
+            df_pooled.with_column(group_indicator)?;
+            vec!["__ob_group_indicator__".to_string()]
+        } else {
+            Vec::new()
+        };
+
+        let (x_pooled, y_pooled, w_pooled, pooled_predictor_names) =
+            self.prepare_data(&df_pooled, all_dummy_names, &extra)?;
+
+        let mut ols_pooled = ols(&y_pooled, &x_pooled, w_pooled.as_ref())?;
+
+        let base_coeffs = if shares.is_empty() {
+            HashMap::new()
+        } else {
+            normalize_categorical_coefficients(&mut ols_pooled, &pooled_predictor_names, shares)?
+        };
+
+        let beta_star = if with_indicator {
+            let group_indicator_idx = pooled_predictor_names
+                .iter()
+                .position(|r| r == "__ob_group_indicator__")
+                .ok_or_else(|| {
+                    OaxacaError::NalgebraError(
+                        "group_indicator not found in pooled model predictors".to_string(),
+                    )
+                })?;
+            ols_pooled.coefficients.remove_row(group_indicator_idx)
+        } else {
+            ols_pooled.coefficients
+        };
+        Ok((beta_star, base_coeffs))
+    }
+
     fn run_single_pass(
         &self,
         df: &DataFrame,
         all_dummy_names: &[String],
-        category_counts: &std::collections::HashMap<String, usize>,
-        base_categories: &std::collections::HashMap<String, String>,
     ) -> Result<SinglePassResult, OaxacaError> {
         let groups = self.split_groups(df)?;
         let df_a = groups.df_a;
@@ -817,6 +1041,10 @@ impl OaxacaBuilder {
         let (x_a, y_a, w_a, predictor_names) = self.prepare_data(&df_a, all_dummy_names, &[])?;
         let (x_b, y_b, w_b, _) = self.prepare_data(&df_b, all_dummy_names, &[])?;
 
+        // One restriction for the whole pass: beta_A, beta_B, the pooled fit and the weighted
+        // mix are all normalised under these shares (0120-MERIDIAN T2).
+        let shares = self.compute_shares(df, all_dummy_names)?;
+
         let ctx = EstimationContext {
             df_a: &df_a,
             df_b: &df_b,
@@ -827,7 +1055,7 @@ impl OaxacaBuilder {
             y_b: &y_b,
             w_b: &w_b,
             predictor_names: &predictor_names,
-            category_counts,
+            shares: &shares,
         };
 
         let estimator: Box<dyn Estimator> = if let Some(sel_outcome) = &self.selection_outcome {
@@ -836,9 +1064,7 @@ impl OaxacaBuilder {
                 selection_predictors: self.selection_predictors.clone(),
             })
         } else {
-            Box::new(OlsEstimator {
-                normalization_vars: self.normalization_vars.clone(),
-            })
+            Box::new(OlsEstimator)
         };
 
         let result = estimator.estimate(&ctx)?;
@@ -846,6 +1072,8 @@ impl OaxacaBuilder {
         // ... Calculate beta_star and decompositions ...
         let beta_a = &result.beta_a;
         let beta_b = &result.beta_b;
+        let beta_a_raw = &result.beta_a_raw;
+        let beta_b_raw = &result.beta_b_raw;
         let xa_mean = result.xa_mean;
         let xb_mean = result.xb_mean;
         let final_predictor_names = result.predictor_names;
@@ -897,7 +1125,7 @@ impl OaxacaBuilder {
             // Usually we show variables.
 
             // Reconstruct selection variable names: "intercept" + sel_predictors
-            let mut full_sel_names = vec!["__ob_intercept__".to_string()];
+            let mut full_sel_names = vec![crate::INTERCEPT_NAME.to_string()];
             full_sel_names.extend(self.selection_predictors.clone());
 
             // Check dimensions
@@ -913,8 +1141,9 @@ impl OaxacaBuilder {
             }
         }
 
-        let mut base_coeffs_star = std::collections::HashMap::new();
+        let mut base_coeffs_star: HashMap<String, f64> = HashMap::new();
         let beta_star_owned: DVector<f64>;
+        #[allow(deprecated)]
         let beta_star: &DVector<f64> = match self.reference_coeffs {
             ReferenceCoefficients::GroupA => {
                 base_coeffs_star = base_coeffs_a.clone();
@@ -925,60 +1154,50 @@ impl OaxacaBuilder {
                 beta_b
             }
             ReferenceCoefficients::Pooled | ReferenceCoefficients::Neumark => {
-                let mut df_pooled = df_a.vstack(&df_b)?;
-                let group_indicator = Series::new(
-                    "__ob_group_indicator__".into(),
-                    df_pooled
-                        .column(&self.group)?
-                        .as_materialized_series()
-                        .equal(group_a_name.as_str())?
-                        .into_series()
-                        .cast(&DataType::Float64)?,
-                );
-                df_pooled.with_column(group_indicator)?;
-
-                let (x_pooled, y_pooled, w_pooled, pooled_predictor_names) = self.prepare_data(
-                    &df_pooled,
+                let (b, base) = self.pooled_beta_star(
+                    &df_a,
+                    &df_b,
+                    &group_a_name,
                     all_dummy_names,
-                    &["__ob_group_indicator__".to_string()],
+                    true,
+                    &shares,
                 )?;
-
-                let mut ols_pooled = ols(&y_pooled, &x_pooled, w_pooled.as_ref())?;
-
-                if !self.normalization_vars.is_empty() {
-                    let n_a = df_a.height() as f64;
-                    let n_b = df_b.height() as f64;
-                    let x_pool_mean = (xa_mean.clone() * n_a + xb_mean.clone() * n_b) / (n_a + n_b);
-                    base_coeffs_star = normalize_categorical_coefficients(
-                        &mut ols_pooled,
-                        &pooled_predictor_names,
-                        &self.normalization_vars,
-                        &x_pool_mean,
-                        category_counts,
-                    );
-                }
-                let group_indicator_idx = pooled_predictor_names
-                    .iter()
-                    .position(|r| r == "__ob_group_indicator__")
-                    .ok_or_else(|| {
-                        OaxacaError::NalgebraError(
-                            "group_indicator not found in pooled model predictors".to_string(),
-                        )
-                    })?;
-                beta_star_owned = ols_pooled.coefficients.remove_row(group_indicator_idx);
+                beta_star_owned = b;
+                base_coeffs_star = base;
+                &beta_star_owned
+            }
+            ReferenceCoefficients::PooledNoIndicator => {
+                let (b, base) = self.pooled_beta_star(
+                    &df_a,
+                    &df_b,
+                    &group_a_name,
+                    all_dummy_names,
+                    false,
+                    &shares,
+                )?;
+                beta_star_owned = b;
+                base_coeffs_star = base;
                 &beta_star_owned
             }
             ReferenceCoefficients::Weighted | ReferenceCoefficients::Cotton => {
-                let n_a = if let Some(w) = &w_a {
-                    w.sum()
-                } else {
-                    df_a.height() as f64
-                };
-                let n_b = if let Some(w) = &w_b {
-                    w.sum()
-                } else {
-                    df_b.height() as f64
-                };
+                // The mix weight is each group's share of the pooled population. Under Relative
+                // weights `w_a` / `w_b` were rescaled per group to sum to their row counts, which
+                // would turn the share into a share of ROWS while the level shares
+                // (`compute_shares`) use the raw design weights: two populations in one run. Both
+                // use the raw weights here (sum w_A / sum w) (0120-MERIDIAN E-REV-4).
+                let group_mass =
+                    |w: &Option<DVector<f64>>, group_df: &DataFrame| -> Result<f64, OaxacaError> {
+                        match (&self.weights_col, w) {
+                            (Some(col), Some(_)) => Ok(weight_values(group_df, col)?
+                                .into_iter()
+                                .map(|v| v.unwrap_or(0.0))
+                                .sum()),
+                            (_, Some(w)) => Ok(w.sum()),
+                            _ => Ok(group_df.height() as f64),
+                        }
+                    };
+                let n_a = group_mass(&w_a, &df_a)?;
+                let n_b = group_mass(&w_b, &df_b)?;
                 let total_n = n_a + n_b;
                 if total_n == 0.0 {
                     return Err(OaxacaError::InvalidGroupVariable(
@@ -987,20 +1206,23 @@ impl OaxacaBuilder {
                 }
                 let weight_a = n_a / total_n;
                 let weight_b = 1.0 - weight_a;
-                if !self.normalization_vars.is_empty() {
-                    for var in &self.normalization_vars {
-                        let coeff_a = base_coeffs_a.get(var).unwrap_or(&0.0);
-                        let coeff_b = base_coeffs_b.get(var).unwrap_or(&0.0);
-                        base_coeffs_star
-                            .insert(var.clone(), coeff_a * weight_a + coeff_b * weight_b);
-                    }
+                // beta_a and beta_b were normalised under the same shares, and the restriction
+                // is linear, so the mix satisfies it too; its base-level coefficient is the
+                // same mix of the two base-level coefficients.
+                for var in shares.keys() {
+                    let coeff_a = base_coeffs_a.get(var).unwrap_or(&0.0);
+                    let coeff_b = base_coeffs_b.get(var).unwrap_or(&0.0);
+                    base_coeffs_star.insert(var.clone(), coeff_a * weight_a + coeff_b * weight_b);
                 }
                 beta_star_owned = beta_a * weight_a + beta_b * weight_b;
                 &beta_star_owned
             }
         };
 
-        let three_fold = three_fold_decomposition(&xa_mean, &xb_mean, beta_a, beta_b);
+        // Three-fold: from the TREATMENT-CODED vectors. Its aggregate is invariant to the
+        // coding of the categoricals; computed from the normalised vectors (which omit the
+        // base-level term) it summed to 79% of the gap and moved with the base level (0120 T3).
+        let three_fold = three_fold_decomposition(&xa_mean, &xb_mean, beta_a_raw, beta_b_raw);
         let mut two_fold = two_fold_decomposition(&xa_mean, &xb_mean, beta_a, beta_b, beta_star);
         let (mut detailed_explained, mut detailed_unexplained) = detailed_decomposition(
             &xa_mean,
@@ -1011,46 +1233,54 @@ impl OaxacaBuilder {
             &final_predictor_names,
         );
 
-        if !self.normalization_vars.is_empty() && self.selection_outcome.is_none() {
-            for var in &self.normalization_vars {
-                let base_dummy_name = if let Some(name) = base_categories.get(var) {
-                    name
-                } else {
-                    continue;
-                };
+        // Base level of every normalised variable: it has no dummy, so its row is built from
+        // 1 - sum(dummy means) and its own (new, non-zero) coefficient. Emitting it makes all
+        // k levels sum to the aggregate.
+        for (var, factor) in &shares {
+            let base_dummy_name = format!("{}_{}", var, factor.base_level);
 
-                let dummy_indices: Vec<usize> = final_predictor_names
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, name)| name.starts_with(&format!("{}_", var)))
-                    .map(|(i, _)| i)
-                    .collect();
+            let dummy_indices: Vec<usize> = factor
+                .levels
+                .iter()
+                .filter(|l| l.level != factor.base_level)
+                .map(|l| {
+                    let name = format!("{}_{}", var, l.level);
+                    final_predictor_names
+                        .iter()
+                        .position(|n| *n == name)
+                        .ok_or_else(|| {
+                            OaxacaError::NormalizationError(format!(
+                                "design has no dummy column '{}'",
+                                name
+                            ))
+                        })
+                })
+                .collect::<Result<Vec<usize>, _>>()?;
 
-                let xa_mean_base = 1.0 - dummy_indices.iter().map(|&i| xa_mean[i]).sum::<f64>();
-                let xb_mean_base = 1.0 - dummy_indices.iter().map(|&i| xb_mean[i]).sum::<f64>();
+            let xa_mean_base = 1.0 - dummy_indices.iter().map(|&i| xa_mean[i]).sum::<f64>();
+            let xb_mean_base = 1.0 - dummy_indices.iter().map(|&i| xb_mean[i]).sum::<f64>();
 
-                let beta_a_base = base_coeffs_a.get(var).cloned().unwrap_or(0.0);
-                let beta_b_base = base_coeffs_b.get(var).cloned().unwrap_or(0.0);
-                let beta_star_base = base_coeffs_star.get(var).cloned().unwrap_or(0.0);
+            let beta_a_base = base_coeffs_a.get(var).cloned().unwrap_or(0.0);
+            let beta_b_base = base_coeffs_b.get(var).cloned().unwrap_or(0.0);
+            let beta_star_base = base_coeffs_star.get(var).cloned().unwrap_or(0.0);
 
-                let contribution_unexplained = xa_mean_base * (beta_a_base - beta_star_base)
-                    + xb_mean_base * (beta_star_base - beta_b_base);
+            let contribution_unexplained = xa_mean_base * (beta_a_base - beta_star_base)
+                + xb_mean_base * (beta_star_base - beta_b_base);
 
-                let contribution_explained = (xa_mean_base - xb_mean_base) * beta_star_base;
+            let contribution_explained = (xa_mean_base - xb_mean_base) * beta_star_base;
 
-                detailed_unexplained.push(DetailedComponent {
-                    variable_name: base_dummy_name.clone(),
-                    contribution: contribution_unexplained,
-                });
+            detailed_unexplained.push(DetailedComponent {
+                variable_name: base_dummy_name.clone(),
+                contribution: contribution_unexplained,
+            });
 
-                detailed_explained.push(DetailedComponent {
-                    variable_name: base_dummy_name.clone(),
-                    contribution: contribution_explained,
-                });
+            detailed_explained.push(DetailedComponent {
+                variable_name: base_dummy_name,
+                contribution: contribution_explained,
+            });
 
-                two_fold.explained += contribution_explained;
-                two_fold.unexplained += contribution_unexplained;
-            }
+            two_fold.explained += contribution_explained;
+            two_fold.unexplained += contribution_unexplained;
         }
 
         let total_gap = if let Some(w) = &w_a {
@@ -1075,7 +1305,41 @@ impl OaxacaBuilder {
             xb_mean: xb_mean.clone(),
             beta_star: beta_star.clone(),
             detailed_selection: detailed_selection_components,
+            shares,
         })
+    }
+
+    /// `variable=level` for every categorical level that occurs in the full group frames but is
+    /// absent from the resample of that group. Called only for a replicate that failed, to name
+    /// which levels cost replicates (`run_metadata.bootstrap_discard_levels`).
+    fn absent_levels(
+        &self,
+        full_a: &DataFrame,
+        full_b: &DataFrame,
+        sample_a: &DataFrame,
+        sample_b: &DataFrame,
+    ) -> Vec<String> {
+        let mut out = Vec::new();
+        for var in &self.categorical_predictors {
+            let levels_of = |df: &DataFrame| -> std::collections::BTreeSet<String> {
+                df.column(var)
+                    .ok()
+                    .and_then(|c| c.as_materialized_series().str().ok().cloned())
+                    .map(|ca| ca.into_iter().flatten().map(String::from).collect())
+                    .unwrap_or_default()
+            };
+            let mut all = levels_of(full_a);
+            all.extend(levels_of(full_b));
+            for sample in [sample_a, sample_b] {
+                let present = levels_of(sample);
+                for l in &all {
+                    if !present.contains(l) {
+                        out.push(format!("{}={}", var, l));
+                    }
+                }
+            }
+        }
+        out
     }
 
     /// Performs a RIF-Regression decomposition for a specific quantile.
@@ -1113,15 +1377,11 @@ impl OaxacaBuilder {
         // Categorical one-hot dummies — same construction as run() so run_single_pass sees the
         // one-hot columns and the Gardeazabal-Ugidos normalization applies unchanged (L6).
         let mut all_dummy_names = Vec::new();
-        let mut category_counts = std::collections::HashMap::new();
-        let mut base_categories = std::collections::HashMap::new();
         if !self.categorical_predictors.is_empty() {
             for cat_pred in &self.categorical_predictors {
                 let series = df.column(cat_pred)?;
-                let (dummies, m, base_name) =
+                let (dummies, _, _) =
                     self.create_dummies_manual(series.as_materialized_series())?;
-                category_counts.insert(cat_pred.clone(), m);
-                base_categories.insert(cat_pred.clone(), base_name);
                 for s in dummies.get_columns() {
                     all_dummy_names.push(s.name().to_string());
                 }
@@ -1145,12 +1405,7 @@ impl OaxacaBuilder {
         let point_df = self
             .rif_replace_outcome(&df_a_global, quantile)?
             .vstack(&self.rif_replace_outcome(&df_b_global, quantile)?)?;
-        let point_estimates = self.run_single_pass(
-            &point_df,
-            &all_dummy_names,
-            &category_counts,
-            &base_categories,
-        )?;
+        let point_estimates = self.run_single_pass(&point_df, &all_dummy_names)?;
 
         let master = self.seed.unwrap_or(DEFAULT_SEED);
 
@@ -1160,45 +1415,53 @@ impl OaxacaBuilder {
         // decomposition pass. Same streams + index-ordered chunk consumption as run().
         let chunk = rayon::current_num_threads().max(1);
         let mut bootstrap_results: Vec<RepEstimates> = Vec::with_capacity(self.bootstrap_reps);
+        let mut discard_levels: std::collections::BTreeSet<String> =
+            std::collections::BTreeSet::new();
         let mut discarded = 0usize;
         let mut start = 0usize;
         while start < self.bootstrap_reps {
             let end = (start + chunk).min(self.bootstrap_reps);
-            let chunk_out: Vec<RepOutcome<RepEstimates>> = (start..end)
+            let chunk_out: Vec<Rep> = (start..end)
                 .into_par_iter()
                 .map(|rep| {
                     let rep = rep as u64;
                     let mut rng_a = unit_rng(master, RngPurpose::Bootstrap, rep * 2);
                     let mut rng_b = unit_rng(master, RngPurpose::Bootstrap, rep * 2 + 1);
 
+                    let sample_a = self.bootstrap_sample(&df_a_global, &mut rng_a);
+                    let sample_b = self.bootstrap_sample(&df_b_global, &mut rng_b);
+                    let (sample_a, sample_b) = match (sample_a, sample_b) {
+                        (Ok(a), Ok(b)) => (a, b),
+                        _ => return Rep::Failed(Vec::new()),
+                    };
+
                     let result = (|| -> Result<SinglePassResult, OaxacaError> {
-                        let sample_a = df_a_global
-                            .take(&resample_indices(&mut rng_a, df_a_global.height()))?;
-                        let sample_b = df_b_global
-                            .take(&resample_indices(&mut rng_b, df_b_global.height()))?;
                         // Ruling 4: recompute the RIF per replicate, per group.
-                        let sample_a = self.rif_replace_outcome(&sample_a, quantile)?;
-                        let sample_b = self.rif_replace_outcome(&sample_b, quantile)?;
-                        let sample_df = sample_a.vstack(&sample_b)?;
-                        self.run_single_pass(
-                            &sample_df,
-                            &all_dummy_names,
-                            &category_counts,
-                            &base_categories,
-                        )
+                        let rif_a = self.rif_replace_outcome(&sample_a, quantile)?;
+                        let rif_b = self.rif_replace_outcome(&sample_b, quantile)?;
+                        let sample_df = rif_a.vstack(&rif_b)?;
+                        self.run_single_pass(&sample_df, &all_dummy_names)
                     })();
 
                     match result {
-                        Ok(r) => RepOutcome::Ok(RepEstimates::from_pass(&r)),
-                        Err(_) => RepOutcome::Failed,
+                        Ok(r) => Rep::Ok(RepEstimates::from_pass(&r)),
+                        Err(_) => Rep::Failed(self.absent_levels(
+                            &df_a_global,
+                            &df_b_global,
+                            &sample_a,
+                            &sample_b,
+                        )),
                     }
                 })
                 .collect();
 
             for o in chunk_out {
                 match o {
-                    RepOutcome::Ok(r) => bootstrap_results.push(r),
-                    RepOutcome::Failed => discarded += 1,
+                    Rep::Ok(r) => bootstrap_results.push(r),
+                    Rep::Failed(levels) => {
+                        discarded += 1;
+                        discard_levels.extend(levels);
+                    }
                 }
             }
             start = end;
@@ -1219,10 +1482,55 @@ impl OaxacaBuilder {
             master,
             successful_bootstraps,
             discarded,
+            &discard_levels,
             df_a_global.height(),
             df_b_global.height(),
             Some(false),
         ))
+    }
+
+    /// The analysed rows with the outcome column replaced by its per-group RIF at `quantile`:
+    /// exactly the outcome `decompose_quantile` regresses on for the point estimate (group A
+    /// rows first, then group B rows, each group's RIF computed on its own rows). Diagnostic
+    /// export (0120-MERIDIAN V1d): a RIF-OLS on a given outcome vector is plain OLS, so an
+    /// external package can be run on this column to check the normalisation of the quantile
+    /// path independently of the density estimator.
+    pub fn rif_outcome_frame(&self, quantile: f64) -> Result<DataFrame, OaxacaError> {
+        self.check_group_values()?;
+        let df = self.clean_dataframe(&self.dataframe.clone())?;
+        let groups = self.split_groups(&df)?;
+        Ok(self
+            .rif_replace_outcome(&groups.df_a, quantile)?
+            .vstack(&self.rif_replace_outcome(&groups.df_b, quantile)?)?)
+    }
+
+    /// One bootstrap replicate of a group frame (0120-MERIDIAN E-REV-1).
+    ///
+    /// Unweighted and `Relative` runs resample ROWS (weights, if any, travel with their row).
+    /// A `Frequency` run resamples the expanded sample: `sum(w)` units drawn with probability
+    /// `w_i / sum(w)`, the draw counts replacing the weights, so a replicate on `w = 2` is
+    /// distributed as a replicate on the row written twice and the standard errors, intervals and
+    /// p-values agree with the expanded sample (a per-row draw leaves the point estimate alone but
+    /// inflates every standard error by roughly the square root of the weight).
+    fn bootstrap_sample(
+        &self,
+        g: &DataFrame,
+        rng: &mut rand_chacha::ChaCha8Rng,
+    ) -> PolarsResult<DataFrame> {
+        match (&self.weights_col, self.weights_kind) {
+            (Some(col), Some(WeightsKind::Frequency)) => {
+                let w: Vec<f64> = weight_values(g, col)
+                    .map_err(|e| PolarsError::ComputeError(e.to_string().into()))?
+                    .into_iter()
+                    .map(|o| o.unwrap_or(0.0))
+                    .collect();
+                let (idx, counts) = resample_frequency(rng, &w);
+                let mut out = g.take(&idx)?;
+                out.with_column(Column::new(col.as_str().into(), counts))?;
+                Ok(out)
+            }
+            _ => g.take(&resample_indices(rng, g.height())),
+        }
     }
 
     /// Replace the outcome column of `g` with its Recentered Influence Function at
@@ -1237,22 +1545,24 @@ impl OaxacaBuilder {
         // in the same order as the outcome, because `clean_dataframe` has already dropped any row
         // with a null in either column.
         let weights: Option<Vec<f64>> = match &self.weights_col {
-            Some(col) => Some(
-                g.column(col)?
-                    .cast(&DataType::Float64)?
-                    .f64()?
-                    .into_no_null_iter()
-                    .collect(),
-            ),
+            Some(col) => Some(weight_values(g, col)?.into_no_null_iter().collect()),
             None => None,
         };
         let series = g.column(&self.outcome)?.as_materialized_series();
         // Branch rather than always calling the weighted form with `None`: the unweighted path
         // stays literally the original function, so "did the unweighted answer move?" is answered
         // by reading this line rather than by trusting a delegation.
-        let rif = match weights.as_deref() {
-            Some(w) => calculate_rif_weighted(series, quantile, Some(w)),
-            None => calculate_rif(series, quantile),
+        let rif = match (weights.as_deref(), self.weights_kind) {
+            (Some(w), Some(WeightsKind::Relative)) => calculate_rif_relative(series, quantile, w),
+            (Some(w), Some(WeightsKind::Frequency)) => {
+                calculate_rif_weighted(series, quantile, Some(w))
+            }
+            (Some(_), None) => {
+                return Err(OaxacaError::WeightsKindRequired {
+                    column: self.weights_col.clone().unwrap_or_default(),
+                })
+            }
+            (None, _) => calculate_rif(series, quantile),
         }
         .map_err(OaxacaError::PolarsError)?;
         let mut out = g.clone();
@@ -1275,10 +1585,63 @@ impl OaxacaBuilder {
             }
         }
 
-        let clean_df = df
-            .drop_nulls(Some(&cols))
-            .map_err(OaxacaError::PolarsError)?;
+        let Some(w_col) = &self.weights_col else {
+            let clean_df = df
+                .drop_nulls(Some(&cols))
+                .map_err(OaxacaError::PolarsError)?;
+            return Ok(clean_df);
+        };
+
+        // A weights column: the stated kind is required, and every weight that survives the
+        // null drop must be valid under it. A rejected weight is named by its original row
+        // ordinal: the ordinal column when the caller added one, otherwise the row position in
+        // the frame given here (which is the data-row ordinal of the builder's frame).
+        let Some(kind) = self.weights_kind else {
+            return Err(OaxacaError::WeightsKindRequired {
+                column: w_col.clone(),
+            });
+        };
+        let has_ordinal = df.column(ROW_ORDINAL_COL).is_ok();
+        let mut clean_df = if has_ordinal {
+            df.drop_nulls(Some(&cols))
+                .map_err(OaxacaError::PolarsError)?
+        } else {
+            df.clone()
+                .with_row_index(WEIGHT_POS_COL.into(), None)?
+                .drop_nulls(Some(&cols))
+                .map_err(OaxacaError::PolarsError)?
+        };
+        let pos_col = if has_ordinal {
+            ROW_ORDINAL_COL
+        } else {
+            WEIGHT_POS_COL
+        };
+        let ordinals = Self::ordinals_of(&clean_df, pos_col)?;
+        let weights = weight_values(&clean_df, w_col)?;
+        let mut total = 0.0;
+        for (opt, ordinal) in weights.into_iter().zip(ordinals.iter()) {
+            let w = opt.unwrap_or(0.0);
+            check_weight(w_col, *ordinal, w, kind)?;
+            total += w;
+        }
+        if clean_df.height() > 0 && total <= 0.0 {
+            return Err(OaxacaError::InvalidWeight {
+                column: w_col.clone(),
+                row: ordinals.first().copied().unwrap_or(0),
+                value: 0.0,
+                reason: "weights sum to zero".to_string(),
+            });
+        }
+        if !has_ordinal {
+            clean_df = clean_df.drop(WEIGHT_POS_COL)?;
+        }
         Ok(clean_df)
+    }
+
+    /// The `usize` values of an ordinal column, in frame order.
+    fn ordinals_of(df: &DataFrame, col: &str) -> Result<Vec<usize>, OaxacaError> {
+        let ca = df.column(col)?.as_materialized_series().idx()?.clone();
+        Ok(ca.into_no_null_iter().map(|v| v as usize).collect())
     }
 
     /// Executes the Oaxaca-Blinder decomposition.
@@ -1289,15 +1652,11 @@ impl OaxacaBuilder {
         let mut df = self.clean_dataframe(&df_dirty)?;
 
         let mut all_dummy_names = Vec::new();
-        let mut category_counts = std::collections::HashMap::new();
-        let mut base_categories = std::collections::HashMap::new();
         if !self.categorical_predictors.is_empty() {
             for cat_pred in &self.categorical_predictors {
                 let series = df.column(cat_pred)?;
-                let (dummies, m, base_name) =
+                let (dummies, _, _) =
                     self.create_dummies_manual(series.as_materialized_series())?;
-                category_counts.insert(cat_pred.clone(), m);
-                base_categories.insert(cat_pred.clone(), base_name);
                 for s in dummies.get_columns() {
                     all_dummy_names.push(s.name().to_string());
                 }
@@ -1321,8 +1680,7 @@ impl OaxacaBuilder {
             &groups.group_b_name,
         )?;
 
-        let point_estimates =
-            self.run_single_pass(&df, &all_dummy_names, &category_counts, &base_categories)?;
+        let point_estimates = self.run_single_pass(&df, &all_dummy_names)?;
 
         let df_a_global = groups.df_a;
         let df_b_global = groups.df_b;
@@ -1358,29 +1716,29 @@ impl OaxacaBuilder {
         // thread counts) and the AC-9 parity baseline both hold.
         let chunk = rayon::current_num_threads().max(1);
         let mut bootstrap_results: Vec<RepEstimates> = Vec::with_capacity(self.bootstrap_reps);
+        let mut discard_levels: std::collections::BTreeSet<String> =
+            std::collections::BTreeSet::new();
         let mut discarded = 0usize; // sequential fold over ordered chunks — deterministic
         let mut start = 0usize;
         while start < self.bootstrap_reps {
             let end = (start + chunk).min(self.bootstrap_reps);
-            let chunk_out: Vec<RepOutcome<RepEstimates>> = (start..end)
+            let chunk_out: Vec<Rep> = (start..end)
                 .into_par_iter()
                 .map(|rep| {
                     let rep = rep as u64;
                     let mut rng_a = unit_rng(master, RngPurpose::Bootstrap, rep * 2);
                     let mut rng_b = unit_rng(master, RngPurpose::Bootstrap, rep * 2 + 1);
 
+                    let sample_a = self.bootstrap_sample(&df_a_global, &mut rng_a);
+                    let sample_b = self.bootstrap_sample(&df_b_global, &mut rng_b);
+                    let (sample_a, sample_b) = match (sample_a, sample_b) {
+                        (Ok(a), Ok(b)) => (a, b),
+                        _ => return Rep::Failed(Vec::new()),
+                    };
+
                     let result = (|| -> Result<SinglePassResult, OaxacaError> {
-                        let sample_a = df_a_global
-                            .take(&resample_indices(&mut rng_a, df_a_global.height()))?;
-                        let sample_b = df_b_global
-                            .take(&resample_indices(&mut rng_b, df_b_global.height()))?;
                         let sample_df = sample_a.vstack(&sample_b)?;
-                        self.run_single_pass(
-                            &sample_df,
-                            &all_dummy_names,
-                            &category_counts,
-                            &base_categories,
-                        )
+                        self.run_single_pass(&sample_df, &all_dummy_names)
                     })();
 
                     match result {
@@ -1388,16 +1746,24 @@ impl OaxacaBuilder {
                         // SinglePassResult (`r`) drop at the end of this arm so
                         // its residual/mean/beta allocations free before the next
                         // chunk — bounding in-flight memory to `chunk` working sets.
-                        Ok(r) => RepOutcome::Ok(RepEstimates::from_pass(&r)),
-                        Err(_) => RepOutcome::Failed,
+                        Ok(r) => Rep::Ok(RepEstimates::from_pass(&r)),
+                        Err(_) => Rep::Failed(self.absent_levels(
+                            &df_a_global,
+                            &df_b_global,
+                            &sample_a,
+                            &sample_b,
+                        )),
                     }
                 })
                 .collect();
 
             for o in chunk_out {
                 match o {
-                    RepOutcome::Ok(r) => bootstrap_results.push(r),
-                    RepOutcome::Failed => discarded += 1,
+                    Rep::Ok(r) => bootstrap_results.push(r),
+                    Rep::Failed(levels) => {
+                        discarded += 1;
+                        discard_levels.extend(levels);
+                    }
                 }
             }
             start = end;
@@ -1421,6 +1787,7 @@ impl OaxacaBuilder {
             master,
             successful_bootstraps,
             discarded,
+            &discard_levels,
             df_a_global.height(),
             df_b_global.height(),
             None,
@@ -1441,6 +1808,7 @@ impl OaxacaBuilder {
         master: u64,
         successful_bootstraps: usize,
         discarded: usize,
+        discard_levels: &std::collections::BTreeSet<String>,
         n_a: usize,
         n_b: usize,
         fixed_rif: Option<bool>,
@@ -1537,6 +1905,27 @@ impl OaxacaBuilder {
         if let Some(fr) = fixed_rif {
             run_metadata = run_metadata.with_fixed_rif(fr);
         }
+        run_metadata.bootstrap_discard_levels = discard_levels.iter().cloned().collect();
+        // Present only when the caller asked for normalisation, so a raw run's serialized
+        // bytes (AC-9 / AC-6 baselines) do not change.
+        if !self.normalization_vars.is_empty() {
+            let applied = self.normalization_active();
+            run_metadata.normalization = Some(NormalizationRecord {
+                convention: self.normalization_convention.name(),
+                share_basis: if self.weights_col.is_some() {
+                    "observation-weights"
+                } else {
+                    "row-counts"
+                },
+                applied,
+                skipped_reason: if applied {
+                    None
+                } else {
+                    Some("heckman_selection")
+                },
+                variables: point_estimates.shares.values().cloned().collect(),
+            });
+        }
 
         OaxacaResults {
             total_gap: point_estimates.total_gap,
@@ -1619,7 +2008,7 @@ mod tests {
             let mut b = OaxacaBuilder::new(df.clone(), "wage", "group", "A");
             b.predictors(vec!["educ"]);
             if weighted {
-                b.weights("hc");
+                b.weights("hc").weights_kind(WeightsKind::Frequency);
             }
             let out = b
                 .rif_replace_outcome(&df, 0.5)
@@ -1648,5 +2037,153 @@ mod tests {
     fn it_works() {
         let result = 2 + 2;
         assert_eq!(result, 4);
+    }
+
+    // ---- 0120-MERIDIAN V2: the bootstrap REPLICATE path --------------------------------------
+    //
+    // A replicate is `run_single_pass` on a resampled frame, so it builds its restriction
+    // weights from THAT resample's pooled rows (the point-estimate shares are what
+    // `run_metadata.normalization` records). The pass-level tests below call `run_single_pass`
+    // exactly as the replicate loop does, on a frame the loop's own RNG streams resampled.
+
+    fn skewed_frame() -> DataFrame {
+        let path = format!(
+            "{}/tests/fixtures/norm_skewed_fixture.csv",
+            env!("CARGO_MANIFEST_DIR")
+        );
+        LazyCsvReader::new(path)
+            .with_has_header(true)
+            .finish()
+            .unwrap()
+            .collect()
+            .unwrap()
+    }
+
+    /// The cleaned frame with dummy columns, plus their names: what `run` hands to
+    /// `run_single_pass`.
+    fn prepared(b: &OaxacaBuilder) -> (DataFrame, Vec<String>) {
+        let mut df = b.clean_dataframe(&b.dataframe.clone()).unwrap();
+        let mut names = Vec::new();
+        for cat in &b.categorical_predictors {
+            let (dummies, _, _) = b
+                .create_dummies_manual(df.column(cat).unwrap().as_materialized_series())
+                .unwrap();
+            for s in dummies.get_columns() {
+                names.push(s.name().to_string());
+            }
+            df = df.hstack(dummies.get_columns()).unwrap();
+        }
+        (df, names)
+    }
+
+    fn level_counts(df: &DataFrame, var: &str) -> std::collections::BTreeMap<String, f64> {
+        let mut m = std::collections::BTreeMap::new();
+        for v in df.column(var).unwrap().str().unwrap().into_iter().flatten() {
+            *m.entry(v.to_string()).or_insert(0.0) += 1.0;
+        }
+        let n: f64 = m.values().sum();
+        m.values_mut().for_each(|v| *v /= n);
+        m
+    }
+
+    #[test]
+    fn a_replicate_adds_up_and_normalises_under_its_own_resample_shares() {
+        for scheme in [
+            ReferenceCoefficients::GroupA,
+            ReferenceCoefficients::GroupB,
+            ReferenceCoefficients::Pooled,
+            ReferenceCoefficients::PooledNoIndicator,
+            ReferenceCoefficients::Weighted,
+        ] {
+            let mut b = OaxacaBuilder::new(skewed_frame(), "log_salary", "Gender", "Female");
+            b.predictors(["Age", "Experience_Years"])
+                .categorical_predictors(["Department", "Location"])
+                .reference_coefficients(scheme)
+                .normalize_all_categoricals();
+            let (df, dummies) = prepared(&b);
+            let point = b.run_single_pass(&df, &dummies).unwrap();
+            let groups = b.split_groups(&df).unwrap();
+
+            let mut passes = 0;
+            let mut differs_from_point = 0;
+            for rep in 0..40u64 {
+                let mut rng_a = unit_rng(DEFAULT_SEED, RngPurpose::Bootstrap, rep * 2);
+                let mut rng_b = unit_rng(DEFAULT_SEED, RngPurpose::Bootstrap, rep * 2 + 1);
+                let sample = groups
+                    .df_a
+                    .take(&resample_indices(&mut rng_a, groups.df_a.height()))
+                    .unwrap()
+                    .vstack(
+                        &groups
+                            .df_b
+                            .take(&resample_indices(&mut rng_b, groups.df_b.height()))
+                            .unwrap(),
+                    )
+                    .unwrap();
+                // a replicate that loses a level is discarded by the loop; skip it here too
+                let Ok(r) = b.run_single_pass(&sample, &dummies) else {
+                    continue;
+                };
+                passes += 1;
+
+                // (1) E + C + I == gap and explained + unexplained == gap, per replicate
+                let est = RepEstimates::from_pass(&r);
+                let tf = est.three_fold.endowments
+                    + est.three_fold.coefficients
+                    + est.three_fold.interaction;
+                assert!(
+                    (tf - est.total_gap).abs() < 1e-9,
+                    "{scheme:?} rep {rep}: E+C+I {tf} vs gap {}",
+                    est.total_gap
+                );
+                let tw = est.two_fold.explained + est.two_fold.unexplained;
+                assert!(
+                    (tw - est.total_gap).abs() < 1e-9,
+                    "{scheme:?} rep {rep}: explained+unexplained {tw}"
+                );
+                let sum_u: f64 = est
+                    .detailed_unexplained
+                    .iter()
+                    .map(|c| c.contribution)
+                    .sum();
+                assert!(
+                    (sum_u - est.two_fold.unexplained).abs() < 1e-9,
+                    "{scheme:?} rep {rep}: detail does not add up"
+                );
+
+                // (2) the shares are the replicate's own pooled resample, counted independently
+                for var in ["Department", "Location"] {
+                    let want = level_counts(&sample, var);
+                    let got = &r.shares[var];
+                    assert_eq!(
+                        got.levels.len(),
+                        want.len(),
+                        "{scheme:?} rep {rep} {var}: level set"
+                    );
+                    for l in &got.levels {
+                        assert!(
+                            (l.share - want[&l.level]).abs() < 1e-12,
+                            "{scheme:?} rep {rep} {var}[{}]: {} vs {}",
+                            l.level,
+                            l.share,
+                            want[&l.level]
+                        );
+                    }
+                }
+                if r.shares["Department"] != point.shares["Department"] {
+                    differs_from_point += 1;
+                }
+            }
+            assert!(
+                passes >= 30,
+                "{scheme:?}: only {passes} of 40 replicates estimable"
+            );
+            assert!(
+                differs_from_point >= passes / 2,
+                "{scheme:?}: replicate shares equal the point sample's in {} of {passes} replicates; \
+                 they should be the replicate's own",
+                passes - differs_from_point
+            );
+        }
     }
 }

@@ -54,7 +54,7 @@ fn decomposition_params() -> DecompositionRequest {
         categorical_predictors: None,
         three_fold: Some(true),
         quantile: None,
-        reference_coefficients: None,
+        reference_coefficients: Some("Pooled".to_string()),
         bootstrap_reps: Some(16),
     }
 }
@@ -121,6 +121,7 @@ fn verification_request() -> VerificationRequest {
     VerificationRequest {
         decomposition_params: decomposition_params(),
         adjustments: proposed_adjustments(),
+        confidence_level: None,
     }
 }
 
@@ -129,6 +130,7 @@ fn frontier_request() -> EfficientFrontierRequest {
         decomposition_params: decomposition_params(),
         steps: Some(8),
         max_budget: Some(40.0),
+        confidence_level: None,
     }
 }
 

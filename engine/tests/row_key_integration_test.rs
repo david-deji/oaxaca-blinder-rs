@@ -100,7 +100,7 @@ fn decomposition_params(csv: &str) -> DecompositionRequest {
         categorical_predictors: None,
         three_fold: None,
         quantile: None,
-        reference_coefficients: None,
+        reference_coefficients: Some("Pooled".to_string()),
         bootstrap_reps: Some(10),
     }
 }
@@ -309,6 +309,7 @@ fn optimize_and_defensibility_mint_the_same_key_for_the_same_row() {
     let def = check_defensibility_inner(VerificationRequest {
         decomposition_params: decomposition_params(&csv),
         adjustments: proposed,
+        confidence_level: None,
     })
     .expect("defensibility");
 
@@ -355,6 +356,7 @@ fn omitting_row_key_reproduces_the_pre_p4_index_path_exactly() {
             value: 1_000.0,
             predictor_overrides: None,
         }],
+        confidence_level: None,
     })
     .expect("verify by index");
 
@@ -367,6 +369,7 @@ fn omitting_row_key_reproduces_the_pre_p4_index_path_exactly() {
             value: 1_000.0,
             predictor_overrides: None,
         }],
+        confidence_level: None,
     })
     .expect("verify by key");
 
@@ -382,6 +385,7 @@ fn an_unknown_key_fails_closed_and_is_counted() {
     let baseline = verify_inner(VerificationRequest {
         decomposition_params: decomposition_params(&csv),
         adjustments: vec![],
+        confidence_level: None,
     })
     .expect("verify baseline");
 
@@ -395,6 +399,7 @@ fn an_unknown_key_fails_closed_and_is_counted() {
             value: 1_000.0,
             predictor_overrides: None,
         }],
+        confidence_level: None,
     })
     .expect("verify orphaned");
 
@@ -424,6 +429,7 @@ fn defensibility_resolves_by_key_and_counts_orphans() {
                 predictor_overrides: None,
             },
         ],
+        confidence_level: None,
     })
     .expect("defensibility");
 

@@ -25,7 +25,7 @@ pub fn decomposition_request(csv: Vec<u8>, categorical: bool) -> DecompositionRe
         },
         three_fold: None,
         quantile: None,
-        reference_coefficients: None,
+        reference_coefficients: Some("Pooled".to_string()),
         bootstrap_reps: Some(2),
     }
 }
@@ -64,6 +64,7 @@ pub fn verification_request(
     VerificationRequest {
         decomposition_params: decomposition_request(csv, categorical),
         adjustments,
+        confidence_level: None,
     }
 }
 
@@ -76,6 +77,7 @@ pub fn frontier_request(
         decomposition_params: decomposition_request(csv, false),
         steps: Some(steps),
         max_budget,
+        confidence_level: None,
     }
 }
 

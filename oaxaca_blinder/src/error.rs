@@ -46,6 +46,28 @@ pub enum OaxacaError {
         group_column: String,
         reference_group: String,
     },
+    /// A `reference_coefficients` name that is not one of the accepted schemes, or none at all
+    /// (0120-MERIDIAN S4). The shipped surfaces used to fall back to `Pooled` for anything
+    /// unrecognised, which made the least-verified scheme the silent default.
+    UnknownReferenceCoefficients {
+        /// What the caller sent; `None` when the field was absent.
+        given: Option<String>,
+    },
+    /// A normalisation request the data cannot satisfy (0120-MERIDIAN S1).
+    NormalizationError(String),
+    /// A weights column was named without saying what its weights mean (0120-MERIDIAN S9). No
+    /// single convention makes both "uniform fractional weights are a no-op" and "w = 2 is the
+    /// row twice" true, so the caller states `frequency` or `relative`.
+    WeightsKindRequired { column: String },
+    /// One weight the stated kind cannot take (0120-MERIDIAN S9): not finite, negative, or a
+    /// fractional value under `frequency`. `row` is the 0-based position among the data rows of
+    /// the frame given to the builder.
+    InvalidWeight {
+        column: String,
+        row: usize,
+        value: f64,
+        reason: String,
+    },
 }
 
 impl From<PolarsError> for OaxacaError {
@@ -106,6 +128,38 @@ impl fmt::Display for OaxacaError {
                 f,
                 "REFERENCE_GROUP_ABSENT: column={}, reference_group={:?}",
                 group_column, reference_group
+            ),
+            OaxacaError::UnknownReferenceCoefficients { given } => {
+                let valid = crate::decomposition::ReferenceCoefficients::ACCEPTED_NAMES.join(", ");
+                match given {
+                    Some(g) => write!(
+                        f,
+                        "UNKNOWN_REFERENCE_COEFFICIENTS: got {:?}; reference_coefficients must be exactly one of: {}",
+                        g, valid
+                    ),
+                    None => write!(
+                        f,
+                        "UNKNOWN_REFERENCE_COEFFICIENTS: reference_coefficients is required and was absent; it must be exactly one of: {}",
+                        valid
+                    ),
+                }
+            }
+            OaxacaError::NormalizationError(s) => write!(f, "Normalization error: {}", s),
+            OaxacaError::WeightsKindRequired { column } => write!(
+                f,
+                "WEIGHTS_KIND_REQUIRED: column={}; weights_kind must be stated, exactly one of: {}",
+                column,
+                crate::math::weights::WeightsKind::ACCEPTED_NAMES.join(", ")
+            ),
+            OaxacaError::InvalidWeight {
+                column,
+                row,
+                value,
+                reason,
+            } => write!(
+                f,
+                "INVALID_WEIGHT: column={}, row={}, value={}: {}",
+                column, row, value, reason
             ),
         }
     }

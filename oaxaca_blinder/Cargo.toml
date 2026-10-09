@@ -1,6 +1,6 @@
 [package]
 name = "oaxaca_blinder"
-version = "0.2.2"
+version = "0.3.0"
 authors = ["dot-comma-hyphen <poche450@gmail.com>"]
 edition = "2021"
 
@@ -53,6 +53,9 @@ proptest = "1"
 # rayon: force a fixed-size thread pool in the memory-ceiling test (0014-MERIDIAN
 # verification-benchmark D-3) so peak is measured at N_max_const=8 (worst-case in-band).
 rayon = "1.11.0"
+# sha2: the normalisation oracle test recomputes the sha256 of the R generator and of every
+# fixture and refuses a golden that no longer matches them (0120-MERIDIAN).
+sha2 = "0.10"
 
 [[bin]]
 name = "oaxaca-cli"

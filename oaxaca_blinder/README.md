@@ -74,8 +74,10 @@ oaxaca-cli --data wage.csv --group gender --reference F \
 ```bash
 oaxaca-cli --data wage.csv --outcome wage --group gender --reference F \
     --predictors education experience \
-    --weights sampling_weight
+    --weights sampling_weight --weights-kind relative
 ```
+`--weights-kind` is required with `--weights`: `frequency` for whole-number counts (`2` is the row twice, standard errors and
+p-values included: a bootstrap replicate draws `sum(w)` employees; a fractional value is refused, naming the row), `relative` for FTE or survey weights (rescaled to the row count).
 
 **With Heckman Correction (Selection Bias):**
 ```bash
@@ -314,22 +316,30 @@ The decomposition depends on the choice of the non-discriminatory coefficient ve
 
 This library supports:
 
--   **Group A / Group B**: Uses $\beta_A$ or $\beta_B$ as the reference.
--   **Pooled (Neumark)**: Uses $\beta^*$ from a pooled regression of both groups.
--   **Weighted (Cotton)**: Uses a weighted average: $\beta^* = w\beta_A + (1-w)\beta_B$.
+-   **GroupA / GroupB**: Uses $\beta_A$ (the compared, non-reference group) or $\beta_B$ (the group named by `reference_group`) as $\beta^*$.
+-   **Pooled**: $\beta^*$ from one regression on both groups WITH a group indicator, whose coefficient is dropped from $\beta^*$ and is exactly the unexplained gap (Jann 2008 `pooled`; Fortin 2008; Elder, Goddeeris & Haider). Stata `oaxaca, pooled`; R `oaxaca` weight -2 for the aggregate.
+-   **PooledNoIndicator**: $\beta^*$ from one regression on both groups WITHOUT an indicator (Neumark 1988; Stata `omega`; R `oaxaca` weight -1). `ReferenceCoefficients::Neumark` is a deprecated alias that computes `Pooled`, not this.
+-   **Weighted (Cotton)**: Uses a weighted average: $\beta^* = w\beta_A + (1-w)\beta_B$ with $w$ the share of group A.
+
+`reference_coefficients` is required at every engine boundary (WASM `decompose` / `verify_adjustments`, MCP, the engine crate). An absent value or any string other than `GroupA`, `GroupB`, `Pooled`, `PooledNoIndicator`, `Weighted` is an error; there is no default scheme.
 
 </details>
 
 <details>
-<summary><strong>Deep Dive: Categorical Variables (Yun Normalization)</strong></summary>
+<summary><strong>Deep Dive: Categorical Variables (Normalization)</strong></summary>
 
-Standard detailed decomposition is sensitive to the choice of the omitted base category for dummy variables. This library implements **Yun's normalization**, which transforms coefficients to be invariant to the base category choice:
+A dummy-coded categorical drops one level, so every other level's detailed contribution is measured against whichever level sorts first: rename that level and the per-level rows change while every aggregate stays the same. `normalize()` re-expresses the coefficients under a restriction $\sum_k s_k \beta_k = 0$ over ALL $k$ levels (the dropped level's coefficient is 0 before the transform), so every level, the dropped one included, is a deviation from a share-weighted average of the levels, and the intercept absorbs the average. Predictions and the aggregate decomposition do not change, and all $k$ levels are emitted.
 
 <div align="center">
-  <img src="https://latex.codecogs.com/svg.image?\tilde{\beta}_{k}=\beta_{k}+\bar{\beta}_k" alt="Yun Normalization Equation" />
+  <img src="https://latex.codecogs.com/svg.image?\tilde{\beta}_{j}=\beta_{j}-c,\quad\tilde{\beta}_{0}=-c,\quad\tilde{\beta}_{\text{intercept}}=\beta_{\text{intercept}}+c,\quad c=\sum_{j\neq\text{base}}s_j\beta_j" alt="Normalization" />
 </div>
 
-Where $\bar{\beta}_k$ is the mean of the coefficients for the categorical variable $k$. This ensures robust detailed results.
+Two conventions for $s$ (`normalization_convention`):
+
+-   **Population share** (default; 0120-MERIDIAN D1): $s_k$ is the level's share of the pooled analysed rows of both groups, summed weights when a weights column is set. One share vector per run is applied to $\beta_A$, $\beta_B$, the pooled fit and the weighted mix alike, which keeps explained + unexplained = gap exact. Adding a small department changes only that department's row. No package implements this restriction by hand; it is checked against a base-R weighted-effect-coding refit (`verification/gen_norm_goldens.R`).
+-   **Equal share**: $s_k = 1/m$. This is Yun (2005) / Gardeazabal & Ugidos (2004) and what Stata `categorical()`, R `oaxaca` (third formula part) and `ddecompose(normalize_factors = TRUE)` print; checked against `ddecompose` and R `oaxaca` to $10^{-10}$ ($2\times10^{-10}$ on the 10 000-row fixture).
+
+The library keeps `normalize()` opt-in (a builder that never calls it returns raw treatment coding). The engine (WASM, MCP) and the CLI normalise every categorical predictor on every run; `oaxaca-cli --normalization none` returns raw coding. The three-fold aggregate is always computed from the raw coefficient vectors, because it is invariant to the coding and the normalised one is not. With a Heckman selection model normalisation is skipped on A, B and the pooled fit together and `run_metadata.normalization` says so. `run_metadata.normalization` records the convention, the share basis and the point sample's shares; bootstrap replicates recompute theirs from each replicate's own pooled resample.
 
 </details>
 

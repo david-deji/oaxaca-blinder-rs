@@ -117,14 +117,27 @@ def previous_reports() -> list:
 PREVIOUS = previous_reports()
 
 
+def suite_count(s):
+    """Tests one suite ran: passed + failed + skipped. None when the suite did not run."""
+    if isinstance(s, dict) and isinstance(s.get("passed"), int):
+        return s["passed"] + (s.get("failed") or 0) + (s.get("skipped") or 0)
+    return None
+
+
 def total_tests(report: dict):
     suites = (report or {}).get("suites") or {}
-    total, seen = 0, False
-    for s in suites.values():
-        if isinstance(s, dict) and isinstance(s.get("passed"), int):
-            seen = True
-            total += s["passed"] + (s.get("failed") or 0) + (s.get("skipped") or 0)
-    return total if seen else None
+    counts = [c for c in (suite_count(s) for s in suites.values()) if c is not None]
+    return sum(counts) if counts else None
+
+
+def last_suite_total(name: str):
+    """The same suite's count in the newest previous report that ran it. A suite is only ever compared
+    with itself: the cargo count against the previous combined total reported a false shrink."""
+    for _, rep in reversed(PREVIOUS):
+        c = suite_count(((rep or {}).get("suites") or {}).get(name))
+        if c is not None:
+            return c
+    return None
 
 
 def last_total():
@@ -222,8 +235,9 @@ def p_suite_cargo():
         result["errors"].append(f"suites.cargo: summed `test result:` lines give {ran} tests but `cargo test -- --list` names {listed}")
     elif len(blocks) != len(rows):
         result["errors"].append(f"suites.cargo: {len(rows)} `test result:` lines but {len(blocks)} test binaries in --list")
-    prev = last_total()
-    suite["coverage_delta"] = {"previous_total": prev, "total": ran, "shrank": (prev is not None and ran < prev)}
+    prev = last_suite_total("cargo")
+    now = suite_count(suite)
+    suite["coverage_delta"] = {"previous_total": prev, "total": now, "shrank": (prev is not None and now < prev)}
     return suite
 
 

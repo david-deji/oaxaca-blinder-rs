@@ -1,5 +1,5 @@
 use clap::{CommandFactory, Parser, Subcommand};
-use oaxaca_blinder::{OaxacaBuilder, ReferenceCoefficients};
+use oaxaca_blinder::{NormalizationConvention, OaxacaBuilder, ReferenceCoefficients, WeightsKind};
 use polars::prelude::*;
 
 use std::error::Error;
@@ -34,10 +34,93 @@ enum AnalysisType {
 
 #[derive(Clone, Debug, clap::ValueEnum)]
 enum ReferenceType {
+    /// beta* = the compared (non-reference) group's coefficients
     GroupA,
+    /// beta* = the reference group's coefficients
     GroupB,
+    /// pooled regression WITH a group indicator (Jann 2008 `pooled`)
     Pooled,
+    /// pooled regression WITHOUT a group indicator (Neumark 1988; Stata `omega`)
+    PooledNoIndicator,
+    /// sample-share-weighted average of the two groups' coefficients (Cotton 1988)
     Weighted,
+}
+
+impl ReferenceType {
+    fn to_library(&self) -> ReferenceCoefficients {
+        match self {
+            ReferenceType::GroupA => ReferenceCoefficients::GroupA,
+            ReferenceType::GroupB => ReferenceCoefficients::GroupB,
+            ReferenceType::Pooled => ReferenceCoefficients::Pooled,
+            ReferenceType::PooledNoIndicator => ReferenceCoefficients::PooledNoIndicator,
+            ReferenceType::Weighted => ReferenceCoefficients::Weighted,
+        }
+    }
+}
+
+/// How categorical predictors' per-level contributions are expressed (mean and quantile runs).
+#[derive(Clone, Copy, Debug, clap::ValueEnum)]
+enum NormalizationArg {
+    /// Each level is a deviation from the pooled-sample share-weighted average of all levels,
+    /// the dropped level included (0120-MERIDIAN D1). The default.
+    PopulationShare,
+    /// Each level is a deviation from the simple average of all levels (Stata `categorical()`,
+    /// R `oaxaca`, `ddecompose` `normalize_factors = TRUE`).
+    EqualShare,
+    /// Raw treatment coding: every level against the alphabetically first one. Per-level
+    /// numbers then depend on which level that is; aggregates are the same in all three.
+    None,
+}
+
+impl NormalizationArg {
+    /// Applies the choice to a builder whose categorical predictors are already set.
+    fn apply(self, builder: &mut OaxacaBuilder) {
+        match self {
+            NormalizationArg::None => {}
+            NormalizationArg::PopulationShare => {
+                builder
+                    .normalization_convention(NormalizationConvention::PopulationShare)
+                    .normalize_all_categoricals();
+            }
+            NormalizationArg::EqualShare => {
+                builder
+                    .normalization_convention(NormalizationConvention::EqualShare)
+                    .normalize_all_categoricals();
+            }
+        }
+    }
+}
+
+/// What a weights column means (0120-MERIDIAN S9 / T17).
+#[derive(Clone, Copy, Debug, clap::ValueEnum)]
+enum WeightsKindArg {
+    /// Whole-number replication counts (a headcount). `2` is the row twice, in the point estimates
+    /// and in the bootstrap (a replicate draws sum(w) employees, so standard errors and p-values
+    /// match the repeated rows); a fractional value is refused, naming the row.
+    Frequency,
+    /// Relative importance (FTE, design weights), rescaled to sum to the row count. The weighted
+    /// quantile is `Hmisc::wtd.quantile(type = "quantile", normwt = TRUE)`. Uniform weights change
+    /// nothing.
+    Relative,
+}
+
+impl WeightsKindArg {
+    fn to_library(self) -> WeightsKind {
+        match self {
+            WeightsKindArg::Frequency => WeightsKind::Frequency,
+            WeightsKindArg::Relative => WeightsKind::Relative,
+        }
+    }
+}
+
+/// Applies `--weights` and `--weights-kind` to a builder. clap guarantees they come together.
+fn apply_weights(builder: &mut OaxacaBuilder, args: &RunArgs) {
+    if let Some(weights) = &args.weights {
+        builder.weights(weights);
+        if let Some(kind) = args.weights_kind {
+            builder.weights_kind(kind.to_library());
+        }
+    }
 }
 
 #[derive(Parser, Debug)]
@@ -74,6 +157,10 @@ struct RunArgs {
     #[arg(long, default_value = "group-b", value_enum)]
     ref_coeffs: ReferenceType,
 
+    /// How categorical predictors' per-level contributions are expressed
+    #[arg(long, default_value = "population-share", value_enum)]
+    normalization: NormalizationArg,
+
     /// A comma-separated string of quantiles to analyze (for quantile analysis)
     #[arg(long, value_delimiter = ',')]
     quantiles: Option<Vec<f64>>,
@@ -90,9 +177,13 @@ struct RunArgs {
     #[arg(long)]
     formula: Option<String>,
 
-    /// Column name for sample weights (for WLS)
-    #[arg(long)]
+    /// Column name for sample weights (for WLS). Needs --weights-kind.
+    #[arg(long, requires = "weights_kind")]
     weights: Option<String>,
+
+    /// What the weights column means: `frequency` (whole-number counts) or `relative`
+    #[arg(long, value_enum, requires = "weights")]
+    weights_kind: Option<WeightsKindArg>,
 
     /// Outcome variable for the selection equation (Heckman correction)
     #[arg(long)]
@@ -173,12 +264,7 @@ fn run_analysis(args: RunArgs) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn run_mean_analysis(args: &RunArgs, df: DataFrame) -> Result<(), Box<dyn std::error::Error>> {
-    let reference_coeffs = match args.ref_coeffs {
-        ReferenceType::GroupA => ReferenceCoefficients::GroupA,
-        ReferenceType::GroupB => ReferenceCoefficients::GroupB,
-        ReferenceType::Pooled => ReferenceCoefficients::Pooled,
-        ReferenceType::Weighted => ReferenceCoefficients::Weighted,
-    };
+    let reference_coeffs = args.ref_coeffs.to_library();
 
     let mut builder = if let Some(formula) = &args.formula {
         OaxacaBuilder::from_formula(df, formula, &args.group, &args.reference)?
@@ -198,10 +284,9 @@ fn run_mean_analysis(args: &RunArgs, df: DataFrame) -> Result<(), Box<dyn std::e
     builder
         .bootstrap_reps(args.bootstrap_reps)
         .reference_coefficients(reference_coeffs);
+    args.normalization.apply(&mut builder);
 
-    if let Some(weights) = &args.weights {
-        builder.weights(weights);
-    }
+    apply_weights(&mut builder, args);
 
     if let Some(sel_outcome) = &args.selection_outcome {
         if let Some(sel_predictors) = &args.selection_predictors {
@@ -247,12 +332,7 @@ fn run_quantile_analysis(args: &RunArgs, df: DataFrame) -> Result<(), Box<dyn Er
         .as_ref()
         .map(|v| v.iter().map(AsRef::as_ref).collect())
         .unwrap_or_default();
-    let reference_coeffs = match args.ref_coeffs {
-        ReferenceType::GroupA => ReferenceCoefficients::GroupA,
-        ReferenceType::GroupB => ReferenceCoefficients::GroupB,
-        ReferenceType::Pooled => ReferenceCoefficients::Pooled,
-        ReferenceType::Weighted => ReferenceCoefficients::Weighted,
-    };
+    let reference_coeffs = args.ref_coeffs.to_library();
 
     for &q in &quantiles {
         // Arc/COW-cheap clone (stage-2 Finding 1); each τ gets a fresh builder.
@@ -263,9 +343,8 @@ fn run_quantile_analysis(args: &RunArgs, df: DataFrame) -> Result<(), Box<dyn Er
             .categorical_predictors(categorical_predictors.iter().copied())
             .bootstrap_reps(args.bootstrap_reps)
             .reference_coefficients(reference_coeffs);
-        if let Some(weights) = &args.weights {
-            builder.weights(weights);
-        }
+        args.normalization.apply(&mut builder);
+        apply_weights(&mut builder, args);
 
         let results = builder.decompose_quantile(q)?;
         println!("\n=== Quantile τ = {:.2} (RIF-regression) ===", q);
@@ -384,9 +463,12 @@ fn run_report(args: ReportArgs) -> Result<(), Box<dyn Error>> {
         .as_ref()
         .map(|v| v.iter().map(AsRef::as_ref).collect())
         .unwrap_or_default();
+    // Same rule as `run`: categorical predictors are normalised (population-share), so the
+    // report's per-level rows do not depend on which level sorts first.
     let results = OaxacaBuilder::new(df, &args.outcome, &args.group, &args.reference)
         .predictors(predictors.iter().copied())
         .categorical_predictors(categorical_predictors.iter().copied())
+        .normalize_all_categoricals()
         .run()?;
 
     let two_fold = results.two_fold().aggregate().clone();

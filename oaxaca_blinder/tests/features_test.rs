@@ -24,14 +24,44 @@ fn test_reference_groups() {
 
     assert!(results_cotton.total_gap() > &0.0);
 
-    // Test Neumark
+    // Neumark: a deprecated alias that still computes `Pooled` (pooled regression WITH a group
+    // indicator), so existing callers keep their numbers (0120-MERIDIAN T7).
+    #[allow(deprecated)]
+    let neumark = ReferenceCoefficients::Neumark;
     let mut builder_neumark = OaxacaBuilder::new(df.clone(), "wage", "gender", "F");
     builder_neumark
         .predictors(vec!["education", "experience"])
-        .reference_coefficients(ReferenceCoefficients::Neumark);
+        .reference_coefficients(neumark);
     let results_neumark = builder_neumark.run().expect("Neumark decomposition failed");
-
     assert!(results_neumark.total_gap() > &0.0);
+
+    let mut builder_pooled = OaxacaBuilder::new(df.clone(), "wage", "gender", "F");
+    builder_pooled
+        .predictors(vec!["education", "experience"])
+        .reference_coefficients(ReferenceCoefficients::Pooled);
+    let results_pooled = builder_pooled.run().expect("Pooled decomposition failed");
+    assert_eq!(
+        results_neumark.unexplained().unwrap().estimate,
+        results_pooled.unexplained().unwrap().estimate,
+        "the Neumark alias must keep computing Pooled"
+    );
+
+    // PooledNoIndicator is the estimator Neumark's name promised. On THIS data both groups have
+    // identical characteristics, so every scheme returns the whole gap as unexplained and the two
+    // pooled schemes coincide; that they DIFFER where they should is asserted on a skewed design in
+    // normalization_oracle_test.rs (`s4_pooled_no_indicator_is_not_pooled`). Here: it runs and adds up.
+    let mut builder_omega = OaxacaBuilder::new(df, "wage", "gender", "F");
+    builder_omega
+        .predictors(vec!["education", "experience"])
+        .reference_coefficients(ReferenceCoefficients::PooledNoIndicator);
+    let results_omega = builder_omega.run().expect("PooledNoIndicator failed");
+    assert!(
+        (results_omega.explained().unwrap().estimate
+            + results_omega.unexplained().unwrap().estimate
+            - results_omega.total_gap)
+            .abs()
+            < 1e-9
+    );
 }
 
 #[test]

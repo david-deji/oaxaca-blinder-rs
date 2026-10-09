@@ -5,12 +5,18 @@ use polars::prelude::*;
 
 use crate::error::OaxacaError;
 use crate::heckman::heckman_two_step;
-use crate::math::normalization::normalize_categorical_coefficients;
+use crate::math::normalization::{normalize_categorical_coefficients, ShareMap};
 use crate::math::ols::ols;
 
 pub(crate) struct EstimationResult {
+    /// Coefficients the detailed two-fold is computed from: normalised when `ctx.shares` is
+    /// non-empty, the raw treatment-coded fit otherwise.
     pub beta_a: DVector<f64>,
     pub beta_b: DVector<f64>,
+    /// The treatment-coded (un-normalised) fit. The three-fold aggregate is computed from
+    /// these: it is invariant to the coding, the normalised one is not (0120 T3).
+    pub beta_a_raw: DVector<f64>,
+    pub beta_b_raw: DVector<f64>,
     pub xa_mean: DVector<f64>,
     pub xb_mean: DVector<f64>,
     pub predictor_names: Vec<String>,
@@ -37,16 +43,16 @@ pub(crate) struct EstimationContext<'a> {
     pub y_b: &'a DVector<f64>,
     pub w_b: &'a Option<DVector<f64>>,
     pub predictor_names: &'a [String],
-    pub category_counts: &'a HashMap<String, usize>,
+    /// Restriction weights of the variables to normalise, built once per pass from the pooled
+    /// analysed rows. Empty = no normalisation (raw library mode, or Heckman).
+    pub shares: &'a ShareMap,
 }
 
 pub(crate) trait Estimator {
     fn estimate(&self, ctx: &EstimationContext) -> Result<EstimationResult, OaxacaError>;
 }
 
-pub(crate) struct OlsEstimator {
-    pub normalization_vars: Vec<String>,
-}
+pub(crate) struct OlsEstimator;
 
 impl Estimator for OlsEstimator {
     fn estimate(&self, ctx: &EstimationContext) -> Result<EstimationResult, OaxacaError> {
@@ -70,29 +76,27 @@ impl Estimator for OlsEstimator {
         let xa_mean = calculate_mean(ctx.x_a, ctx.w_a);
         let xb_mean = calculate_mean(ctx.x_b, ctx.w_b);
 
+        let beta_a_raw = ols_a.coefficients.clone();
+        let beta_b_raw = ols_b.coefficients.clone();
+
         let mut base_coeffs_a = HashMap::new();
         let mut base_coeffs_b = HashMap::new();
 
-        if !self.normalization_vars.is_empty() {
-            base_coeffs_a = normalize_categorical_coefficients(
-                &mut ols_a,
-                ctx.predictor_names,
-                &self.normalization_vars,
-                &xa_mean,
-                ctx.category_counts,
-            );
-            base_coeffs_b = normalize_categorical_coefficients(
-                &mut ols_b,
-                ctx.predictor_names,
-                &self.normalization_vars,
-                &xb_mean,
-                ctx.category_counts,
-            );
+        // One share vector for both groups (and, in the builder, for the pooled fit and the
+        // weighted mix): the same restriction on every coefficient vector is what keeps
+        // explained + unexplained == gap exact for any constant.
+        if !ctx.shares.is_empty() {
+            base_coeffs_a =
+                normalize_categorical_coefficients(&mut ols_a, ctx.predictor_names, ctx.shares)?;
+            base_coeffs_b =
+                normalize_categorical_coefficients(&mut ols_b, ctx.predictor_names, ctx.shares)?;
         }
 
         Ok(EstimationResult {
             beta_a: ols_a.coefficients,
             beta_b: ols_b.coefficients,
+            beta_a_raw,
+            beta_b_raw,
             xa_mean,
             xb_mean,
             predictor_names: ctx.predictor_names.to_vec(),
@@ -151,6 +155,8 @@ impl Estimator for HeckmanEstimator {
         let residuals_b = DVector::zeros(y_b_filt.len());
 
         Ok(EstimationResult {
+            beta_a_raw: beta_a.clone(),
+            beta_b_raw: beta_b.clone(),
             beta_a,
             beta_b,
             xa_mean,
@@ -191,9 +197,9 @@ impl HeckmanEstimator {
         let y_sel = DVector::from_vec(y_sel_vec?);
 
         let mut x_sel_df = df_group.select(&self.selection_predictors)?;
-        let intercept = Series::new("__ob_intercept__".into(), vec![1.0; df_group.height()]);
+        let intercept = Series::new(crate::INTERCEPT_NAME.into(), vec![1.0; df_group.height()]);
         x_sel_df.with_column(intercept)?;
-        let mut cols = vec!["__ob_intercept__".to_string()];
+        let mut cols = vec![crate::INTERCEPT_NAME.to_string()];
         cols.extend(self.selection_predictors.clone());
         let x_sel_df = x_sel_df.select(&cols)?;
 
@@ -209,7 +215,7 @@ impl HeckmanEstimator {
 
         let mut x_sel_sub_df = df_subset.select(&self.selection_predictors)?;
         x_sel_sub_df.with_column(Series::new(
-            "__ob_intercept__".into(),
+            crate::INTERCEPT_NAME.into(),
             vec![1.0; df_subset.height()],
         ))?;
         let x_sel_sub_df = x_sel_sub_df.select(&cols)?;

@@ -326,6 +326,47 @@ if (has_ddecompose) {
 }
 
 # =============================================================================
+# 5b. ddecompose per-predictor quantile golden WITH normalize_factors = TRUE (0120-MERIDIAN T18)
+#     ADDED beside Section 5, never substituted: Section 5 stays normalize_factors = FALSE, the
+#     library's raw mode. The set.seed below makes this block independent of how many draws the
+#     blocks above consumed, so adding it moves none of them; bootstrap = FALSE because the
+#     comparison is of point estimates.
+#     Each (reference, tau) stores BOTH the raw and the normalised terms from the SAME call
+#     family, because the Rust test compares the SHIFT (normalised - raw): ddecompose and the
+#     engine estimate the RIF density differently, but the shift is a linear map of the RIF-OLS
+#     coefficients, so most of that disagreement cancels. It is a measured-then-pinned end-to-end
+#     check that includes both density estimators; it is NOT the normalisation gate, which is
+#     norm_goldens_r.json (the engine's own RIF column run through the packages at 1e-10).
+# =============================================================================
+qdn_block <- list(available = FALSE)
+if (has_ddecompose) {
+  suppressMessages(library(ddecompose))
+  set.seed(SEED + 11L)
+  one <- function(ref0, norm) {
+    dd <- ddecompose::ob_decompose(fml, data = fxr, group = fxr[[GROUP]],
+      reference_0 = ref0, reweighting = FALSE, normalize_factors = norm,
+      rifreg_statistic = "quantiles", rifreg_probs = probs, bootstrap = FALSE)
+    out <- list()
+    for (p in probs) {
+      dtt <- dd[[paste0("quantile_", p)]]$decomposition_terms
+      rows <- dtt[dtt$Variable != "Total", , drop = FALSE]
+      nm <- vapply(rows$Variable, engine_name, character(1))
+      out[[paste0("quantile_", p)]] <- list(
+        detailed_composition = setNames(as.list(rows$Composition_effect), nm),
+        detailed_structure   = setNames(as.list(rows$Structure_effect),   nm))
+    }
+    out
+  }
+  per_ref <- list()
+  for (ref0 in c(TRUE, FALSE)) {
+    per_ref[[if (ref0) "GroupB" else "GroupA"]] <- list(raw = one(ref0, FALSE), normalized = one(ref0, TRUE))
+  }
+  qdn_block <- list(available = TRUE, probs = probs, reweighting = FALSE, bootstrap = FALSE,
+                    normalize_factors = "raw and TRUE stored side by side", per_reference = per_ref,
+                    tolerance_note = "SHIFT (normalised - raw) compared, measured-then-pinned per tau in quantile_detail_golden_test.rs")
+}
+
+# =============================================================================
 # 6. Assemble + write JSON (full f64 precision)
 # =============================================================================
 golden <- list(
@@ -353,7 +394,8 @@ golden <- list(
   groupb = groupb,
   bootstrap = bootstrap,
   qr_location_scale = qr_block,
-  quantile_detail = qd_block
+  quantile_detail = qd_block,
+  quantile_detail_normalized = qdn_block
 )
 
 writeLines(jsonlite::toJSON(golden, auto_unbox = TRUE, digits = 17,

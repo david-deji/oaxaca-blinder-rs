@@ -200,6 +200,7 @@ pub struct PyOaxacaBlinder {
     categorical_predictors: Vec<String>,
     bootstrap_reps: usize,
     weights: Option<String>,
+    weights_kind: Option<String>,
     selection_outcome: Option<String>,
     selection_predictors: Vec<String>,
 }
@@ -208,7 +209,7 @@ pub struct PyOaxacaBlinder {
 impl PyOaxacaBlinder {
     #[new]
     #[pyo3(
-        signature = (dataframe, outcome, group, reference_group, predictors, categorical_predictors=Vec::new(), bootstrap_reps=100, weights=None, selection_outcome=None, selection_predictors=None)
+        signature = (dataframe, outcome, group, reference_group, predictors, categorical_predictors=Vec::new(), bootstrap_reps=100, weights=None, weights_kind=None, selection_outcome=None, selection_predictors=None)
     )]
     fn new(
         dataframe: PyDataFrame,
@@ -219,6 +220,7 @@ impl PyOaxacaBlinder {
         categorical_predictors: Vec<String>,
         bootstrap_reps: usize,
         weights: Option<String>,
+        weights_kind: Option<String>,
         selection_outcome: Option<String>,
         selection_predictors: Option<Vec<String>>,
     ) -> Self {
@@ -232,6 +234,7 @@ impl PyOaxacaBlinder {
             categorical_predictors,
             bootstrap_reps,
             weights,
+            weights_kind,
             selection_outcome,
             selection_predictors: selection_predictors.unwrap_or_default(),
         }
@@ -293,10 +296,23 @@ impl PyOaxacaBlinder {
         builder
             .predictors(&pred_refs)
             .categorical_predictors(&cat_refs)
+            // Same rule as the CLI and the engine (0120-MERIDIAN T1): categorical predictors are
+            // normalised. This module is not compiled today (`pub mod python` is commented out
+            // in lib.rs); the call is here so re-enabling it does not fork the rule.
+            .normalize_all_categoricals()
             .bootstrap_reps(self.bootstrap_reps);
 
         if let Some(w) = &self.weights {
             builder.weights(w);
+            // `weights_kind` is "frequency" or "relative"; anything else (or absent) is left for
+            // the builder to refuse with WEIGHTS_KIND_REQUIRED (0120-MERIDIAN S9).
+            if let Some(kind) = self
+                .weights_kind
+                .as_deref()
+                .and_then(|k| oaxaca_blinder::WeightsKind::parse_name(k).ok())
+            {
+                builder.weights_kind(kind);
+            }
         }
         if let Some(so) = &self.selection_outcome {
             let sp_refs: Vec<&str> = self

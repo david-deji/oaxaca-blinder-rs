@@ -36,7 +36,7 @@ fn request(reps: usize) -> DecompositionRequest {
         categorical_predictors: None,
         three_fold: Some(true),
         quantile: None,
-        reference_coefficients: None,
+        reference_coefficients: Some("Pooled".to_string()),
         bootstrap_reps: Some(reps),
     }
 }

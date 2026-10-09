@@ -2,6 +2,102 @@
 
 ## [Unreleased]
 
+### Changed, BREAKING (0120-MERIDIAN S1-S4, Track E core, 2026-10-09)
+- **Per-level driver rows no longer depend on which level sorts first.** The engine (WASM `decompose` and
+  `verify_adjustments`, MCP) and the CLI (`run`, `report`) normalise every categorical predictor on every run:
+  each level, the alphabetically first one included, is a deviation from the pooled-sample share-weighted average of
+  the levels (population-share, founder decision D1). All k levels are emitted; the intercept absorbs the average.
+  The decomposition aggregates and the remedy's level are unchanged by S1-S4 alone; the numbers that do move are
+  listed under S6-S9 below (Student t intervals and the range-target payments built on them). The library keeps `normalize()`
+  opt-in (raw by default); `normalize_all_categoricals()` and `normalization_convention(PopulationShare |
+  EqualShare)` are new, `EqualShare` being what Stata `categorical()`, R `oaxaca` and `ddecompose` print.
+  `oaxaca-cli --normalization population-share|equal-share|none`. Surface table: `docs/NORMALIZATION.md`.
+- **One restriction per run.** The share vector is keyed by variable and level name and built once per pass from the
+  pooled analysed rows (sum of weights when a weights column is set); it is applied to beta_A, beta_B, the pooled fit
+  and the weighted mix alike. A bootstrap replicate builds its own from its pooled resample. The unused `_x_mean`
+  parameter of `normalize_categorical_coefficients` and the `category_counts` plumbing are gone. With a Heckman
+  selection model normalisation is skipped on A, B and pooled together and the run says so.
+- **Three-fold is computed from the treatment-coded vectors**, in the point estimate and in every replicate. Under
+  normalisation it used to sum to 79% of the gap and move with the base level; it now equals R `oaxaca`
+  `threefold$overall` (E, C, I) to 1e-10.
+- **`reference_coefficients` is required and exact** at WASM `decompose` / `verify_adjustments` and the MCP tools
+  `forensic_decomposition` / `verify_adjustments`: `GroupA`, `GroupB`, `Pooled`, `PooledNoIndicator`, `Weighted`.
+  Absent, `"pooled"`, `"Neumark"` or anything else is an error (`UNKNOWN_REFERENCE_COEFFICIENTS`); the silent
+  fallback to `Pooled` is removed. The MCP schema requires the field and describes each counterfactual.
+  The frontier and defensibility entry points still ignore the field.
+- **New `ReferenceCoefficients::PooledNoIndicator`** (Neumark 1988, Stata `omega`, R `oaxaca` weight -1).
+  `ReferenceCoefficients::Neumark` is `#[deprecated]` and keeps computing `Pooled` (pooled WITH a group indicator, whose
+  coefficient is the unexplained gap; Jann 2008 `pooled`), so its number is unchanged. `GroupA` / `GroupB` doc
+  comments now say which group is which (A = the compared, non-reference group).
+- **The intercept has one name.** `oaxaca_blinder::INTERCEPT_NAME` (`"__ob_intercept__"`) replaces ten string
+  literals; `pay_equity_engine::intercept_token()` (and the WASM function of the same name) returns it. The
+  unreachable `"Base Rate (Intercept)"` branch in `optimize_inner` and `check_defensibility_inner` is removed.
+  `model_coefficients` and per-employee `contributions` are documented as RAW treatment-coded model terms, never
+  drivers.
+- **`run_metadata` gains** `normalization` (convention, share basis, applied, the point sample's shares),
+  `reference_coefficients_used`, `engine_version`, `method` (`oaxaca-blinder-mean` | `rif-quantile`) and
+  `bootstrap_discard_levels` (`variable=level` entries for levels that cost replicates). All are omitted when unset, so a
+  raw library run serializes to the bytes it always did. `reference_coefficients_used`, `engine_version` and `method` are stamped by the engine layer only.
+- New library method `OaxacaBuilder::rif_outcome_frame(tau)` and example `emit_rif_fixture` export the per-group RIF
+  outcome so an external package can check the quantile path's normalisation.
+- Crate versions: `oaxaca_blinder` 0.3.0, `pay-equity-engine` 0.2.0.
+
+### Changed, BREAKING (0120-MERIDIAN S6-S9, Track E diagnostics, 2026-10-09)
+- **A weights column needs a kind.** `OaxacaBuilder::weights_kind(WeightsKind::Frequency | Relative)` and CLI
+  `--weights-kind frequency|relative`, each required with `--weights` (a run without it fails with
+  `WEIGHTS_KIND_REQUIRED`). `frequency`: whole-number counts, `w = 2` is the row twice; a fractional, negative or
+  non-finite value fails with `INVALID_WEIGHT: column=, row=, value=` (the original 0-based data-row ordinal).
+  `relative`: FTE / design weights, rescaled so each regression's weights sum to its row count; the RIF percentile
+  is `Hmisc::wtd.quantile(type = "quantile", normwt = TRUE)`; uniform weights change nothing.
+  `oaxaca_blinder::weighted_quantile(values, weights, tau, kind)` is public. An integer-typed weights column (a
+  headcount read from CSV) is accepted. Under `frequency` the RIF density bandwidth now reads `sum(w)` instead of
+  Kish's effective n, so a run with `w = 2` equals the run on the row twice, density included.
+- **Frequency weights bootstrap the expanded sample.** A replicate used to draw one row per ROW and carry the weight,
+  so `w = 2` matched the repeated rows for point estimates only: on `norm_skewed_fixture.csv` the standard errors came
+  out 1.32x (explained) and 1.45x (unexplained) those of the repeated rows and Department_Admin's unexplained p-value
+  was 0.084 against 0.000. Under `weights_kind = frequency` a replicate now draws `sum(w)` employees per group
+  (multinomial, probability `w_i / sum(w)`) and the draw counts become that replicate's weights, on the mean and the
+  percentile path. `relative` weights and unweighted runs keep the row-level draw (byte baselines unchanged).
+- **Prediction intervals and the frontier p-value are Student t**, on the baseline regression's residual degrees of
+  freedom (`predict.lm(interval = "prediction")`, `pt`), not Normal. **Remedy dollars move under `range_target`
+  `LowerBound` / `UpperBound`**: the payment is the interval bound, so `adjustments[].adjustment`, `new_wage`,
+  `total_cost`, `required_budget`, `new_gap`, `original_unexplained_gap` and `new_unexplained_gap` are t-based. The
+  half-width grows by t/z, about +2% at 58 residual df and +14% at 10, so a saved scenario re-run on this engine
+  returns different dollars. `Midpoint` payments do not touch the interval and are unchanged. The bound is checked
+  against `predict.lm` in `intervals_test` (`v7_range_target_payments_equal_the_predict_lm_bound_minus_the_wage`).
+  `is_defensible` allows one cent below the
+  interval floor, not one dollar. `confidence_level` is now read by `check_defensibility` and
+  `calculate_efficient_frontier` (default 0.95, clamped to [0.50, 0.999]; for the frontier it sets
+  `is_significant`). MCP `check_defensibility` and `generate_efficient_frontier` accept it.
+- **A fitted group with no residual degrees of freedom is refused** on every entry point:
+  `INSUFFICIENT_RESIDUAL_DF: group=reference|target, rows=, model_columns=, residual_df=` (it was a zero-width
+  interval, an anonymous estimator error, or the frontier's `t = 0, p = 1` sentinel).
+- `optimize` no longer fits a regression to the compared group to obtain `original_gap`; it is the difference of
+  the analysed group means (what `total_gap` is). Numbers are unchanged.
+
+### Added (0120-MERIDIAN S6-S8)
+- Result fields (documented in `engine/src/types.rs`, mapped in `docs/DIAGNOSTICS.md`), all additive: `support`
+  and `warnings` on decompose, verify, optimize and defensibility results; `adjustments[].extrapolated` and
+  `interval` on optimize and defensibility; `quantile_report` on a percentile decompose (omitted otherwise);
+  `group_coefficient` and `degrees_of_freedom` on every frontier point.
+- `warnings[]` is `{code, subject, value, threshold}` with codes `outside_range` (> 5% of compared rows beyond the
+  baseline range), `normalised_difference` (|Imbens-Rubin| > 0.25), `few_residual_df` (< 10), `tie_share` (> 5%)
+  and `ecdf_offset` (|F_n(q) - tau| > max(0.01, 1/n): a tie-free group of n rows is off by up to 1/n by discreteness
+  alone, so a 23-person roster with 23 different salaries is silent; `tie_share` is the step-grid signal). The
+  engine carries no wording.
+- `verification/gen_diag_goldens.R` -> `diag_goldens_r.json` (base R `lm` / `predict.lm` / `quantile`, `ddecompose`,
+  `Hmisc`), fixtures `diag_*.csv`; sha256 of the generator and every fixture are recorded and checked.
+
+### Added (0120-MERIDIAN oracles)
+- `verification/gen_norm_goldens.R` + `regen_norm_goldens.sh`: base-R `lm()` weighted-effect-coding refit (population
+  share), `ddecompose(normalize_factors = TRUE)` and R `oaxaca` (equal share) goldens in `norm_goldens_r.json`,
+  with the sha256 of the generator and of every fixture; the Rust tests refuse a stale golden. Fixtures:
+  `norm_skewed_fixture.csv` (levels 60/30/9/1 percent, mixes differing by 20+ points between the groups, an 8-person
+  department, integer weights, blank Tenure cells), `norm_balanced_fixture.csv` (every factor balanced in the pooled
+  sample, unbalanced inside each group), `norm_skewed_rif.csv` (the engine's RIF columns).
+- `trust_goldens_r.json` gains the block `quantile_detail_normalized`; every existing block is byte-identical (the
+  generator was rerun and diffed). `0118-null-free-golden.txt` is NOT regenerated: its comparator is field-scoped.
+
 ### Added (0119-MERIDIAN S7 + S6, 2026-10-09)
 - `scripts/build-wasm.sh --verify` builds both raw blobs and compares them with `git show HEAD:engine/*.sha256`;
   it never writes a baseline, never publishes, and exits 1 on a mismatch (result in `target/wasm-verify.json`).
