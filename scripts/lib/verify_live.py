@@ -183,7 +183,7 @@ def ci_checks_0120(add, verified, published):
     dest = ROOT / "target" / "ci-artifacts" / run_id
     shas, problems = {}, []
     for key, art, fname in (("sequential", "wasm-raw-seq", "raw-sha256.txt"), ("threaded", "wasm-raw-threaded", "raw-sha256.txt")):
-        d = dest / art
+        d = dest / f"{art}-{int(time.time())}"   # gh refuses to extract over an earlier download
         d.mkdir(parents=True, exist_ok=True)
         rc, out = run(["gh", "run", "download", run_id, "-n", art, "-D", str(d)], 120)
         f = d / fname
