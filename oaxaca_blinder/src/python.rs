@@ -258,6 +258,7 @@ impl PyOaxacaBlinder {
         Ok(results.into())
     }
 
+    #[allow(deprecated)]
     fn optimize_budget(&self, budget: f64, target_gap: f64) -> PyResult<Vec<HashMap<String, f64>>> {
         let mut builder = self._create_builder();
         builder.bootstrap_reps(0); // No bootstrap needed for budget optimization

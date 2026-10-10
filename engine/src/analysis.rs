@@ -1,5 +1,5 @@
 use crate::rows::{analysed_mask, check_alignment, read_csv, KeySupply};
-use crate::support::{self, Fitted, IntervalModel};
+use crate::support::{self, nz, Fitted, GapWeights, IntervalModel};
 use crate::types::*;
 use nalgebra::{DMatrix, DVector};
 use oaxaca_blinder::{OaxacaBuilder, ReferenceCoefficients, RowAccounting};
@@ -484,10 +484,63 @@ fn run_decomposition_on_df(
     })
 }
 
+/// Refuses a remedy request whose numbers the rule cannot honour, by name and before any data is
+/// read (0122-MERIDIAN T3, F-03, F-04). Money that is negative or not a number used to fund the
+/// full need; a group target typed beside reference raises has no defined budget, because a raise
+/// to the reference group moves the line and the gap stops being monotone in the spend.
+fn validate_remedy_request(req: &OptimizationRequest) -> Result<(), String> {
+    if !req.budget.is_finite() || req.budget < 0.0 {
+        return Err(format!(
+            "INVALID_BUDGET: budget={}; give 0 for no cap (every eligible shortfall is paid in \
+             full) or a positive amount",
+            req.budget
+        ));
+    }
+    if let Some(goal) = req.target_gap {
+        if !goal.is_finite() {
+            return Err(format!(
+                "INVALID_TARGET_GAP: target_gap={goal}; give the mean gap to the pay line the \
+                 compared group should reach (negative while it sits below), or leave it out"
+            ));
+        }
+        if req.adjust_both_groups == Some(true) {
+            return Err(
+                "TARGET_GAP_WITH_REFERENCE_RAISES: a group target cannot be combined with \
+                 adjust_both_groups; raising reference employees moves the pay line, so no single \
+                 budget reaches the target. Drop one of the two"
+                    .to_string(),
+            );
+        }
+    }
+    if let Some(pct) = req.min_gap_pct {
+        if !pct.is_finite() || pct < 0.0 {
+            return Err(format!(
+                "INVALID_MIN_GAP_PCT: min_gap_pct={pct}; give a fraction of current pay, 0 or \
+                 more (0.02 is 2 %), or leave it out"
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// The remedy: raises each employee below the chosen pay line up to it, never above, within the
+/// budget, and reports what that costs and does to the group's gap (0122-MERIDIAN T13).
+///
+/// No solver and no linear program. On the reference line every dollar to a compared employee
+/// closes the compared group's mean gap by the same amount, so for the amounts the screen states
+/// (pay each person below the line up to it, optionally under a cap) the cost is fixed by the gap
+/// reached; the strategy only decides who is paid first when the budget falls short. On the pooled
+/// line a dollar moves the gap by a weight of its own, and a compared row far beyond the reference
+/// group's characteristics can carry a negative one, so paying it widens the gap. `target_gap` is
+/// therefore a rule for the budget, derived along the strategy's own order (see `TargetRule`):
+/// the least budget at which that path first reaches the gap, and `best_reachable_gap` is the
+/// path's highest point.
+///
 /// Parallelization audit verdict: **SKIP** (engine-parallel-surface D1, entry point 2).
-/// One clarabel LP/QP solve (the `clarabel` optimize call below) — nothing to fan out;
-/// clarabel's default build is single-threaded direct LDL, no rayon (L5). No parallel site.
+/// One pass over the rows and one sort — nothing to fan out. No parallel site.
 pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, String> {
+    validate_remedy_request(&req)?;
+
     // 1. Load Data
     let mut df = read_csv(&req.csv_data)?;
 
@@ -681,10 +734,12 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
     )?;
     // -------------------------------------------------------------------
 
-    // Calculate All Residuals
-    let mut all_residuals = Vec::with_capacity(y_b.len() + y_a.len());
-    let mut net_residual_sum_b = 0.0;
-
+    // ---- Who is below the line, by how much, and who is eligible (0122-MERIDIAN) ----
+    //
+    // `diff` is the shortfall to the CHOSEN line (`range_target`); the unexplained gap is always
+    // taken on the MIDPOINT line (T6), so the headline and the verification read one figure
+    // whatever the remedy pays to.
+    #[derive(Clone, Copy, PartialEq)]
     enum GroupSource {
         GroupA, // Reference
         GroupB, // Target
@@ -702,6 +757,17 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
     let adjust_both = req.adjust_both_groups.unwrap_or(false);
     let is_forensic = req.forensic_mode.unwrap_or(false);
     let min_pct = req.min_gap_pct.unwrap_or(0.0);
+    let line_choice = req
+        .range_target
+        .unwrap_or(crate::types::RangeTarget::Midpoint);
+    let n_target = y_b.len();
+    let n_reference = y_a.len();
+
+    // Mean (actual - fair midpoint) over the compared group, the numerator of
+    // `original_unexplained_gap`, and the mean overshoot beside it.
+    let mut sum_midpoint_residual_b = 0.0;
+    let mut overshoot_sum_b = 0.0;
+    let mut threshold_excluded_count = 0usize;
 
     // Process Group B (Target) - Always Analyzed
     for i in 0..y_b.len() {
@@ -710,17 +776,10 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
 
         // Calculate Interval for this employee
         let features = x_b.row(i).transpose();
-        // Since we are iterating, we can call the closure.
-        // Note: calculate_interval captures large objects (x_ref, cov_matrix) but that's fine.
-        // It returns (lower, upper).
         let (lower, upper) = calculate_interval(features, fair_midpoint);
 
         // Determine Target Wage based on user selection
-        let target_wage = match req
-            .range_target
-            .as_ref()
-            .unwrap_or(&crate::types::RangeTarget::Midpoint)
-        {
+        let target_wage = match line_choice {
             crate::types::RangeTarget::Midpoint => fair_midpoint,
             crate::types::RangeTarget::LowerBound => lower,
             crate::types::RangeTarget::UpperBound => upper,
@@ -729,8 +788,8 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
         // Diff is Target - Actual
         let diff = target_wage - actual;
 
-        net_residual_sum_b += diff; // "Net Gap" usually refers to the target group gap
-        all_residuals.push(diff);
+        sum_midpoint_residual_b += actual - fair_midpoint;
+        overshoot_sum_b += (actual - fair_midpoint).max(0.0);
 
         let is_positive_gap = diff > 1e-6; // Only care if underpaid relative to target
 
@@ -750,15 +809,18 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
                     orig_idx: target_rows[i],
                     is_eligible: true,
                 });
-            } else if is_forensic {
-                potential_adjustments.push(PotentialAdj {
-                    matrix_idx: i,
-                    source: GroupSource::GroupB,
-                    diff,
-                    fair_wage: fair_midpoint,
-                    orig_idx: target_rows[i],
-                    is_eligible: false,
-                });
+            } else {
+                threshold_excluded_count += 1;
+                if is_forensic {
+                    potential_adjustments.push(PotentialAdj {
+                        matrix_idx: i,
+                        source: GroupSource::GroupB,
+                        diff,
+                        fair_wage: fair_midpoint,
+                        orig_idx: target_rows[i],
+                        is_eligible: false,
+                    });
+                }
             }
         } else if is_forensic {
             potential_adjustments.push(PotentialAdj {
@@ -772,23 +834,23 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
         }
     }
 
-    // Process Group A (Reference) - Analyzed if flag set OR forensic mode
-    // Even if adjust_both is false, we might want forensic data for A?
-    // User requirement: "Forensic Gap Analysis" usually implies looking at everything.
-    // But currently we only return adjustments for B.
-    // If we add A to adjustments list with 0 pay, they show up in forensic.
-    // Let's include A if adjust_both OR forensic.
-
+    // Process Group A (Reference) - Analyzed if flag set OR forensic mode. A reference employee is
+    // raised to the SAME line as a compared one (`range_target`, F-10), so one setting reads the
+    // same on both groups.
     if adjust_both || is_forensic {
         for i in 0..y_a.len() {
             let actual = y_a[i];
             let fair = predicted_y_a_fair[i];
-            let diff = fair - actual;
-            // distinct from net_residual_sum of B?
-            // Usually Net Gap refers to the disadvantaged group. mixing A might skew metrics.
-            // We'll keep net_residual_sum focused on B for the "Budget Calculation" default.
-
-            all_residuals.push(diff);
+            let line_wage = match line_choice {
+                crate::types::RangeTarget::Midpoint => fair,
+                crate::types::RangeTarget::LowerBound => {
+                    calculate_interval(x_a.row(i).transpose(), fair).0
+                }
+                crate::types::RangeTarget::UpperBound => {
+                    calculate_interval(x_a.row(i).transpose(), fair).1
+                }
+            };
+            let diff = line_wage - actual;
 
             let is_positive_gap = diff > 1e-6;
 
@@ -837,31 +899,203 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
     // 5. Allocation Strategy
     let strategy = req.strategy.as_ref().unwrap_or(&AllocationStrategy::Greedy);
 
-    // Calculate Total Need (Sum of all VALID positive residuals that are eligible for allocation)
-    // We do this BEFORE setting effective_budget so we can default to total_need if budget is 0
-    let total_need: f64 = potential_adjustments
+    // Need: the sum of every eligible shortfall, split by group (0122-MERIDIAN T4). The compared
+    // group's need is `required_budget`; reference raises are priced on their own line.
+    let is_payable = |p: &PotentialAdj| p.diff > 0.0 && p.is_eligible;
+    let need_target = nz(potential_adjustments
         .iter()
-        .filter(|p| p.diff > 0.0 && p.is_eligible)
+        .filter(|p| p.source == GroupSource::GroupB && is_payable(p))
         .map(|p| p.diff)
-        .sum();
+        .sum::<f64>());
+    let need_reference = nz(potential_adjustments
+        .iter()
+        .filter(|p| p.source == GroupSource::GroupA && is_payable(p))
+        .map(|p| p.diff)
+        .sum::<f64>());
+    // What an uncapped run has to fund: both groups when reference raises are on.
+    let allocation_need = need_target + need_reference;
 
-    let effective_budget = if req.budget > 0.0 {
-        req.budget
-    } else {
-        // Default Budget = Total Need to fix the Targeted Gaps
-        // Add epsilon buffer (0.001%) to avoid floating point truncation for the last few employees
-        total_need * 1.00001
-    };
-
-    let mut adjustments = Vec::new();
-    let mut current_spend = 0.0;
-
-    // Sort Descending by Gap Amount (for Greedy)
+    // Sort Descending by Gap Amount (for Greedy). Stable: ties keep compared rows first, then
+    // reference rows, each in matrix order, which is the order the frontier also pays in.
     potential_adjustments.sort_by(|a, b| {
         b.diff
             .partial_cmp(&a.diff)
             .unwrap_or(std::cmp::Ordering::Equal)
     });
+
+    // ---- The line the gap is measured against, and how payments move it (T5, F-06) ----
+    let unexplained_before = if n_target > 0 {
+        nz(sum_midpoint_residual_b / n_target as f64)
+    } else {
+        0.0
+    };
+    let weights = match target_mode {
+        OptimizationTarget::Pooled => {
+            GapWeights::pooled(&x_a, &x_b, interval_model.leverage().cov())
+        }
+        OptimizationTarget::Reference if adjust_both => {
+            GapWeights::reference_line(&x_a, &x_b, interval_model.leverage().cov())
+        }
+        OptimizationTarget::Reference => GapWeights::uniform_target(n_target, n_reference),
+    };
+    let weight_of = |p: &PotentialAdj| match p.source {
+        GroupSource::GroupA => weights.reference[p.matrix_idx],
+        GroupSource::GroupB => weights.target[p.matrix_idx],
+    };
+
+    // The best this remedy can reach: the largest gap on the strategy's own path, and the budget
+    // at which the path gets there (`None`: at the end, once every shortfall is paid).
+    //
+    // On the reference line a dollar to a compared employee always raises the gap, so the end of
+    // the path is its peak. On the pooled line a compared employee's weight is the residual of the
+    // group indicator on the model columns, which is NEGATIVE for a compared row whose
+    // characteristics sit far beyond the reference group's: paying that row lowers the group's
+    // gap, so the path can peak before its end and the full schedule is not the best one
+    // (0122-MERIDIAN C-01). With reference raises on the path mixes two groups; nothing walks it
+    // (a group target is refused), and the figure is the gap after the full schedule.
+    let mut full_payment_shift = 0.0;
+    for p in potential_adjustments.iter().filter(|p| is_payable(p)) {
+        full_payment_shift += weight_of(p) * p.diff;
+    }
+    let (best_reachable_gap, peak_budget): (f64, Option<f64>) = if adjust_both {
+        (nz(unexplained_before + full_payment_shift), None)
+    } else {
+        match strategy {
+            // Greedy: the gap is piecewise linear in the budget with a vertex after each paid
+            // row, so its largest value is at a vertex. A tie goes to the later vertex, which keeps
+            // a monotone path peaking at its end, summed in the order it is paid.
+            AllocationStrategy::Greedy => {
+                let payable: Vec<&PotentialAdj> = potential_adjustments
+                    .iter()
+                    .filter(|p| is_payable(p))
+                    .collect();
+                let mut shift = 0.0;
+                let mut spent = 0.0;
+                let mut peak_shift = 0.0;
+                // Budget 0 is the first vertex: when every dollar lowers the gap, it is the peak.
+                let mut peak_spent = if payable.is_empty() { None } else { Some(0.0) };
+                for (k, p) in payable.iter().enumerate() {
+                    shift += weight_of(p) * p.diff;
+                    spent += p.diff;
+                    if shift >= peak_shift {
+                        peak_shift = shift;
+                        peak_spent = if k + 1 == payable.len() {
+                            None
+                        } else {
+                            Some(spent)
+                        };
+                    }
+                }
+                (nz(unexplained_before + peak_shift), peak_spent)
+            }
+            // Equitable: every shortfall is paid the same share, so the gap is linear in the
+            // share and its peak is at share 0 or share 1.
+            AllocationStrategy::Equitable => {
+                if full_payment_shift >= 0.0 {
+                    (nz(unexplained_before + full_payment_shift), None)
+                } else {
+                    (nz(unexplained_before), Some(0.0))
+                }
+            }
+        }
+    };
+
+    // ---- The budget rule (0122-MERIDIAN T1, F-01 to F-04) ----
+    //
+    // No solver: paying the compared group costs the same dollar for dollar, so the least that
+    // brings the group's gap to `target_gap` is one number, found along the strategy's own order.
+    // The rule is carried as a state, never as an f64 that doubles as "no cap" (F-04): a target
+    // that is already met pays NOTHING, not everything.
+    enum TargetRule {
+        NoTarget,
+        AlreadyMet,
+        Reachable(f64),
+        Unreachable,
+    }
+    let target_rule = match req.target_gap {
+        None => TargetRule::NoTarget,
+        Some(goal) => {
+            let scale = 1.0_f64
+                .max(goal.abs())
+                .max(unexplained_before.abs())
+                .max(best_reachable_gap.abs());
+            let eps = 1e-10 * scale;
+            if goal <= unexplained_before + eps {
+                TargetRule::AlreadyMet
+            } else if goal > best_reachable_gap + eps {
+                TargetRule::Unreachable
+            } else {
+                let budget = match (target_mode, strategy) {
+                    // Reference line, compared group only: every dollar moves the gap by 1/n_T,
+                    // so the order is irrelevant and the budget is a closed form.
+                    (OptimizationTarget::Reference, _) => {
+                        n_target as f64 * (goal - unexplained_before)
+                    }
+                    // Pooled line, Greedy: the gap rises by (weight x dollars) along the pay
+                    // order; walk the order to the segment that crosses the goal.
+                    (OptimizationTarget::Pooled, AllocationStrategy::Greedy) => {
+                        let mut gap = unexplained_before;
+                        let mut spent = 0.0;
+                        let mut found = None;
+                        for p in potential_adjustments
+                            .iter()
+                            .filter(|p| is_payable(p) && p.source == GroupSource::GroupB)
+                        {
+                            let weight = weights.target[p.matrix_idx];
+                            let rise = weight * p.diff;
+                            if weight > 0.0 && gap + rise >= goal {
+                                found = Some(spent + (goal - gap) / weight);
+                                break;
+                            }
+                            gap += rise;
+                            spent += p.diff;
+                        }
+                        // Only float noise at `goal == best` can leave the walk without a
+                        // crossing; the goal is then met where the path peaks.
+                        found.unwrap_or(peak_budget.unwrap_or(need_target))
+                    }
+                    // Pooled line, Equitable: everyone is paid the same share of their shortfall
+                    // and the gap is linear in that share.
+                    (OptimizationTarget::Pooled, AllocationStrategy::Equitable) => {
+                        let share = (goal - unexplained_before) / full_payment_shift;
+                        share * need_target
+                    }
+                };
+                TargetRule::Reachable(budget.clamp(0.0, need_target))
+            }
+        }
+    };
+    let target_cap = match target_rule {
+        TargetRule::AlreadyMet => Some(0.0),
+        TargetRule::Reachable(b) => Some(b),
+        // Out of reach: pay everything that raises the gap, which is every eligible shortfall
+        // unless some payment lowers it (pooled line, C-01), when the path stops at its peak.
+        TargetRule::Unreachable => peak_budget,
+        TargetRule::NoTarget => None,
+    };
+    // `budget == 0` is "no cap" (documented on the request); the target rule never reuses it.
+    let user_cap = if req.budget > 0.0 {
+        Some(req.budget)
+    } else {
+        None
+    };
+    let cap = match (user_cap, target_cap) {
+        (Some(a), Some(b)) => Some(a.min(b)),
+        (a, b) => a.or(b),
+    };
+    let effective_budget = match cap {
+        Some(c) => c,
+        // Add epsilon buffer (0.001%) to avoid floating point truncation for the last few employees
+        None => allocation_need * 1.00001,
+    };
+
+    let mut adjustments = Vec::new();
+    let mut current_spend = 0.0;
+    let mut cost_b = 0.0;
+    let mut cost_a = 0.0;
+    let mut pay_b = vec![0.0; n_target];
+    let mut pay_a = vec![0.0; n_reference];
+    let mut unfunded_count = 0usize;
 
     let wage_series = df
         .column(&req.outcome_variable)
@@ -892,108 +1126,88 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
         contribs
     };
 
-    match strategy {
-        AllocationStrategy::Greedy => {
-            for pot in potential_adjustments {
-                // If diff is <= 0 or not eligible, pay_amount MUST be 0.
-                let pay_amount = if pot.diff > 0.0 && pot.is_eligible {
+    // Equitable pays everyone the same share of their own shortfall; Greedy pays down the sorted
+    // list. Neither pays more than a shortfall, and nobody with diff <= 0 or not eligible is paid.
+    let coverage_ratio = if allocation_need > 0.0 {
+        (effective_budget / allocation_need).min(1.0)
+    } else {
+        0.0
+    };
+
+    for pot in potential_adjustments {
+        let pay_amount = if pot.diff > 0.0 && pot.is_eligible {
+            match strategy {
+                AllocationStrategy::Greedy => {
                     let remaining_budget = effective_budget - current_spend;
                     if remaining_budget > 0.0 {
                         pot.diff.min(remaining_budget)
                     } else {
                         0.0
                     }
-                } else {
-                    0.0
-                };
+                }
+                AllocationStrategy::Equitable => pot.diff * coverage_ratio,
+            }
+        } else {
+            0.0
+        };
 
-                let current_wage = wage_array.get(pot.orig_idx).ok_or_else(|| {
-                    format!(
-                        "Internal row alignment error: analysed row {} has no outcome value",
-                        pot.orig_idx
-                    )
-                })?;
-                let fair_wage = pot.fair_wage;
-                let new_wage = current_wage + pay_amount; // Don't add negative pay amounts!
+        let current_wage = wage_array.get(pot.orig_idx).ok_or_else(|| {
+            format!(
+                "Internal row alignment error: analysed row {} has no outcome value",
+                pot.orig_idx
+            )
+        })?;
+        let fair_wage = pot.fair_wage;
+        let new_wage = current_wage + pay_amount; // Don't add negative pay amounts!
 
-                // Get features for interval calculation
-                let features = match pot.source {
-                    GroupSource::GroupA => x_a.row(pot.matrix_idx).transpose(),
-                    GroupSource::GroupB => x_b.row(pot.matrix_idx).transpose(),
-                };
-                let extrapolated = interval_model.is_extrapolated(&features);
-                let (lower, upper) = calculate_interval(features, fair_wage);
+        // Get features for interval calculation
+        let features = match pot.source {
+            GroupSource::GroupA => x_a.row(pot.matrix_idx).transpose(),
+            GroupSource::GroupB => x_b.row(pot.matrix_idx).transpose(),
+        };
+        let extrapolated = interval_model.is_extrapolated(&features);
+        let (lower, upper) = calculate_interval(features, fair_wage);
 
-                adjustments.push(Adjustment {
-                    index: pot.orig_idx,
-                    row_key: row_keys.key_at(pot.orig_idx),
-                    adjustment: pay_amount,
-                    current_wage,
-                    new_wage,
-                    fair_wage,
-                    fair_wage_lower_bound: Some(lower),
-                    fair_wage_upper_bound: Some(upper),
-                    contributions: get_contributions(pot.matrix_idx, &pot.source),
-                    is_defensible: None,
-                    defensibility_message: None,
-                    extrapolated,
-                });
+        adjustments.push(Adjustment {
+            index: pot.orig_idx,
+            row_key: row_keys.key_at(pot.orig_idx),
+            adjustment: pay_amount,
+            current_wage,
+            new_wage,
+            fair_wage,
+            fair_wage_lower_bound: Some(lower),
+            fair_wage_upper_bound: Some(upper),
+            contributions: get_contributions(pot.matrix_idx, &pot.source),
+            is_defensible: None,
+            defensibility_message: None,
+            extrapolated,
+            source: match pot.source {
+                GroupSource::GroupA => RowSource::Reference,
+                GroupSource::GroupB => RowSource::Compared,
+            },
+            range_position: support::range_position(new_wage, lower, upper),
+            range_position_before: support::range_position(current_wage, lower, upper),
+        });
 
-                if pay_amount > 0.0 {
-                    current_spend += pay_amount;
+        if pay_amount > 0.0 {
+            current_spend += pay_amount;
+            match pot.source {
+                GroupSource::GroupA => {
+                    cost_a += pay_amount;
+                    pay_a[pot.matrix_idx] = pay_amount;
+                }
+                GroupSource::GroupB => {
+                    cost_b += pay_amount;
+                    pay_b[pot.matrix_idx] = pay_amount;
                 }
             }
         }
-        AllocationStrategy::Equitable => {
-            // Pro-Rata: Everyone gets (Budget / TotalNeed) * Gap, capped at Gap
-            let coverage_ratio = if total_need > 0.0 {
-                (effective_budget / total_need).min(1.0)
-            } else {
-                0.0
-            };
-
-            for pot in potential_adjustments {
-                // If diff <= 0 or not eligible, pay_amount is 0.
-                let pay_amount = if pot.diff > 0.0 && pot.is_eligible {
-                    pot.diff * coverage_ratio
-                } else {
-                    0.0
-                };
-
-                let current_wage = wage_array.get(pot.orig_idx).ok_or_else(|| {
-                    format!(
-                        "Internal row alignment error: analysed row {} has no outcome value",
-                        pot.orig_idx
-                    )
-                })?;
-                let fair_wage = pot.fair_wage;
-                let new_wage = current_wage + pay_amount;
-
-                // Get features for interval calculation
-                let features = match pot.source {
-                    GroupSource::GroupA => x_a.row(pot.matrix_idx).transpose(),
-                    GroupSource::GroupB => x_b.row(pot.matrix_idx).transpose(),
-                };
-                let extrapolated = interval_model.is_extrapolated(&features);
-                let (lower, upper) = calculate_interval(features, fair_wage);
-
-                adjustments.push(Adjustment {
-                    index: pot.orig_idx,
-                    row_key: row_keys.key_at(pot.orig_idx),
-                    adjustment: pay_amount,
-                    current_wage,
-                    new_wage,
-                    fair_wage,
-                    fair_wage_lower_bound: Some(lower),
-                    fair_wage_upper_bound: Some(upper),
-                    contributions: get_contributions(pot.matrix_idx, &pot.source),
-                    is_defensible: None,
-                    defensibility_message: None,
-                    extrapolated,
-                });
-
-                current_spend += pay_amount;
-            }
+        if pot.source == GroupSource::GroupB
+            && pot.diff > 0.0
+            && pot.is_eligible
+            && pot.diff - pay_amount > 1e-6
+        {
+            unfunded_count += 1;
         }
     }
 
@@ -1007,28 +1221,58 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
     // toward the baseline's line (0120-MERIDIAN T13 judges only the group that IS fitted).
     let original_gap = y_b.mean() - y_a.mean();
 
-    // 7. Calculate Final Metrics
-    let n_target = y_b.len() as f64;
-    let total_cost = current_spend;
+    // 7. Calculate Final Metrics. Money paid to the reference group raises the reference mean,
+    // which lowers the raw gap: it is never credited to the compared group (0122 T5, REM-3).
+    let n_target_f = n_target as f64;
+    let total_cost = nz(current_spend);
+    let cost_target = nz(cost_b);
+    let cost_reference = nz(cost_a);
 
-    // Calculate New Gap robustly
-    let new_gap = if n_target > 0.0 {
-        original_gap + (total_cost / n_target)
-    } else {
-        original_gap
+    let new_gap = {
+        let mut gap = original_gap;
+        if n_target > 0 {
+            gap += cost_b / n_target_f;
+        }
+        if n_reference > 0 {
+            gap -= cost_a / n_reference as f64;
+        }
+        gap
     };
 
-    let original_unexplained_gap = if n_target > 0.0 {
-        -net_residual_sum_b / n_target
+    let original_unexplained_gap = unexplained_before;
+    // Exact post-schedule gap on the line REFITTED to the schedule's wages (T5): the compared
+    // group's cost raises it, a raise to the reference group moves the line itself.
+    let new_unexplained_gap = if n_target > 0 {
+        nz(unexplained_before + weights.shift(&pay_b, &pay_a))
     } else {
-        0.0
+        unexplained_before
     };
 
-    let new_unexplained_gap = if n_target > 0.0 {
-        -(net_residual_sum_b - total_cost) / n_target
+    let closure = if need_target > 0.0 {
+        Some((cost_target / need_target).clamp(0.0, 1.0))
     } else {
-        original_unexplained_gap
+        None
     };
+    let unfunded_amount = nz((need_target - cost_target).max(0.0));
+
+    let budget_binding = {
+        let limit = target_cap.unwrap_or(f64::INFINITY).min(allocation_need);
+        match user_cap {
+            Some(u) => u + 1e-9 * u.max(1.0) < limit,
+            None => false,
+        }
+    };
+    let (target_gap_reachable, shortfall_to_target, target_budget) =
+        match (&target_rule, req.target_gap) {
+            (TargetRule::NoTarget, _) | (_, None) => (None, None, None),
+            (TargetRule::AlreadyMet, _) => (Some(true), None, Some(0.0)),
+            (TargetRule::Reachable(b), _) => (Some(true), None, Some(nz(*b))),
+            (TargetRule::Unreachable, Some(goal)) => (
+                Some(false),
+                Some(nz(goal - best_reachable_gap)),
+                Some(nz(peak_budget.unwrap_or(need_target))),
+            ),
+        };
 
     Ok(OptimizationResult {
         adjustments,
@@ -1037,7 +1281,28 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
         new_gap,
         original_unexplained_gap,
         new_unexplained_gap,
-        required_budget: total_need,
+        required_budget: need_target,
+        target_line: line_choice,
+        cost_target,
+        cost_reference,
+        need_target,
+        need_reference: Some(need_reference),
+        best_reachable_gap: Some(best_reachable_gap),
+        target_gap_reachable,
+        shortfall_to_target,
+        target_budget,
+        budget_binding: Some(budget_binding),
+        unfunded_amount: Some(unfunded_amount),
+        unfunded_count: Some(unfunded_count),
+        threshold_excluded_count: Some(threshold_excluded_count),
+        closure,
+        overshoot_mean: Some(if n_target > 0 {
+            nz(overshoot_sum_b / n_target_f)
+        } else {
+            0.0
+        }),
+        position_counts: None,
+        group_test: None,
         model_coefficients,
         // These three describe the DERIVATION RULE the table was built under. Every emitted
         // `Adjustment.row_key` is read at the row's own original ordinal (0118-MERIDIAN S3), so
@@ -1067,6 +1332,25 @@ pub fn calculate_efficient_frontier_inner(
 ) -> Result<Vec<FrontierPoint>, String> {
     // Refuse a bad level before reading any data; every point echoes the level used.
     let confidence = support::resolve_confidence(req.confidence_level)?;
+
+    // The two numbers that shape the axis are refused by name, like the budget of `optimize`
+    // (0122-MERIDIAN C-02): a NaN or infinite last budget used to come back as a curve of nulls and
+    // a negative one as a lone baseline point, with only a warning on stderr.
+    if let Some(max_budget) = req.max_budget {
+        if !max_budget.is_finite() || max_budget < 0.0 {
+            return Err(format!(
+                "INVALID_BUDGET: max_budget={max_budget}; give the last budget on the axis as 0 or \
+                 more, or leave it out for the remedy's full cost"
+            ));
+        }
+    }
+    if req.steps == Some(0) {
+        return Err(
+            "INVALID_STEPS: steps=0; give the number of points after the baseline as 1 or more, \
+             or leave it out for 50"
+                .to_string(),
+        );
+    }
 
     // 1. Load Data
     let mut df = read_csv(&req.decomposition_params.csv_data)?;
@@ -1120,7 +1404,9 @@ pub fn calculate_efficient_frontier_inner(
         problem_builder.categorical_predictors(cats.iter().copied());
     }
 
-    // 2a. Determine Max Budget / Total Need
+    // 2a. The remedy the curve follows, and the money it takes to pay it in full (0122-MERIDIAN
+    // T10, D6). The settings are the screen's: the schedule drawn is the schedule the screen shows.
+    let strategy = req.strategy.unwrap_or(AllocationStrategy::Greedy);
     let opt_req = OptimizationRequest {
         csv_data: req.decomposition_params.csv_data.clone(),
         outcome_variable: req.decomposition_params.outcome_variable.clone(),
@@ -1130,18 +1416,22 @@ pub fn calculate_efficient_frontier_inner(
         categorical_predictors: req.decomposition_params.categorical_predictors.clone(),
         budget: 0.0,
         target_gap: None,
-        target: Some(OptimizationTarget::Reference),
-        strategy: Some(AllocationStrategy::Greedy),
-        min_gap_pct: None,
+        target: Some(req.target.unwrap_or(OptimizationTarget::Reference)),
+        strategy: Some(strategy),
+        min_gap_pct: req.min_gap_pct,
         forensic_mode: None,
-        adjust_both_groups: None,
-        confidence_level: None,
-        range_target: None,
+        adjust_both_groups: req.adjust_both_groups,
+        // The interval does not change a payment to the midpoint; it does to a bound, so the
+        // curve's level is the optimiser's.
+        confidence_level: req.confidence_level,
+        range_target: req.range_target,
     };
 
     let opt_result = optimize_inner(opt_req)?;
-    let total_need = opt_result.required_budget;
-    let max_budget = req.max_budget.unwrap_or(total_need * 1.1);
+    // The axis ends where the remedy stops spending: its full cost, money paid to both groups
+    // when reference raises are on (F-11). It used to run 10 % past it, a flat tail.
+    let full_cost = opt_result.total_cost;
+    let max_budget = req.max_budget.unwrap_or(full_cost);
 
     // 3. Pre-compute Matrices for Fast OLS (0118-MERIDIAN S1/S3)
     // `get_data_matrices_with_rows` names the groups: the locals `x_a`/`y_a` hold the REFERENCE
@@ -1266,14 +1556,26 @@ pub fn calculate_efficient_frontier_inner(
     struct PendingPay {
         pooled_idx: usize,
         gap: f64,
+        /// Tie-break that reproduces `optimize_inner`'s pay order: compared rows before reference
+        /// rows, each in row order (F-12). Without it a tie at a partial budget is paid in a
+        /// different order from the schedule the same budget buys in `optimize`.
+        rank: (u8, usize),
     }
     let mut pending_payments: Vec<PendingPay> = opt_result
         .adjustments
         .iter()
+        .filter(|adj| adj.adjustment > 0.0)
         .filter_map(|adj| {
             original_to_pooled.get(&adj.index).map(|&p_idx| PendingPay {
                 pooled_idx: p_idx,
                 gap: adj.adjustment,
+                rank: (
+                    match adj.source {
+                        RowSource::Compared => 0,
+                        RowSource::Reference => 1,
+                    },
+                    adj.index,
+                ),
             })
         })
         .collect();
@@ -1282,7 +1584,13 @@ pub fn calculate_efficient_frontier_inner(
         b.gap
             .partial_cmp(&a.gap)
             .unwrap_or(std::cmp::Ordering::Equal)
+            .then(a.rank.cmp(&b.rank))
     });
+    // The full schedule: what Equitable scales by the share of the need a budget covers.
+    let full_schedule: Vec<(usize, f64)> = pending_payments
+        .iter()
+        .map(|pp| (pp.pooled_idx, pp.gap))
+        .collect();
 
     // Student t on the pooled regression's residual degrees of freedom (0120-MERIDIAN T14).
     // With none, the p-value is undefined: a named refusal, not the old (t = 0, p = 1) sentinel
@@ -1343,27 +1651,50 @@ pub fn calculate_efficient_frontier_inner(
     let mut budget_cursor = 0.0;
 
     for step in 1..=steps {
-        let target_budget = step as f64 * step_size;
-        let available_for_step = target_budget - budget_cursor;
+        // The last point lands exactly on `max_budget`, whatever the float product says.
+        let target_budget = if step == steps {
+            max_budget
+        } else {
+            step as f64 * step_size
+        };
 
-        if available_for_step > 0.0 {
-            let mut remaining = available_for_step;
+        match strategy {
+            AllocationStrategy::Greedy => {
+                let available_for_step = target_budget - budget_cursor;
 
-            while remaining > 0.0 && pay_idx < pending_payments.len() {
-                let pp = &mut pending_payments[pay_idx];
+                if available_for_step > 0.0 {
+                    let mut remaining = available_for_step;
 
-                if pp.gap <= remaining {
-                    current_y[(pp.pooled_idx, 0)] += pp.gap;
-                    remaining -= pp.gap;
-                    pp.gap = 0.0;
-                    pay_idx += 1;
-                } else {
-                    current_y[(pp.pooled_idx, 0)] += remaining;
-                    pp.gap -= remaining;
-                    remaining = 0.0;
+                    while remaining > 0.0 && pay_idx < pending_payments.len() {
+                        let pp = &mut pending_payments[pay_idx];
+
+                        if pp.gap <= remaining {
+                            current_y[(pp.pooled_idx, 0)] += pp.gap;
+                            remaining -= pp.gap;
+                            pp.gap = 0.0;
+                            pay_idx += 1;
+                        } else {
+                            current_y[(pp.pooled_idx, 0)] += remaining;
+                            pp.gap -= remaining;
+                            remaining = 0.0;
+                        }
+                    }
+                    budget_cursor = target_budget;
                 }
             }
-            budget_cursor = target_budget;
+            AllocationStrategy::Equitable => {
+                // Not nested: every employee is paid the same share of their own shortfall, so the
+                // schedule at a budget is the full schedule scaled by budget / full cost (F-12).
+                let share = if full_cost > 0.0 {
+                    (target_budget / full_cost).clamp(0.0, 1.0)
+                } else {
+                    0.0
+                };
+                current_y = y_pooled.clone();
+                for &(pooled_idx, amount) in &full_schedule {
+                    current_y[(pooled_idx, 0)] += amount * share;
+                }
+            }
         }
 
         let (t, p, s, g) = compute_t_stat(&current_y);
@@ -1598,6 +1929,12 @@ mod tests {
             steps: Some(10),
             max_budget: Some(50000.0), // Enough to cover gaps,
             confidence_level: None,
+
+            strategy: None,
+            target: None,
+            range_target: None,
+            min_gap_pct: None,
+            adjust_both_groups: None,
         };
 
         // This relies on calculate_efficient_frontier_inner being available in super

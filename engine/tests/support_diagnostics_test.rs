@@ -562,6 +562,12 @@ fn t13_a_baseline_with_no_residual_df_is_refused_by_name_on_every_entry() {
         steps: Some(3),
         max_budget: Some(1000.0),
         confidence_level: None,
+
+        strategy: None,
+        target: None,
+        range_target: None,
+        min_gap_pct: None,
+        adjust_both_groups: None,
     })
     .err()
     .unwrap();
@@ -631,6 +637,12 @@ fn t13_fewer_baseline_rows_than_model_columns_is_refused_the_same_way_on_every_e
                     steps: Some(3),
                     max_budget: Some(1000.0),
                     confidence_level: None,
+
+                    strategy: None,
+                    target: None,
+                    range_target: None,
+                    min_gap_pct: None,
+                    adjust_both_groups: None,
                 })
                 .err(),
             ),

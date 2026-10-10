@@ -1,3 +1,6 @@
+//! The deprecated library method keeps its tests: callers of it still exist (0122-MERIDIAN T12).
+#![allow(deprecated)]
+
 use oaxaca_blinder::OaxacaBuilder;
 use polars::prelude::*;
 
@@ -66,6 +69,16 @@ fn test_optimize_budget() -> Result<(), Box<dyn std::error::Error>> {
     // Case 4: Target gap already met.
     let adjustments = results.optimize_budget(100.0, 20.0);
     assert!(adjustments.is_empty());
+
+    // Case 5 (0122-MERIDIAN C-09): a budget or a target that is not a number pays nothing. A NaN
+    // budget used to fund the whole need, because `f64::min` returns the other argument.
+    for budget in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY, -5.0] {
+        assert!(
+            results.optimize_budget(budget, 10.0).is_empty(),
+            "budget {budget} paid someone"
+        );
+    }
+    assert!(results.optimize_budget(100.0, f64::NAN).is_empty());
 
     Ok(())
 }

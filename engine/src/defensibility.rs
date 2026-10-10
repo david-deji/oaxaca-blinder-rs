@@ -1,5 +1,5 @@
 use crate::rows::{check_alignment, excluded_with_keys, read_csv};
-use crate::support::{self, Fitted, IntervalModel, DEFENSIBLE_TOLERANCE};
+use crate::support::{self, nz, Fitted, GapWeights, IntervalModel, DEFENSIBLE_TOLERANCE};
 use crate::types::*;
 use nalgebra::DVector;
 use oaxaca_blinder::{OaxacaBuilder, ReferenceCoefficients};
@@ -290,13 +290,28 @@ pub fn check_defensibility_on(
         Some(interval_model.leverage()),
     )?;
 
+    // The level the group test and the intervals are read at (already validated above).
+    let confidence = support::resolve_confidence(req.confidence_level)?;
+
+    // How a dollar paid to each analysed row moves the compared group's unexplained gap: one
+    // shared function with `optimize` (0122-MERIDIAN T5, F-06), so a schedule has one
+    // `new_unexplained_gap` whichever entry point prices it.
+    let weights = match target {
+        OptimizationTarget::Reference => {
+            GapWeights::reference_line(&x_a, &x_b, interval_model.leverage().cov())
+        }
+        OptimizationTarget::Pooled => {
+            GapWeights::pooled(&x_a, &x_b, interval_model.leverage().cov())
+        }
+    };
+
     // Process Specific Adjustments
     let mut results = Vec::new();
     let mut adjustments_on_excluded_rows: usize = 0;
 
     // Mapping Original Row Ordinal -> (Matrix Row, IsReference), over ANALYSED rows only: a row
     // with a blank model cell is in neither list, so it can be neither scored nor counted in any
-    // aggregate below. BTreeMap, not HashMap: the three f64 accumulations below iterate this
+    // aggregate below. BTreeMap, not HashMap: the f64 accumulations below iterate this
     // map, so its order is the float reduction order (D14); ascending ordinal, as before.
     let mut map_orig_to_matrix: BTreeMap<usize, (usize, bool)> = BTreeMap::new();
     for (matrix_row, &ordinal) in reference_rows.iter().enumerate() {
@@ -384,6 +399,13 @@ pub fn check_defensibility_on(
                 is_defensible: Some(is_defensible),
                 defensibility_message: msg,
                 extrapolated,
+                source: if is_group_a {
+                    RowSource::Reference
+                } else {
+                    RowSource::Compared
+                },
+                range_position: support::range_position(new_wage, lower, upper),
+                range_position_before: support::range_position(current_wage, lower, upper),
             });
         } else {
             // 0118-MERIDIAN S3: addressed to an excluded or unknown row. The app replays
@@ -393,59 +415,89 @@ pub fn check_defensibility_on(
         }
     }
 
-    // D15 (0017-P1): row index -> position in `results`, built once. The two loops below used to
-    // scan the whole `results` vector per wage row (O(n^2): ~2e8 inner iterations at 10,000
-    // adjustments, twice), which is now on the project-load path. `or_insert` keeps first-wins,
-    // matching the `break` on first match the scans performed. Since the collapse above, `results`
-    // holds at most one entry per row index, so first-wins is no longer load-bearing: it can no
-    // longer hide a second entry's `new_wage` from the aggregates below.
+    // D15 (0017-P1): row index -> position in `results`, built once. `or_insert` keeps first-wins;
+    // since the collapse above `results` holds at most one entry per row index.
     let mut result_pos_by_index: BTreeMap<usize, usize> = BTreeMap::new();
     for (pos, adj) in results.iter().enumerate() {
         result_pos_by_index.entry(adj.index).or_insert(pos);
     }
 
-    let mut total_need = 0.0;
-    for (idx, (matrix_idx, is_group_a)) in &map_orig_to_matrix {
-        if !*is_group_a {
-            let actual = wage_array.get(*idx).unwrap_or(0.0);
-            let features = x_b.row(*matrix_idx).transpose();
-            let fair = (&features.transpose() * &beta_fair)[(0, 0)];
-            if fair > actual {
-                total_need += fair - actual;
-            }
+    // Money by group, in request order (D14).
+    let mut total_cost = 0.0;
+    let mut cost_target = 0.0;
+    let mut cost_reference = 0.0;
+    for adj in &results {
+        total_cost += adj.adjustment;
+        match adj.source {
+            RowSource::Compared => cost_target += adj.adjustment,
+            RowSource::Reference => cost_reference += adj.adjustment,
         }
     }
 
-    // Calculate metrics
-    let mut total_cost = 0.0;
-    for adj in &results {
-        total_cost += adj.adjustment;
-    }
-
+    // One pass over every ANALYSED row, in ascending ordinal (D14): group means before and after,
+    // the compared group's shortfall to the line, where each compared employee stands against
+    // their range before and after, and the per-row pay the gap weights and the group test read.
+    // A row the schedule does not name counts at adjustment 0, so a partial schedule cannot hide
+    // the people it left out (0122-MERIDIAN F-08).
     let mut sum_a = 0.0;
     let mut count_a = 0.0;
     let mut sum_b = 0.0;
     let mut count_b = 0.0;
-
     let mut new_sum_a = 0.0;
     let mut new_sum_b = 0.0;
+    let mut residual_sum_b = 0.0;
+    let mut need_target = 0.0;
+    let mut pay_a = vec![0.0; reference_rows.len()];
+    let mut pay_b = vec![0.0; target_rows.len()];
+    let mut y_a_after = y_a.clone();
+    let mut y_b_after = target_group_matrices.y.clone();
+    let (mut below, mut inside, mut above) = (0usize, 0usize, 0usize);
+    let (mut below_before, mut inside_before, mut above_before) = (0usize, 0usize, 0usize);
+    let mut newly_above = 0usize;
 
-    for (idx, val_opt) in wage_array.iter().enumerate() {
-        if let Some(v) = val_opt {
-            if let Some(&(_matrix_idx, is_group_a)) = map_orig_to_matrix.get(&idx) {
-                let adjusted_val = match result_pos_by_index.get(&idx) {
-                    Some(&pos) => results[pos].new_wage,
-                    None => v,
-                };
+    for (idx, (matrix_idx, is_group_a)) in &map_orig_to_matrix {
+        let Some(v) = wage_array.get(*idx) else {
+            continue;
+        };
+        let (adjustment, adjusted_val) = match result_pos_by_index.get(idx) {
+            Some(&pos) => (results[pos].adjustment, results[pos].new_wage),
+            None => (0.0, v),
+        };
+        if *is_group_a {
+            sum_a += v;
+            new_sum_a += adjusted_val;
+            count_a += 1.0;
+            pay_a[*matrix_idx] = adjustment;
+            y_a_after[*matrix_idx] += adjustment;
+        } else {
+            sum_b += v;
+            new_sum_b += adjusted_val;
+            count_b += 1.0;
+            pay_b[*matrix_idx] = adjustment;
+            y_b_after[*matrix_idx] += adjustment;
 
-                if is_group_a {
-                    sum_a += v;
-                    new_sum_a += adjusted_val;
-                    count_a += 1.0;
-                } else {
-                    sum_b += v;
-                    new_sum_b += adjusted_val;
-                    count_b += 1.0;
+            let features = x_b.row(*matrix_idx).transpose();
+            let fair = (&features.transpose() * &beta_fair)[(0, 0)];
+            residual_sum_b += v - fair;
+            if fair - v > 1e-6 {
+                need_target += fair - v;
+            }
+            let (lower, upper) = calculate_interval(features, fair);
+            let before = support::range_position(v, lower, upper);
+            let after = support::range_position(adjusted_val, lower, upper);
+            match before {
+                RangePosition::Below => below_before += 1,
+                RangePosition::Inside => inside_before += 1,
+                RangePosition::Above => above_before += 1,
+            }
+            match after {
+                RangePosition::Below => below += 1,
+                RangePosition::Inside => inside += 1,
+                RangePosition::Above => {
+                    above += 1;
+                    if before != RangePosition::Above {
+                        newly_above += 1;
+                    }
                 }
             }
         }
@@ -453,7 +505,10 @@ pub fn check_defensibility_on(
 
     let mean_a = if count_a > 0.0 { sum_a / count_a } else { 0.0 };
     let mean_b = if count_b > 0.0 { sum_b / count_b } else { 0.0 };
-    let original_gap = mean_a - mean_b;
+    // Compared minus reference, negative while the compared group is underpaid: the sign
+    // `optimize` and the decomposition use (0122-MERIDIAN T7). It used to be reference minus
+    // compared.
+    let original_gap = mean_b - mean_a;
 
     let new_mean_a = if count_a > 0.0 {
         new_sum_a / count_a
@@ -465,39 +520,22 @@ pub fn check_defensibility_on(
     } else {
         0.0
     };
-    let new_gap = new_mean_a - new_mean_b;
+    let new_gap = new_mean_b - new_mean_a;
 
-    // original_unexplained_gap and new_unexplained_gap
-    // Calculate using beta_fair and actual wages for Group B
-    let mut unexplained_sum_orig = 0.0;
-    let mut unexplained_sum_new = 0.0;
-
-    for (idx, (matrix_idx, is_group_a)) in &map_orig_to_matrix {
-        if !*is_group_a {
-            let actual = wage_array.get(*idx).unwrap_or(0.0);
-            let features = x_b.row(*matrix_idx).transpose();
-            let fair = (&features.transpose() * &beta_fair)[(0, 0)];
-
-            let new_wage = match result_pos_by_index.get(idx) {
-                Some(&pos) => results[pos].new_wage,
-                None => actual,
-            };
-
-            unexplained_sum_orig += fair - actual;
-            unexplained_sum_new += fair - new_wage;
-        }
-    }
-
+    // Unexplained gap: the compared group's mean (pay - fair pay) on the baseline line, and the
+    // same after the schedule with the line refitted on the schedule's wages (T5).
     let original_unexplained_gap = if count_b > 0.0 {
-        unexplained_sum_orig / count_b
+        residual_sum_b / count_b
     } else {
         0.0
     };
     let new_unexplained_gap = if count_b > 0.0 {
-        unexplained_sum_new / count_b
+        original_unexplained_gap + weights.shift(&pay_b, &pay_a)
     } else {
         0.0
     };
+
+    let group_test = support::pooled_group_test(&x_a, &y_a_after, &x_b, &y_b_after, confidence);
 
     // Prepare Coefficients
     let mut model_coefficients = Vec::new();
@@ -512,12 +550,37 @@ pub fn check_defensibility_on(
 
     Ok(OptimizationResult {
         adjustments: results,
-        total_cost,
-        original_gap,
-        new_gap,
-        original_unexplained_gap,
-        new_unexplained_gap,
-        required_budget: total_need,
+        total_cost: nz(total_cost),
+        original_gap: nz(original_gap),
+        new_gap: nz(new_gap),
+        original_unexplained_gap: nz(original_unexplained_gap),
+        new_unexplained_gap: nz(new_unexplained_gap),
+        required_budget: nz(need_target),
+        target_line: RangeTarget::Midpoint,
+        cost_target: nz(cost_target),
+        cost_reference: nz(cost_reference),
+        need_target: nz(need_target),
+        need_reference: None,
+        best_reachable_gap: None,
+        target_gap_reachable: None,
+        shortfall_to_target: None,
+        target_budget: None,
+        budget_binding: None,
+        unfunded_amount: None,
+        unfunded_count: None,
+        threshold_excluded_count: None,
+        closure: None,
+        overshoot_mean: None,
+        position_counts: Some(PositionCounts {
+            below,
+            inside,
+            above,
+            below_before,
+            inside_before,
+            above_before,
+            newly_above,
+        }),
+        group_test,
         model_coefficients,
         row_key_space: crate::row_key::ROW_KEY_SPACE.to_string(),
         row_key_source: row_keys.source(),

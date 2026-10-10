@@ -122,6 +122,71 @@ Uniform weights of any size are a no-op under `relative`. Zero-weight rows carry
 CHANGED: the RIF bandwidth under `frequency` weights used Kish's effective n (so `w = 2` differed from the
 row twice in the density); it now reads `sum(w)`. Unweighted runs are untouched.
 
+## The remedy's figures (0122-MERIDIAN)
+
+The remedy raises each compared employee below the chosen pay line up to it, never above, within the budget. It
+is a scenario that costs a set of raises. It uses no solver: for these amounts the cost of reaching a gap is
+fixed, and the strategy decides only who is paid first when the money falls short.
+
+SIGN. Every gap, from `optimize` and from `check_defensibility`, is the compared group's figure minus the line (or
+minus the reference group's): negative while the compared group sits below, rising with every dollar paid.
+`original_unexplained_gap` is the mean of (pay - fair pay) per compared employee on the MIDPOINT of the fitted line,
+whatever `range_target` pays to. `new_unexplained_gap` is the same figure on the line REFITTED to the schedule's
+wages: raising reference employees moves the line, and under `Pooled` the compared group's own raises move it too,
+so it is not `original_unexplained_gap + total_cost / n`. `check_defensibility` used to report all four gap fields
+(`original_gap`, `new_gap`, `original_unexplained_gap`, `new_unexplained_gap`) with the opposite sign.
+
+Per-person figures are dollars per compared employee. `total_cost`, `cost_*`, `need_*`, `required_budget` and
+`unfunded_amount` are totals. Fields marked "optimise only" are `null`/absent from `check_defensibility`, and
+"defensibility only" fields from `optimize`; a zero is never used for "not applicable".
+
+| Field | Entry point | Meaning |
+|---|---|---|
+| `required_budget`, `need_target` | both | sum of the compared employees' shortfalls to `target_line` that pass the threshold; the same number in both on the default basis (threshold 0, `Midpoint`): `check_defensibility` takes neither `min_gap_pct` nor `range_target`, so with either set the two differ (a 4 % threshold on Fixture F: 16,884 from `optimize`, 19,607 from `check_defensibility`). The screen reads it from `optimize` |
+| `need_reference` | optimise | what raising the reference employees would cost; 0 with the toggle off |
+| `cost_target`, `cost_reference` | both | money paid to each group; `total_cost` is their sum |
+| `target_line` | both | the line the shortfalls are measured to (`Midpoint` from `check_defensibility`) |
+| `best_reachable_gap` | optimise | the highest the compared group's gap gets as the budget grows along the strategy's own order (honours `min_gap_pct` and `range_target`). On the `Reference` line, and wherever every payment raises the gap, that is the gap after paying every eligible shortfall in full. On the `Pooled` line a compared employee far beyond the reference group's characteristics can lower the gap when paid, the path peaks before its end, and this is the peak. With `adjust_both_groups` it is the gap after the full schedule |
+| `overshoot_mean` | optimise | mean of `max(0, pay - fair pay)` over the compared group on the midpoint line; with `Reference`, `Midpoint`, threshold 0 and no reference raises it equals `best_reachable_gap` |
+| `target_gap_reachable` | optimise | with `target_gap`: `true` when already met or within reach, `false` beyond `best_reachable_gap` |
+| `shortfall_to_target` | optimise | `target_gap - best_reachable_gap` when out of reach |
+| `target_budget` | optimise | the budget the target rule set: 0 when already met, the least that reaches it, or when out of reach the budget that gets nearest (the full need, unless paying someone lowers the gap, then the budget where the gap peaks) |
+| `budget_binding` | optimise | `true` when the caller's `budget` is below both the need and the target's budget |
+| `closure` | optimise | `cost_target / need_target`, 0 to 1, `null` when `need_target` is 0. It counts money, not the target: 0 when a target is already met, 1 when one is out of reach |
+| `unfunded_amount` | optimise | `need_target - cost_target` |
+| `unfunded_count` | optimise | eligible compared employees paid less than their shortfall (all of them under `Equitable` while the budget is short). Counted against the pay line, so it is not `position_counts.below`, which is counted against the range's lower bound (F, cap 25 000: 22 still below the line, 20 below the range) |
+| `threshold_excluded_count` | optimise | compared employees below the line by less than `min_gap_pct`; still below the line, left out on purpose |
+| `adjustments[].source` | both | `Compared` or `Reference` |
+| `adjustments[].range_position`, `range_position_before` | both | `Below` / `Inside` / `Above` for `new_wage` and `current_wage` against the row's own range; `Below` is exactly "not `is_defensible`", a wage within one cent of a bound is `Inside` |
+| `position_counts` | defensibility | `below`, `inside`, `above` after the schedule and `*_before` before it, over EVERY analysed compared employee (a row the schedule does not name counts at adjustment 0); `newly_above` = above after and not before; reference employees are in no count |
+| `group_test` | defensibility | the pooled regression with a group indicator on the schedule's wages: `line` (always `"Pooled"`), `group_coefficient`, `t_statistic`, `p_value`, `degrees_of_freedom`, `is_significant`. The frontier's computation at the same budget; not the bootstrap of `verify_adjustments`. Under `target: Reference` its `group_coefficient` is on the pooled line while `new_unexplained_gap` is on the reference line: they differ (by up to 740 dollars on the kink fixture) and can differ in sign. The raises are functions of the fitted line and remove the group's negative residuals, so the p-value describes the adjusted roster and is not evidence that the schedule is fair |
+
+`target_gap` is on the sign and scale of `original_unexplained_gap`, not the raw `total_gap`. It sets the budget: the
+least that brings the group's gap to it. A figure already met pays nothing; one out of reach pays every eligible
+shortfall (the same amounts as no target; on a pooled roster where paying someone lowers the gap, up to the budget where
+the gap peaks) and sets `target_gap_reachable: false`. On the `Reference` line the cost is
+`n_compared * (target_gap - original_unexplained_gap)`. Under `Pooled` a dollar to employee `i` moves the group
+coefficient by `d~_i / (d~' d~)` (Frisch-Waugh-Lovell), not by `1/n`, so the budget is found along the strategy's own
+order: a walk to the first segment that crosses the target for `Greedy`, a share of every shortfall for `Equitable`; the
+two strategies then cost slightly different amounts. A compared employee's weight is the residual of the group
+indicator on the model columns, negative for one far beyond the reference group's characteristics: paying that employee
+widens the gap. The path then peaks before its end (`best_reachable_gap` is the peak), and a target between where the
+full schedule ends and the peak is still reached, at a smaller budget. `target_gap` with `adjust_both_groups` is refused
+(`TARGET_GAP_WITH_REFERENCE_RAISES`): a raise to the reference group moves the line, so no single budget reaches it.
+
+`budget` is the most the remedy may spend in total, over both groups; 0 means no cap. A negative or non-finite
+value is refused (`INVALID_BUDGET`); it used to fund the full need. `min_gap_pct` is a fraction of the employee's
+CURRENT pay (shortfall / current pay) and must be finite and not negative (`INVALID_MIN_GAP_PCT`).
+
+CHANGED (0122-MERIDIAN). `adjust_both_groups` no longer credits money paid to reference employees to the compared
+group's gap (+2,103 reported against -434 true on the probe roster): `new_gap` subtracts `cost_reference` over the
+reference headcount and `new_unexplained_gap` is refitted. Reference employees are raised to the same line as the
+compared group under a `range_target`. `required_budget` is the compared group's need in both entry points (it used
+to sum both groups in `optimize`). Under `LowerBound` / `UpperBound`, `original_unexplained_gap` and
+`new_unexplained_gap` are on the midpoint line, not measured from the bound. The frontier follows the remedy's
+settings (`strategy`, `target`, `range_target`, `min_gap_pct`, `adjust_both_groups`) and its budget axis ends at the
+remedy's full cost instead of 10 % past it.
+
 ## Oracles
 
 | Check | Oracle | Tolerance | Measured |
@@ -134,6 +199,11 @@ row twice in the density); it now reads `sum(w)`. Unweighted runs are untouched.
 | T8 Pooled target: `optimize` against `decompose` `Pooled` unexplained, 5 cases | the same file through the decomposition | 1e-9 | 2.2e-10 |
 | T8 Pooled target: fair wage and bounds, three levels, 7 cases | `predict.lm(pooled_fit, interval = "prediction")` at indicator 0 | 1e-9 | 6.4e-12 |
 | T8 Pooled target: `extrapolated` ordinals | `hatvalues` of the pooled fit, leverage of `(x, 0)` | exact set | exact |
+| 0122 V1-V5 every remedy figure (62 cases: `Reference` and `Pooled`, both strategies, caps, targets, thresholds, range targets, reference raises) | base R: `lm`, `predict.lm`, REFIT of the line on the schedule's wages, `uniroot` on that refit for the budget | $1e-6, relative 1e-10 | see `remedy_oracle_test` |
+| 0122 V8-V9 positions, counts and group test on 11 schedules (partial, generous, to a bound, over a bound, reference raises, Pooled, predictor override) | `predict.lm(interval = "prediction")`, `summary(lm)` | counts exact, p 1e-9 | see `remedy_oracle_test` |
+| 0122 C-01 a pooled roster where paying the last row lowers the gap (`N_pooled_*`: peak 723, end 161), a lower or upper bound at level 0.80, the one-cent tolerance 0.005 and 0.015 either side of each bound | base R: the gap REFITTED at every vertex of the pay path, `uniroot` on the first crossing segment; `predict.lm`, `summary(lm)` | $1e-6, counts exact | see `remedy_oracle_test` |
+| 0122 V1 cost of a target on a six-row roster | closed form from the file's cells; enumeration of every allocation on a 250 dollar grid | exact on the grid | see `remedy_rules_test` |
+| 0122 V10 every frontier point, each setting alone | plain-std OLS of Fixture F's cells on the schedule `optimize` pays at that budget | 1e-7 | see `remedy_frontier_test` |
 | V8 percentile gap, ECDF, tie counts | `quantile(type = 7)` | 1e-12 | exact |
 | V9 relative quantile | `Hmisc::wtd.quantile(normwt = TRUE)`, 5 weight patterns x 5 taus | 1e-9 | see `weights_kind_test` |
 | V9 frequency quantile | `quantile(rep(y, w), type = 7)` | 1e-9 | exact |
@@ -141,3 +211,7 @@ row twice in the density); it now reads `sum(w)`. Unweighted runs are untouched.
 Generator: `verification/gen_diag_goldens.R` (R 4.6, `ddecompose` 1.0.0, `Hmisc` 5.2.6). Golden:
 `oaxaca_blinder/tests/fixtures/diag_goldens_r.json`, with the sha256 of the generator and of every fixture;
 the Rust tests refuse a stale golden. No expected value comes from engine output.
+
+Remedy generators: `verification/gen_remedy_goldens.R` (R 4.6, `jsonlite`, `digest`; golden
+`engine/tests/fixtures/remedy_goldens_r.json`) and `verification/gen_remedy_bruteforce.py` (golden
+`engine/tests/fixtures/remedy_bruteforce.json`), each with the sha256 of the generator and of every fixture.

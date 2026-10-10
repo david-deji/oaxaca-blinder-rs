@@ -196,6 +196,12 @@ fn v7_the_level_defaults_to_95_and_a_bad_level_is_refused_by_name_on_every_entry
             steps: Some(4),
             max_budget: Some(5000.0),
             confidence_level: Some(bad),
+
+            strategy: None,
+            target: None,
+            range_target: None,
+            min_gap_pct: None,
+            adjust_both_groups: None,
         })
         .unwrap_err();
         assert!(
@@ -228,7 +234,7 @@ fn v7_range_target_payments_equal_the_predict_lm_bound_minus_the_wage() {
             (RangeTarget::UpperBound, "upr"),
         ] {
             let mut req = optimisation(name, Some(0.95));
-            req.range_target = Some(target.clone());
+            req.range_target = Some(target);
             req.strategy = Some(AllocationStrategy::Greedy);
             req.budget = 1.0e12;
             let res = optimize_inner(req).unwrap();
@@ -410,6 +416,12 @@ fn frontier(name: &str, confidence: Option<f64>) -> Vec<FrontierPoint> {
         steps: Some(4),
         max_budget: Some(5000.0),
         confidence_level: confidence,
+
+        strategy: None,
+        target: None,
+        range_target: None,
+        min_gap_pct: None,
+        adjust_both_groups: None,
     })
     .unwrap()
 }

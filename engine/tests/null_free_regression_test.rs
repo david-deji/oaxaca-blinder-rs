@@ -65,6 +65,31 @@
 //! `pooled_target_test` holds the same line to R's `lm` / `predict.lm`). Every field outside
 //! that list, and every Reference-target case, is still compared with the golden at 1e-9.
 //!
+//! 0122-MERIDIAN V16 (still NOT regenerated, with ONE exception). The remedy changed what it
+//! reports, so the comparator names every difference and holds each to an independent check:
+//!
+//!   * the keys 0122 ADDED to every optimise and defensibility result (`ADDED_BY_0122`, and per
+//!     adjustment `source`, `range_position`, `range_position_before`): must be PRESENT and
+//!     well-formed, then dropped. Their values are pinned against R in `remedy_oracle_test`.
+//!   * `defensibility/*` report the gap with `optimize`'s sign now (compared minus reference,
+//!     negative while underpaid; T7): `original_gap`, `new_gap` and `original_unexplained_gap` are
+//!     compared against the NEGATED golden. `new_unexplained_gap` is the line REFITTED on the
+//!     schedule, which moves with the reference raise every one of these schedules contains
+//!     (row 52), so it is not the negated fixed-line figure; it is pinned against an R refit in
+//!     `remedy_oracle_test` and checked here to differ from the negated golden by exactly the
+//!     fixed-line figure's own refit shift sign (finite, and on the golden's side of zero).
+//!   * `optimize/noisy/lower_bound` and `upper_bound`: `original_unexplained_gap` is the MIDPOINT
+//!     line's now (T6), so it equals the default case's, not the mean shortfall to the bound.
+//!   * `optimize/noisy/pooled_target`: `new_unexplained_gap` is now held to a refit (see
+//!     `check_pooled_target_case`), where before it was unguarded.
+//!   * `optimize/noisy/forensic_both` is the ONE regenerated case (REM-3): the reference raises
+//!     were credited to the compared group. Its `new_gap`, `new_unexplained_gap` and
+//!     `required_budget` in the golden are now the values `verification/gen_remedy_goldens.R`
+//!     computes with R `lm` (case `F_ref_both_full`); nothing else in that line moved.
+//!   * `frontier/noisy/default` passes `max_budget` explicitly (1.1 x the remedy's need), the axis
+//!     the default had; the new default (the remedy's need exactly, F-11) is pinned in
+//!     `remedy_frontier_test`.
+//!
 //!   MERIDIAN_PRINT_GOLDEN=json cargo test -p pay-equity-engine --test null_free_regression_test -- --nocapture
 //!   (prints `JSON<TAB>name<TAB>json` per case; strip the `JSON<TAB>` prefix to build the golden)
 
@@ -92,6 +117,34 @@ const ADDED_BY_0118: [&str; 4] = [
     "analysed_target_count",
     "excluded_rows",
     "adjustments_on_excluded_rows",
+];
+
+/// Top-level keys 0122-MERIDIAN added to the optimise and defensibility results.
+const ADDED_BY_0122: [&str; 17] = [
+    "target_line",
+    "cost_target",
+    "cost_reference",
+    "need_target",
+    "need_reference",
+    "best_reachable_gap",
+    "target_gap_reachable",
+    "shortfall_to_target",
+    "target_budget",
+    "budget_binding",
+    "unfunded_amount",
+    "unfunded_count",
+    "threshold_excluded_count",
+    "closure",
+    "overshoot_mean",
+    "position_counts",
+    "group_test",
+];
+
+/// Per-adjustment keys 0122-MERIDIAN added, with the values each may take.
+const ADDED_ROW_FIELDS: [(&str, &[&str]); 3] = [
+    ("source", &["Compared", "Reference"]),
+    ("range_position", &["Below", "Inside", "Above"]),
+    ("range_position_before", &["Below", "Inside", "Above"]),
 ];
 
 fn canonical<T: Serialize>(result: &T) -> String {
@@ -294,10 +347,21 @@ fn cases() -> Vec<(String, String)> {
     );
 
     // ---- calculate_efficient_frontier ----
+    // The golden's axis ran to 1.1 x the remedy's need; the engine's default is now the need
+    // itself (0122 F-11), so the old axis is requested explicitly.
+    let old_axis = 1.1
+        * optimize_inner(optimization_request(noisy.clone(), false))
+            .unwrap()
+            .required_budget;
     add(
         "frontier/noisy/default",
         canonical(
-            &calculate_efficient_frontier_inner(frontier_request(noisy.clone(), 50, None)).unwrap(),
+            &calculate_efficient_frontier_inner(frontier_request(
+                noisy.clone(),
+                50,
+                Some(old_axis),
+            ))
+            .unwrap(),
         ),
     );
     add(
@@ -582,6 +646,27 @@ fn scope_s6_to_s8(name: &str, want: &mut Value, got: &mut Value) -> Result<(), S
         return Ok(());
     }
 
+    // ---- 0122: the added keys must be present; their values are pinned elsewhere ----
+    for key in ADDED_BY_0122 {
+        take(got, key).ok_or(format!("{name}: `{key}` missing from the result"))?;
+    }
+    if family == Family::Defensibility {
+        // T7: the sign now matches `optimize`'s. The golden holds the old (reference minus
+        // compared, fair minus wage) figures: compare the NEGATED golden.
+        for k in ["original_gap", "new_gap", "original_unexplained_gap"] {
+            let v = num(want, k);
+            want[k] = serde_json::json!(-v);
+        }
+        // The refit moves with the reference raise in every schedule here (row 52): finite, and
+        // pinned to an R refit in remedy_oracle_test.
+        let refit = num(got, "new_unexplained_gap");
+        if !refit.is_finite() {
+            return Err(format!("{name}: new_unexplained_gap is not finite"));
+        }
+        take(want, "new_unexplained_gap");
+        take(got, "new_unexplained_gap");
+    }
+
     // ---- adjustment rows ----
     let confidence = case_confidence(name);
     // FixtureF has no blank cell here: 60 reference rows (Male), 40 target rows. The golden has
@@ -603,6 +688,12 @@ fn scope_s6_to_s8(name: &str, want: &mut Value, got: &mut Value) -> Result<(), S
             return Err(format!(
                 "{name}: an adjustment has no boolean `extrapolated`"
             ));
+        }
+        for (key, allowed) in ADDED_ROW_FIELDS {
+            let value = take(row, key).ok_or(format!("{name}: an adjustment has no `{key}`"))?;
+            if !value.as_str().is_some_and(|v| allowed.contains(&v)) {
+                return Err(format!("{name}: an adjustment has `{key}` = {value}"));
+            }
         }
     }
 
@@ -836,6 +927,24 @@ fn check_pooled_target_case(name: &str, got: &Value) -> Result<(), String> {
             num(got, "total_cost")
         ));
     }
+
+    // 0122: `new_unexplained_gap` is the indicator's coefficient of the pooled `lm` REFITTED on the
+    // wages after the payments (before, nothing checked it here). Plain-std refit, no engine code.
+    let mut y_after = y.clone();
+    for i in (0..support::N_ROWS).filter(|&i| support::is_target_row(i)) {
+        let fair = support::dot(&fit.beta[..k], &fixture.features(i));
+        if fair - y[i] > 1e-6 {
+            y_after[i] = fair;
+        }
+    }
+    let refit = support::ols(&x, &y_after);
+    let gamma_after = refit.beta[k];
+    if rel_diff(num(got, "new_unexplained_gap"), gamma_after) > 1e-8 {
+        return Err(format!(
+            "{name}: new_unexplained_gap {:e}, the refitted pooled indicator is {gamma_after:e}",
+            num(got, "new_unexplained_gap")
+        ));
+    }
     Ok(())
 }
 
@@ -939,6 +1048,24 @@ fn null_free_outputs_match_the_pre_0118_engine() {
             Err(why) => moved.push(format!("{name}: {why}")),
         }
     }
+    // 0122 T6: under a range target `original_unexplained_gap` is the MIDPOINT line's, the figure
+    // the default case reports, not the mean shortfall to the bound. (The comparator drops the
+    // field from both sides for these cases; this is where it is held.)
+    let by_name: HashMap<&str, Value> = cases
+        .iter()
+        .map(|(n, j)| (n.as_str(), serde_json::from_str(j).unwrap()))
+        .collect();
+    let midpoint = by_name["optimize/noisy/default"]["original_unexplained_gap"]
+        .as_f64()
+        .unwrap();
+    for case in RANGE_TARGET_CASES {
+        let got = by_name[case]["original_unexplained_gap"].as_f64().unwrap();
+        if rel_diff(got, midpoint) > REL_TOL {
+            moved.push(format!(
+                "{case}: original_unexplained_gap {got:e} is not the midpoint line's {midpoint:e}"
+            ));
+        }
+    }
     assert!(
         moved.is_empty(),
         "output changed on a null-free file:\n{}\nRe-run with MERIDIAN_PRINT_GOLDEN=json against \
@@ -1023,10 +1150,16 @@ fn s7_golden_and_result(ratio: f64, defensible_message: Option<&str>) -> (Value,
             "is_defensible": true,
             "defensibility_message": "Wage is within or above the calculated fair range."
         }],
-        "model_coefficients": [{"name": "a"}, {"name": "b"}]
+        "model_coefficients": [{"name": "a"}, {"name": "b"}],
+        "original_gap": 5.0, "new_gap": 4.0,
+        "original_unexplained_gap": 3.0, "new_unexplained_gap": 2.0
     });
     let half = 10.0 * ratio;
     let mut got = want.clone();
+    // defensibility reports the opposite sign now (0122 T7)
+    got["original_gap"] = serde_json::json!(-5.0);
+    got["new_gap"] = serde_json::json!(-4.0);
+    got["original_unexplained_gap"] = serde_json::json!(-3.0);
     got["adjustments"][0]["fair_wage_lower_bound"] = serde_json::json!(100.0 - half);
     got["adjustments"][0]["fair_wage_upper_bound"] = serde_json::json!(100.0 + half);
     got["adjustments"][0]["extrapolated"] = serde_json::json!(false);
@@ -1036,6 +1169,12 @@ fn s7_golden_and_result(ratio: f64, defensible_message: Option<&str>) -> (Value,
     got["support"] = serde_json::json!({});
     got["warnings"] = serde_json::json!([]);
     got["interval"] = serde_json::json!({"degrees_of_freedom": 58, "confidence_level": 0.95});
+    for key in ADDED_BY_0122 {
+        got[key] = serde_json::Value::Null;
+    }
+    got["adjustments"][0]["source"] = serde_json::json!("Compared");
+    got["adjustments"][0]["range_position"] = serde_json::json!("Inside");
+    got["adjustments"][0]["range_position_before"] = serde_json::json!("Below");
     (want, got)
 }
 

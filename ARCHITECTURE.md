@@ -56,8 +56,9 @@ A JSON-RPC server (stdio, or SSE/HTTP via Axum) exposing the engine functions as
 2.  **Decomposition** (`oaxaca_blinder`): linear algebra via **Nalgebra**; bootstrap replications
     parallelized with **Rayon**.
 3.  **Optimization** (`pay-equity-engine`): budget-constrained wage adjustments. Fair-wage standards
-    are solved with direct linear algebra (OLS/SVD via Nalgebra); convex optimization is available
-    via **Clarabel**.
+    are solved with direct linear algebra (OLS/SVD via Nalgebra). There is no solver: the amounts
+    are a sort-and-cap over each employee's shortfall to the line, and `target_gap` is a rule for
+    the budget derived along the strategy's own order.
 4.  **Output**: results are returned as Rust structs (CLI / MCP), as `JsValue` across the WASM
     boundary, or printed to stdout (CLI).
 
@@ -68,7 +69,7 @@ A JSON-RPC server (stdio, or SSE/HTTP via Axum) exposing the engine functions as
 -   **Math / Stats**:
     -   `nalgebra`: linear algebra (`DMatrix`/`DVector`).
     -   `statrs`: statistical distributions.
-    -   `clarabel`: convex optimization solver.
+    -   `clarabel`: convex solver used by the library's quantile regression (not by the remedy).
 -   **Parallelism**: `rayon` (bootstrap iterations).
 -   **CLI**: `clap`.
 -   **WASM**: `wasm-bindgen` (+ `serde-wasm-bindgen`), behind the `wasm` feature.

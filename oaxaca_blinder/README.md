@@ -17,7 +17,7 @@ Beyond standard decomposition, it supports **Quantile Decomposition (RIF & Macha
 | **Quantile Decomposition (RIF Regression)** | ✅ |
 | **Categorical Normalization (Yun)** | ✅ |
 | **Bootstrapped Standard Errors** | ✅ |
-| **Budget Optimization Solver** | ✅ |
+| **Budget simulation (deprecated library method; the product path is the engine's `optimize`)** | ✅ |
 | **JMP Decomposition (Time Series)** | ✅ |
 | **DFL Reweighting (Counterfactuals)** | ✅ |
 | **Sample Weights** | ✅  |
@@ -37,7 +37,7 @@ Most economists rely on the `oaxaca` R package or `statsmodels` in Python. While
 1.  **🚀 Speed**: Written in Rust with parallelized bootstrapping (Rayon). It is **20-30x faster** than R and **10x faster** than Python for large datasets (see Benchmarks).
 2.  **📦 All-in-One Toolkit**: In R, you need `oaxaca` for decomposition, `rifreg` for quantiles, `MatchIt` for matching, and `lfe` for AKM. In Python, `statsmodels` lacks built-in RIF, Matching, and AKM. This library unifies **all** of them into a single, consistent API.
 3.  **🛡️ Type Safety**: Rust's strict type system prevents common data errors (like silent `NaN` propagation) that can plague dynamic languages.
-4.  **🧠 Unique Features**: Includes the **"Cheapest Fix"** budget optimization solver, a tool specifically designed for HR departments to close pay gaps efficiently—something no other standard library offers.
+4.  **🧠 Pay-gap remedy costing**: the `pay-equity-engine` crate costs a remedy for HR departments (who is raised, to which line, for how much, and what it does to the group's gap). The library's `OaxacaResults::optimize_budget` is deprecated in favour of it.
 5.  **🐍 Python & CLI Support**: You don't need to know Rust. Use the high-performance engine directly from Python or the command line.
 6.  **⚡ Parallelized Inference**: Bootstrapping standard errors for Oaxaca decompositions is computationally intensive. This library uses **Rayon** to parallelize this across all CPU cores, reducing wait times from minutes to seconds.
 
@@ -158,14 +158,11 @@ print(f"Unexplained: {results.unexplained}")
 <details>
 <summary><strong>💰 Policy Simulation: Budget Optimization</strong></summary>
 
-**"The Cheapest Fix"** 
-
-This unique feature is designed for HR analytics. It answers: *"Given a limited budget, how can we reduce the pay gap as much as possible?"*
-
-It identifies individuals in the disadvantaged group with the largest negative unexplained residuals (i.e., the most "underpaid" relative to their qualifications) and calculates the optimal raises.
+**Deprecated library method.** `OaxacaResults::optimize_budget` spends a budget on the disadvantaged group's largest negative residuals, largest first, until the raw total gap reaches a target. It is kept for existing callers and is deprecated: the remedy the Meridian product runs is the engine's `optimize` (crate `pay-equity-engine`), which raises each person below a fitted pay line up to it and reports the cost, who is still below the line, and the group's gap on one sign. Library-only example:
 
 ```rust
-// Scenario: You have $200,000 to reduce the gap to 5%
+// Scenario: You have $200,000 to reduce the gap to 5% (deprecated; library only)
+#[allow(deprecated)]
 let adjustments = results.optimize_budget(200_000.0, 0.05);
 
 for adj in adjustments {

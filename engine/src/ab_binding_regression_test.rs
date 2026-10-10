@@ -130,6 +130,12 @@ mod tests {
             steps: Some(10),
             max_budget: Some(700_000.0),
             confidence_level: None,
+
+            strategy: None,
+            target: None,
+            range_target: None,
+            min_gap_pct: None,
+            adjust_both_groups: None,
         };
         let points =
             calculate_efficient_frontier_inner(req).expect("frontier should compute without error");

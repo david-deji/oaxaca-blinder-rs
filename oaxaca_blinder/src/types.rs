@@ -91,6 +91,15 @@ impl OaxacaResults {
     /// observable characteristics) and calculates the necessary adjustments to bring them
     /// closer to their predicted pay, subject to the budget and target gap constraints.
     ///
+    /// # Deprecated
+    ///
+    /// This is not the remedy the Meridian product runs. The engine's `optimize`
+    /// (`pay-equity-engine`) raises each compared employee below a fitted pay line up to it, never
+    /// above, and reports what that costs and does to the compared group's gap. This method
+    /// allocates on the residuals of the decomposition's own fit, with the library's convention
+    /// for which group is which, and `target_gap` here is the RAW total gap between the two
+    /// groups' mean pay, not the compared group's gap to a pay line.
+    ///
     /// # Arguments
     ///
     /// * `budget` - The maximum total amount to spend on adjustments.
@@ -109,7 +118,18 @@ impl OaxacaResults {
     /// original ordinals from `OaxacaBuilder::get_data_matrices_with_rows`, and the Python
     /// binding in `python.rs` is not compiled). A caller that needs employee identity should use
     /// `get_data_matrices_with_rows` instead.
+    #[deprecated(
+        since = "0.3.0",
+        note = "the product path is the engine's `optimize` (pay-equity-engine); this method \
+                allocates on the cleaned-frame residuals of the decomposition, targets the raw \
+                `total_gap`, and keeps the library's own group convention"
+    )]
     pub fn optimize_budget(&self, budget: f64, target_gap: f64) -> Vec<BudgetAdjustment> {
+        // A budget or a target that is not a number pays nothing: `f64::min` returns the other
+        // argument when one is NaN, which used to fund the full need (0122-MERIDIAN C-09).
+        if !budget.is_finite() || !target_gap.is_finite() {
+            return Vec::new();
+        }
         let current_gap = self.total_gap;
         // If the gap is already smaller than or equal to the target, no adjustments needed.
         if current_gap <= target_gap {
