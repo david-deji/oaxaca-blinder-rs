@@ -55,7 +55,11 @@ fn tiny(edit: &dyn Fn(&mut OptimizationRequest)) -> Result<OptimizationResult, S
 }
 
 fn near(a: f64, b: f64) -> bool {
-    (a - b).abs() < 1e-9 * 1.0_f64.max(a.abs()).max(b.abs())
+    let scale = 1.0_f64.max(a.abs()).max(b.abs());
+    if std::env::var_os("MERIDIAN_MEASURE").is_some() {
+        eprintln!("MEASURED {:e}", (a - b).abs() / scale);
+    }
+    (a - b).abs() < 1e-9 * scale
 }
 
 fn paid_by_index(r: &OptimizationResult) -> Vec<(usize, f64)> {
@@ -637,6 +641,9 @@ fn optimize_and_check_defensibility_report_one_set_of_figures_for_one_schedule()
             ("cost_reference", o.cost_reference, d.cost_reference),
             ("total_cost", o.total_cost, d.total_cost),
         ] {
+            if std::env::var_os("MERIDIAN_MEASURE").is_some() {
+                eprintln!("MEASURED {:e}", (a - b).abs());
+            }
             assert!(
                 (a - b).abs() < 1e-6,
                 "{label}.{field}: optimize {a} vs check_defensibility {b}"

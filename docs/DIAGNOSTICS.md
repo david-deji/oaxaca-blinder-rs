@@ -142,7 +142,7 @@ Per-person figures are dollars per compared employee. `total_cost`, `cost_*`, `n
 
 | Field | Entry point | Meaning |
 |---|---|---|
-| `required_budget`, `need_target` | both | sum of the compared employees' shortfalls to `target_line` that pass the threshold; the same number in both |
+| `required_budget`, `need_target` | both | sum of the compared employees' shortfalls to `target_line` that pass the threshold; the same number in both on the default basis (threshold 0, `Midpoint`): `check_defensibility` takes neither `min_gap_pct` nor `range_target` |
 | `need_reference` | optimise | what raising the reference employees would cost; 0 with the toggle off |
 | `cost_target`, `cost_reference` | both | money paid to each group; `total_cost` is their sum |
 | `target_line` | both | the line the shortfalls are measured to (`Midpoint` from `check_defensibility`) |

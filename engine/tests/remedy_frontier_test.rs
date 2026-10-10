@@ -93,7 +93,11 @@ fn schedule_of(r: &OptimizationResult) -> std::collections::HashMap<usize, f64> 
 }
 
 fn near(a: f64, b: f64, tol: f64) -> bool {
-    (a - b).abs() <= tol * 1.0_f64.max(a.abs()).max(b.abs())
+    let scale = 1.0_f64.max(a.abs()).max(b.abs());
+    if std::env::var_os("MERIDIAN_MEASURE").is_some() {
+        eprintln!("MEASURED {:e}", (a - b).abs() / scale);
+    }
+    (a - b).abs() <= tol * scale
 }
 
 /// One setting changed from the default, so a field the frontier ignores is caught alone.

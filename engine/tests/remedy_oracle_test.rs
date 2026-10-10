@@ -149,6 +149,9 @@ fn check(case: &str, field: &str, got: f64, want: &Value) {
     let want = want
         .as_f64()
         .unwrap_or_else(|| panic!("{case}.{field}: golden is not a number: {want}"));
+    if std::env::var_os("MERIDIAN_MEASURE").is_some() {
+        eprintln!("MEASURED {case} {field} {:e}", (got - want).abs());
+    }
     assert!(
         close(got, want),
         "{case}.{field}: engine {got:.9} vs R {want:.9} (diff {:.3e})",
