@@ -212,6 +212,22 @@ def ci_checks_0120(add, verified, published):
         hashes=rows)
 
 
+def planted_red_checks(epic):
+    """Probe keys that the epic's planted-blobs record (ground/receipts/<epic-id>-planted-blobs.json) shows red on
+    every artifact of the build before the epic. Those checks are the discriminating ones. Returns {key: proof}."""
+    f = GROUND / "receipts" / f"{epic.split('-')[0]}-planted-blobs.json"
+    try:
+        rec = json.loads(f.read_text())
+    except (OSError, ValueError):
+        return {}
+    arts = list((rec.get("artifacts") or {}).values())
+    if not arts:
+        return {}
+    keys = set.intersection(*[{k for k, v in a.items() if v == "fail"} for a in arts])
+    return {k: f"Red on the shipped blobs from before the epic ({', '.join(sorted(rec['artifacts']))} artifacts, "
+               f"engine commit {rec.get('engine_commit', 'unknown')}); recorded in ground/receipts/{f.name}" for k in keys}
+
+
 def probe_checks(add, frontend_src, epic):
     """0120-MERIDIAN, 0122-MERIDIAN: the shipped blobs, run in node on the engine's own committed files.
 
@@ -227,6 +243,7 @@ def probe_checks(add, frontend_src, epic):
              ("t8_zero_budget_identity", "shipped_blob_t8_zero_budget_identity")]
     if epic.startswith("0122"):
         names += [("target_gap_rule", "shipped_blob_target_gap_rule"), ("reference_raise_closure", "shipped_blob_reference_raise_closure")]
+    planted = planted_red_checks(epic)
     for key, name in names:
         if probe is None or rc != 0:
             add(name, False, f"the probe wrote no result (exit {rc}): {out.strip()[-200:]}")
@@ -262,7 +279,8 @@ def probe_checks(add, frontend_src, epic):
                              f"= engine {c['engine_cost_target']:.6f} + {c['engine_cost_reference']:.6f} (total {c['engine_total_cost']:.6f}); gap left: engine {c['engine_new_unexplained_gap']:.9f}, "
                              f"independent refit of the reference group's adjusted wages {c['independent_refit_gap']:.9f}, VERIFY {c['verify_gap']:.9f}; the old arithmetic would print {c['old_arithmetic_gap']:.3f}; "
                              f"comparator catches it: {c.get('comparator_sees_the_old_arithmetic')} and a 0.01 nudge: {teeth}")
-        add(name, ok, " | ".join(parts)[:2400])
+        extra = {"discriminates": True, "proof": planted[key]} if key in planted else {}
+        add(name, ok, " | ".join(parts)[:2400], **extra)
 
 
 def main() -> int:
