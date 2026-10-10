@@ -1,0 +1,28 @@
+{
+  "epic": "0122",
+  "what": "The shipped-blob probe (scripts/lib/shipped_blob_probe.mjs) run against the blobs the app shipped BEFORE the 0122 engine (app commit d911173a). The two 0122 checks must be red; the 0120 checks, which that build already satisfied, stay green.",
+  "command": "node scripts/lib/shipped_blob_probe.mjs <dir holding wasm/ and wasm-threaded/ extracted from app commit d911173a>",
+  "ran_at": "2026-10-10T18:06:56Z",
+  "engine_commit": "096f76b",
+  "planted_blobs": {
+    "sequential_bg_wasm": "3866bad05ad2ef5597392cff33eeb960d074d47280e68f68a25ff1b95a2afb07",
+    "threaded_bg_wasm": "a67f8bf60079e9284a33285091c644135f26bf8bb38e7b9bde8bb9a855ede279"
+  },
+  "artifacts": {
+    "sequential": {
+      "relabel": "pass",
+      "carve_out": "pass",
+      "target_gap_rule": "fail",
+      "reference_raise_closure": "fail",
+      "t8_zero_budget_identity": "pass"
+    },
+    "threaded": {
+      "relabel": "pass",
+      "carve_out": "pass",
+      "target_gap_rule": "fail",
+      "reference_raise_closure": "fail",
+      "t8_zero_budget_identity": "pass"
+    }
+  },
+  "both_new_checks_red_on_both_artifacts": true
+}

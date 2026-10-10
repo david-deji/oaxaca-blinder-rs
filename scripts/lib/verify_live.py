@@ -20,6 +20,9 @@ Order, and why:
                         tree, nothing under the published directories is uncommitted, and each published
                         engine-manifest.json is tracked by git (the sequential one sits in a directory whose
                         .gitignore is `*`, so a plain `git add` skips it).
+  6. (0120, 0122) main_ci_green_on_base, ci_wasm_baselines and the shipped-blob checks, see ci_checks_0120 and
+                        probe_checks. 0122 adds target_gap_rule and reference_raise_closure on the engine's own
+                        Fixture F, and runs the app's 0122 real-blob specs beside the earlier two.
 Every nested exit code is checked: a non-zero exit fails its check whatever the receipt says.
 Nothing here copies or publishes anything.
 
@@ -136,7 +139,7 @@ def app_tree_problems(app: Path, frontend_src: Path, app_receipt, halted_at):
 
 
 def ci_checks_0120(add, verified, published):
-    """0120-MERIDIAN: the CI the commit this receipt branches from, and the baselines CI recorded for it.
+    """0120-MERIDIAN, 0122-MERIDIAN: the CI the commit this receipt branches from, and the baselines CI recorded for it.
 
     `main_ci_green_on_base`  the CI run on the commit this branch was cut from (git merge-base with origin/main)
                              finished with every job success except the non-blocking benchmark, `gate` included.
@@ -209,15 +212,21 @@ def ci_checks_0120(add, verified, published):
         hashes=rows)
 
 
-def probe_checks_0120(add, frontend_src):
-    """0120-MERIDIAN: the shipped blobs, run in node on the engine's own 10 000-row employers file."""
-    rc, out = run(["node", "scripts/lib/shipped_blob_probe.mjs", str(frontend_src)], 600)
+def probe_checks(add, frontend_src, epic):
+    """0120-MERIDIAN, 0122-MERIDIAN: the shipped blobs, run in node on the engine's own committed files.
+
+    0120: the 10 000-row employers file (relabel, carve-out, T8). 0122 adds Fixture F's two checks, whose expected
+    figures are worked out from the file's cells: the target-gap rule and the reference-raise closure.
+    """
+    rc, out = run(["node", "scripts/lib/shipped_blob_probe.mjs", str(frontend_src)], 900)
     try:
         probe = json.loads(out.strip().splitlines()[-1])
     except (ValueError, IndexError):
         probe = None
     names = [("relabel", "shipped_blob_relabel_invariance"), ("carve_out", "shipped_blob_carve_out_invariance"),
              ("t8_zero_budget_identity", "shipped_blob_t8_zero_budget_identity")]
+    if epic.startswith("0122"):
+        names += [("target_gap_rule", "shipped_blob_target_gap_rule"), ("reference_raise_closure", "shipped_blob_reference_raise_closure")]
     for key, name in names:
         if probe is None or rc != 0:
             add(name, False, f"the probe wrote no result (exit {rc}): {out.strip()[-200:]}")
@@ -236,11 +245,24 @@ def probe_checks_0120(add, frontend_src):
                 parts.append(f"{art}: {c['rows']} Department rows map one to one after Engineering becomes zz_Engineering, worst difference {c['worst_abs_difference']:.2e} (limit 1e-9), comparator catches a 0.01 nudge: {teeth}")
             elif key == "carve_out":
                 parts.append(f"{art}: 20 Engineering rows moved to a new department Legal, {c['untouched_departments']} untouched departments move at most {c['worst_untouched_move']:.2e} (limit 1e-4), comparator catches a 0.01 nudge: {teeth}")
-            else:
+            elif key == "t8_zero_budget_identity":
                 p, r2 = c["pooled"], c["reference"]
                 parts.append(f"{art}: Pooled optimiser starts at {p['optimize_pooled_original']:.9f}, decomposition {p['decompose_pooled']:.9f}, independent group-indicator fit {p['independent_group_indicator_coefficient']:.9f}; "
                              f"Reference optimiser {r2['optimize_reference_original']:.9f}, GroupB decomposition {r2['decompose_groupb']:.9f}, independent fit {r2['independent_mean_shortfall_against_reference_line']:.9f}; comparator catches a shift: {teeth}")
-        add(name, ok, " | ".join(parts)[:1500])
+            elif key == "target_gap_rule":
+                rc0 = c["reachable"]
+                floors = "; ".join(f"{t['min_gap_pct'] * 100:g} % threshold: hand floor {t['hand_floor']:.6f}, engine {t['engine_floor']:.6f}, "
+                                   f"{'reachable' if t['engine_reachable'] else 'unreachable'}, {t['engine_excluded_people']} people left out" for t in c["thresholds"])
+                ok = ok and c.get("comparator_sees_the_old_floor_rule") is True and c.get("an_unreachable_target_was_exercised") is True
+                parts.append(f"{art}: target {rc0['target']:.4f} costs {rc0['greedy_cost']:.6f} (Greedy) and {rc0['equitable_cost']:.6f} (Equitable), n x (target - start gap) from the cells is {rc0['wanted_cost']:.6f}, "
+                             f"the group lands on {rc0['greedy_gap']:.6f}; {floors}; an unreachable target pays the same amounts as no target; comparator catches the old floor rule: {c.get('comparator_sees_the_old_floor_rule')} and a 0.01 nudge: {teeth}")
+            else:
+                ok = ok and c.get("comparator_sees_the_old_arithmetic") is True
+                parts.append(f"{art}: {c['reference_people_raised']} reference people raised; cost by rows {c['cost_compared_by_rows']:.6f} compared + {c['cost_reference_by_rows']:.6f} reference "
+                             f"= engine {c['engine_cost_target']:.6f} + {c['engine_cost_reference']:.6f} (total {c['engine_total_cost']:.6f}); gap left: engine {c['engine_new_unexplained_gap']:.9f}, "
+                             f"independent refit of the reference group's adjusted wages {c['independent_refit_gap']:.9f}, VERIFY {c['verify_gap']:.9f}; the old arithmetic would print {c['old_arithmetic_gap']:.3f}; "
+                             f"comparator catches it: {c.get('comparator_sees_the_old_arithmetic')} and a 0.01 nudge: {teeth}")
+        add(name, ok, " | ".join(parts)[:2400])
 
 
 def main() -> int:
@@ -353,6 +375,9 @@ def main() -> int:
             if report.exists():
                 report.unlink()
             specs = ["src/stores/__tests__/enginePayloadContract.spec.js", "src/stores/__tests__/engineRemedyRealBlob.spec.js"]
+            if epic.startswith("0122"):
+                # the remedy fields the Remediation step prints, the store's budget and target rules, and the one-number identities, all on the shipped blobs
+                specs += ["src/__tests__/engineRemedy0122.spec.js", "src/stores/__tests__/engineRemedyStore0122.spec.js", "src/stores/__tests__/engineIdentities.spec.js"]
             print("verify-live: app real-blob specs", file=sys.stderr, flush=True)
             rc, out = run(["npx", "vitest", "run", "--config", "vitest.sqlite.config.mjs", "--maxWorkers=1", "--reporter=json",
                            f"--outputFile={report}", *specs], 900, APP / "frontend")
@@ -406,11 +431,11 @@ def main() -> int:
         "the app receipt's tree is clean, nothing under the published directories or scripts/ is uncommitted, " + (tracked_note or "")
         if not problems else "; ".join(problems)[:1200])
 
-    # 6. 0120-MERIDIAN: CI on the base commit, the baselines it recorded, and the shipped blobs run in node
-    if epic.startswith("0120"):
-        print("verify-live: 0120 checks (CI on the base commit, shipped-blob probe)", file=sys.stderr, flush=True)
+    # 6. 0120 and 0122: CI on the base commit, the baselines it recorded, and the shipped blobs run in node
+    if epic.startswith(("0120", "0122")):
+        print(f"verify-live: {epic[:4]} checks (CI on the base commit, shipped-blob probe)", file=sys.stderr, flush=True)
         ci_checks_0120(add, verified, facts)
-        probe_checks_0120(add, FRONTEND_SRC)
+        probe_checks(add, FRONTEND_SRC, epic)
 
     app_clean = None
     app_uncommitted = None
