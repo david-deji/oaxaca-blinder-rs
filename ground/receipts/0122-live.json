@@ -1,0 +1,239 @@
+{
+  "epic": "0122",
+  "started_at": "2026-10-10T18:36:58Z",
+  "ran_at": "2026-10-10T18:46:11Z",
+  "commit": "47070bc",
+  "commit_full": "47070bcd9ca156e118e3af82c0cafc14bb80fac0",
+  "result": "pass",
+  "halted_at": null,
+  "copied_or_published": false,
+  "checks": [
+    {
+      "name": "wasm_verify",
+      "result": "pass",
+      "detail": "raw sequential 390858c8f39c and threaded 90fcc195d045 equal HEAD's baselines (exit 0)",
+      "exit_code": 0
+    },
+    {
+      "name": "published_vs_pkg",
+      "result": "pass",
+      "detail": "published blobs, glue and manifests equal engine pkg byte for byte, and each manifest's raw sha256 equals the raw blob built from this source",
+      "published_dir": "frontend/src of the app checkout",
+      "artifacts": {
+        "sequential": {
+          "published_bg_wasm": "a5bd9d721c896a814ab9333bc7a2e1790c20c9da8be119c156073282347fbf75",
+          "manifest_raw": "390858c8f39c78461f41d147a09216220088728fea49fa7f465e73ebb2ca4767",
+          "manifest_commit": "096f76b8e576a70bc3599a4c532d1561c60bad92"
+        },
+        "threaded": {
+          "published_bg_wasm": "c9244e2ccffa800b057e7242614cd0412078ceec6bfd698dc55870594b0cce21",
+          "manifest_raw": "90fcc195d045ddda9766c1a3f3929ebd7fe2c81b95a094c4f71d4111bad1079a",
+          "manifest_commit": "096f76b8e576a70bc3599a4c532d1561c60bad92"
+        }
+      }
+    },
+    {
+      "name": "app_real_blob_specs",
+      "result": "pass",
+      "detail": "exit 0; {'passed': 211, 'failed': 0, 'pending': 0}",
+      "exit_code": 0,
+      "counts": {
+        "passed": 211,
+        "failed": 0,
+        "pending": 0
+      }
+    },
+    {
+      "name": "app_verify_live",
+      "result": "pass",
+      "detail": "exit 0; app receipt pass (embedded: ran_at after this run's start and commit equals the app HEAD)",
+      "exit_code": 0
+    },
+    {
+      "name": "app_tree_committed",
+      "result": "pass",
+      "detail": "the app receipt's tree is clean, nothing under the published directories or scripts/ is uncommitted, each published engine-manifest.json is tracked"
+    },
+    {
+      "name": "main_ci_green_on_base",
+      "result": "pass",
+      "detail": "CI run 38057011148 on main at 096f76b8: run completed/success, gate success, 10 jobs",
+      "ci_run_id": 38057011148,
+      "ci_commit": "096f76b8e576a70bc3599a4c532d1561c60bad92",
+      "ci_jobs": {
+        "WASM Threaded Reproducibility (double-build)": "success",
+        "Memory Ceiling (50k @ N=8 < 326 MiB)": "success",
+        "Quality Gates (Lint, Test, Fmt)": "success",
+        "Security Audit": "success",
+        "WASM Threaded (build, bindgen, baseline compare)": "success",
+        "WASM Sequential (build, bindgen, baseline compare)": "success",
+        "Native Baseline (parity input)": "success",
+        "Benchmark (Rust methods, non-blocking)": "skipped",
+        "Browser Byte-Parity (COI, threaded WASM, seq/t2/t4)": "success",
+        "gate": "success"
+      }
+    },
+    {
+      "name": "ci_wasm_baselines",
+      "result": "pass",
+      "detail": "the raw blobs CI built, the baselines committed at that commit, the blobs built here and the manifests the app ships are one hash per artifact: sequential 390858c8f39c; threaded 90fcc195d045",
+      "hashes": {
+        "sequential": {
+          "ci_raw_sha256": "390858c8f39c78461f41d147a09216220088728fea49fa7f465e73ebb2ca4767",
+          "baseline_at_base": "390858c8f39c78461f41d147a09216220088728fea49fa7f465e73ebb2ca4767",
+          "built_here": "390858c8f39c78461f41d147a09216220088728fea49fa7f465e73ebb2ca4767",
+          "shipped_manifest_raw": "390858c8f39c78461f41d147a09216220088728fea49fa7f465e73ebb2ca4767"
+        },
+        "threaded": {
+          "ci_raw_sha256": "90fcc195d045ddda9766c1a3f3929ebd7fe2c81b95a094c4f71d4111bad1079a",
+          "baseline_at_base": "90fcc195d045ddda9766c1a3f3929ebd7fe2c81b95a094c4f71d4111bad1079a",
+          "built_here": "90fcc195d045ddda9766c1a3f3929ebd7fe2c81b95a094c4f71d4111bad1079a",
+          "shipped_manifest_raw": "90fcc195d045ddda9766c1a3f3929ebd7fe2c81b95a094c4f71d4111bad1079a"
+        }
+      }
+    },
+    {
+      "name": "shipped_blob_relabel_invariance",
+      "result": "pass",
+      "detail": "sequential: 6 Department rows map one to one after Engineering becomes zz_Engineering, worst difference 1.99e-14 (limit 1e-9), comparator catches a 0.01 nudge: True | threaded: 6 Department rows map one to one after Engineering becomes zz_Engineering, worst difference 1.99e-14 (limit 1e-9), comparator catches a 0.01 nudge: True"
+    },
+    {
+      "name": "shipped_blob_carve_out_invariance",
+      "result": "pass",
+      "detail": "sequential: 20 Engineering rows moved to a new department Legal, 5 untouched departments move at most 3.10e-06 (limit 1e-4), comparator catches a 0.01 nudge: True | threaded: 20 Engineering rows moved to a new department Legal, 5 untouched departments move at most 3.10e-06 (limit 1e-4), comparator catches a 0.01 nudge: True"
+    },
+    {
+      "name": "shipped_blob_t8_zero_budget_identity",
+      "result": "pass",
+      "detail": "sequential: Pooled optimiser starts at -0.004262702, decomposition -0.004262702, independent group-indicator fit -0.004262702; Reference optimiser -0.004330832, GroupB decomposition -0.004330832, independent fit -0.004330832; comparator catches a shift: True | threaded: Pooled optimiser starts at -0.004262702, decomposition -0.004262702, independent group-indicator fit -0.004262702; Reference optimiser -0.004330832, GroupB decomposition -0.004330832, independent fit -0.004330832; comparator catches a shift: True"
+    },
+    {
+      "name": "shipped_blob_target_gap_rule",
+      "result": "pass",
+      "detail": "sequential: target -572.4359 costs 22325.000000 (Greedy) and 22325.000000 (Equitable), n x (target - start gap) from the cells is 22325.000000, the group lands on -572.435897; 0 % threshold: hand floor 103.846154, engine 103.846154, reachable, 0 people left out; 2 % threshold: hand floor -20.512821, engine -20.512821, unreachable, 9 people left out; 3 % threshold: hand floor -260.256410, engine -260.256410, unreachable, 16 people left out; 5 % threshold: hand floor -805.128205, engine -805.128205, unreachable, 25 people left out; an unreachable target pays the same amounts as no target; comparator catches the old floor rule: True and a 0.01 nudge: True | threaded: target -572.4359 costs 22325.000000 (Greedy) and 22325.000000 (Equitable), n x (target - start gap) from the cells is 22325.000000, the group lands on -572.435897; 0 % threshold: hand floor 103.846154, engine 103.846154, reachable, 0 people left out; 2 % threshold: hand floor -20.512821, engine -20.512821, unreachable, 9 people left out; 3 % threshold: hand floor -260.256410, engine -260.256410, unreachable, 16 people left out; 5 % threshold: hand floor -805.128205, engine -805.128205, unreachable, 25 people left out; an unreachable target pays the same amounts as no target; comparator catches the old floor rule: True and a 0.01 nudge: True"
+    },
+    {
+      "name": "shipped_blob_reference_raise_closure",
+      "result": "pass",
+      "detail": "sequential: 5 reference people raised; cost by rows 41447.291996 compared + 13526.837484 reference = engine 41447.291996 + 13526.837484 (total 54974.129480); gap left: engine -57.172574295, independent refit of the reference group's adjusted wages -57.172574295, VERIFY -57.172574295; the old arithmetic would print 264.721; comparator catches it: True and a 0.01 nudge: True | threaded: 5 reference people raised; cost by rows 41447.291996 compared + 13526.837484 reference = engine 41447.291996 + 13526.837484 (total 54974.129480); gap left: engine -57.172574295, independent refit of the reference group's adjusted wages -57.172574295, VERIFY -57.172574295; the old arithmetic would print 264.721; comparator catches it: True and a 0.01 nudge: True"
+    }
+  ],
+  "app_receipt": {
+    "epic": "0122",
+    "ran_at": "2026-10-10T18:46:03.931Z",
+    "commit": "048d6e25",
+    "result": "pass",
+    "tested_tree": {
+      "base_commit": "048d6e257732546b738d61e9bedf2e7136f7ed7a",
+      "dirty": false,
+      "file_count": 0
+    },
+    "checks": [
+      {
+        "name": "fresh_build",
+        "result": "pass"
+      },
+      {
+        "name": "wasm_freshness",
+        "result": "pass"
+      },
+      {
+        "name": "i18n_lint",
+        "result": "pass"
+      },
+      {
+        "name": "preview_server",
+        "result": "pass"
+      },
+      {
+        "name": "chromium_launch",
+        "result": "pass"
+      },
+      {
+        "name": "create_record_through_ui",
+        "result": "pass"
+      },
+      {
+        "name": "seed_record_depth",
+        "result": "pass"
+      },
+      {
+        "name": "render_sweep",
+        "result": "pass"
+      },
+      {
+        "name": "interactive_coverage",
+        "result": "pass"
+      },
+      {
+        "name": "no_uncaught_errors",
+        "result": "pass"
+      },
+      {
+        "name": "remedy_dollars_land_on_own_employee",
+        "result": "pass"
+      },
+      {
+        "name": "intercept_never_in_drivers_and_baseline_apart",
+        "result": "pass"
+      },
+      {
+        "name": "drivers_stable_under_relabel",
+        "result": "pass"
+      },
+      {
+        "name": "drivers_stable_under_carve_out",
+        "result": "pass"
+      },
+      {
+        "name": "headline_equals_remedy_zero_budget_gap",
+        "result": "pass"
+      },
+      {
+        "name": "support_caveat_on_no_overlap_not_on_ordinary",
+        "result": "pass"
+      },
+      {
+        "name": "percentile_headline_equals_quantile_report_gap",
+        "result": "pass"
+      },
+      {
+        "name": "reopened_project_marked_pdf_blocked_and_recompute_shows_both_gaps",
+        "result": "pass"
+      },
+      {
+        "name": "remedy_cap_reports_unfunded",
+        "result": "pass"
+      },
+      {
+        "name": "remedy_target_gap_unreachable_is_said",
+        "result": "pass"
+      },
+      {
+        "name": "remedy_reference_raises_separate",
+        "result": "pass"
+      },
+      {
+        "name": "remedy_copy_gate_fr_en_both_widths",
+        "result": "pass"
+      }
+    ]
+  },
+  "app_receipt_note": "embedded: ran_at after this run's start and commit equals the app HEAD",
+  "app_git_status": {
+    "head": "048d6e25",
+    "clean": false,
+    "uncommitted_entries": 4
+  },
+  "engine_git_status": [
+    " M ground/2026-10-09-probes.json",
+    "?? ground/2026-10-09-D-plan-review.md",
+    "?? ground/2026-10-09-D-reground.md",
+    "?? ground/2026-10-09-D-review-contract.md",
+    "?? ground/2026-10-09-D-review-statistics.md",
+    "?? ground/2026-10-09-release-review.md",
+    "?? ground/raw/2026-10-08-ground.json",
+    "?? ground/receipts/0122-live.json",
+    "?? ground/receipts/0122-planted-blobs.json"
+  ]
+}
