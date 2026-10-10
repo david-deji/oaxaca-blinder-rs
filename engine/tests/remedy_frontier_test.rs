@@ -355,6 +355,106 @@ fn equal_shortfalls_are_paid_in_the_order_optimize_pays_them() {
 }
 
 #[test]
+fn a_tie_between_a_compared_and_a_reference_employee_is_paid_compared_first() {
+    // F-12: `optimize` sorts by shortfall and keeps compared rows ahead of reference rows on a tie.
+    // Here a compared employee and two reference employees share the identical row (x = 2, wage
+    // 118), so their shortfalls to the reference line are equal to the last bit. Reference rows come
+    // FIRST in the file, so a pay order by row number would pay a reference employee ahead of the
+    // compared one. At a budget that stops inside the tie the two orders buy different schedules
+    // and different group coefficients.
+    let csv = "wage,group,x\n118,R,2\n100,R,0\n112,R,1\n128,R,3\n141,R,4\n150,R,5\n118,R,2\n\
+               118,T,2\n170,T,6\n175,T,7\n126,T,3\n148,T,5\n"
+        .as_bytes()
+        .to_vec();
+    let decomposition = || DecompositionRequest {
+        csv_data: csv.clone(),
+        outcome_variable: "wage".into(),
+        group_variable: "group".into(),
+        reference_group: "R".into(),
+        predictors: vec!["x".into()],
+        categorical_predictors: None,
+        three_fold: None,
+        quantile: None,
+        reference_coefficients: Some("Pooled".into()),
+        bootstrap_reps: Some(2),
+    };
+    let optimize = |budget: f64| {
+        optimize_inner(OptimizationRequest {
+            csv_data: csv.clone(),
+            outcome_variable: "wage".into(),
+            group_variable: "group".into(),
+            reference_group: "R".into(),
+            predictors: vec!["x".into()],
+            categorical_predictors: None,
+            budget,
+            target_gap: None,
+            target: Some(OptimizationTarget::Reference),
+            strategy: Some(AllocationStrategy::Greedy),
+            min_gap_pct: None,
+            forensic_mode: None,
+            adjust_both_groups: Some(true),
+            confidence_level: None,
+            range_target: None,
+        })
+        .unwrap()
+    };
+    // 3.55 (the largest shortfall) + 1.59 (the tied pair) + a little into the next of the tie.
+    let budget = 5.94;
+    let opt = optimize(budget);
+    let paid: Vec<(usize, f64)> = opt
+        .adjustments
+        .iter()
+        .filter(|a| a.adjustment > 0.0)
+        .map(|a| (a.index, a.adjustment))
+        .collect();
+    // optimize pays the compared copy (row 7) in full before either reference copy (rows 0, 6).
+    assert!(
+        paid.iter().any(|&(i, v)| i == 7 && v > 1.58),
+        "optimize's own order changed: {paid:?}"
+    );
+    let sched = opt
+        .adjustments
+        .iter()
+        .filter(|a| a.adjustment != 0.0)
+        .map(|a| ProposedAdjustment {
+            index: a.index,
+            row_key: None,
+            value: a.adjustment,
+            predictor_overrides: None,
+        })
+        .collect();
+    let d = check_defensibility_on(
+        VerificationRequest {
+            decomposition_params: decomposition(),
+            adjustments: sched,
+            confidence_level: None,
+        },
+        &OptimizationTarget::Reference,
+    )
+    .unwrap();
+    let pts = calculate_efficient_frontier_inner(EfficientFrontierRequest {
+        decomposition_params: decomposition(),
+        steps: Some(1),
+        max_budget: Some(budget),
+        confidence_level: None,
+        strategy: None,
+        target: Some(OptimizationTarget::Reference),
+        range_target: None,
+        min_gap_pct: None,
+        adjust_both_groups: Some(true),
+    })
+    .unwrap();
+    assert!(
+        near(
+            pts[1].group_coefficient,
+            d.group_test.unwrap().group_coefficient,
+            1e-9
+        ),
+        "the frontier paid the tie in another order than optimize"
+    );
+}
+
+#[test]
 fn a_roster_with_nothing_to_pay_returns_the_single_baseline_point() {
     let csv = "wage,group,x\n40000,R,0\n45000,R,5\n50000,R,10\n43000,T,2\n47000,T,6\n53000,T,12\n"
         .as_bytes()
