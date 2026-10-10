@@ -78,6 +78,11 @@ pub fn frontier_request(
         steps: Some(steps),
         max_budget,
         confidence_level: None,
+        strategy: None,
+        target: None,
+        range_target: None,
+        min_gap_pct: None,
+        adjust_both_groups: None,
     }
 }
 

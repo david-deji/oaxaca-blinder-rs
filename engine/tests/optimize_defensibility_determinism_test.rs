@@ -131,6 +131,11 @@ fn frontier_request() -> EfficientFrontierRequest {
         steps: Some(8),
         max_budget: Some(40.0),
         confidence_level: None,
+        strategy: None,
+        target: None,
+        range_target: None,
+        min_gap_pct: None,
+        adjust_both_groups: None,
     }
 }
 
@@ -210,24 +215,39 @@ fn calculate_efficient_frontier_inner_is_byte_identical_across_thread_counts() {
 /// 300-row JSON blob moved".
 #[test]
 fn defensibility_aggregate_scalars_are_bit_stable_across_runs() {
+    // The three persisted aggregates, and the sums 0122-MERIDIAN added to the same accumulation
+    // (the cost and need split by group, both gaps, the refit shift, the group test).
+    let bits = |r: &pay_equity_engine::types::OptimizationResult| -> Vec<u64> {
+        let mut v = vec![
+            r.required_budget.to_bits(),
+            r.original_unexplained_gap.to_bits(),
+            r.new_unexplained_gap.to_bits(),
+            r.original_gap.to_bits(),
+            r.new_gap.to_bits(),
+            r.total_cost.to_bits(),
+            r.cost_target.to_bits(),
+            r.cost_reference.to_bits(),
+            r.need_target.to_bits(),
+        ];
+        let test = r.group_test.as_ref().expect("a group test on this fixture");
+        v.push(test.group_coefficient.to_bits());
+        v.push(test.t_statistic.to_bits());
+        v.push(test.p_value.to_bits());
+        let c = r.position_counts.expect("counts");
+        v.extend([c.below, c.inside, c.above, c.newly_above].map(|n| n as u64));
+        v
+    };
     let first = check_defensibility_inner(verification_request()).unwrap();
-    let baseline = [
-        first.required_budget.to_bits(),
-        first.original_unexplained_gap.to_bits(),
-        first.new_unexplained_gap.to_bits(),
-    ];
+    let baseline = bits(&first);
 
     for run in 2..=8 {
         let next = check_defensibility_inner(verification_request()).unwrap();
-        let observed = [
-            next.required_budget.to_bits(),
-            next.original_unexplained_gap.to_bits(),
-            next.new_unexplained_gap.to_bits(),
-        ];
+        let observed = bits(&next);
         assert_eq!(
             baseline, observed,
-            "run {run}: [required_budget, original_unexplained_gap, new_unexplained_gap] changed \
-             bit pattern between runs — the row-index map is iterating in hash order again"
+            "run {run}: an aggregate (required_budget, the gaps, the cost/need split, the refit, \
+             the group test) changed bit pattern between runs — the row-index map is iterating in \
+             hash order again"
         );
     }
 

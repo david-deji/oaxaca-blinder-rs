@@ -130,6 +130,11 @@ impl Leverage {
         Leverage { cov, h_max, pad }
     }
 
+    /// The inverse `(X'X)^-1` this leverage was built from.
+    pub fn cov(&self) -> &DMatrix<f64> {
+        &self.cov
+    }
+
     pub fn at(&self, features: &DVector<f64>) -> f64 {
         if self.pad == 0 {
             return (features.transpose() * &self.cov * features)[(0, 0)];
@@ -294,6 +299,178 @@ impl PooledFit {
             interval,
         })
     }
+}
+
+/// `x + 0.0`: turns a negative zero into a positive one and changes nothing else. An empty
+/// `f64` sum is `-0.0` on this toolchain, and `serde_json` writes it as `-0.0`, which a locale
+/// formatter prints as a signed zero (0122-MERIDIAN F-17). Every aggregate that can be an empty
+/// sum or a negated zero goes through it at construction.
+#[inline]
+pub fn nz(x: f64) -> f64 {
+    x + 0.0
+}
+
+/// Where a wage sits against its prediction interval (0122-MERIDIAN T8, F-09). `Below` is the
+/// exact complement of `new_wage >= lower - DEFENSIBLE_TOLERANCE`, the defensibility verdict;
+/// `Above` is its mirror at the upper bound; a wage paid exactly to either bound is `Inside`.
+pub fn range_position(wage: f64, lower: f64, upper: f64) -> RangePosition {
+    if wage < lower - DEFENSIBLE_TOLERANCE {
+        RangePosition::Below
+    } else if wage > upper + DEFENSIBLE_TOLERANCE {
+        RangePosition::Above
+    } else {
+        RangePosition::Inside
+    }
+}
+
+/// How one dollar paid to each analysed row moves the compared group's unexplained gap
+/// (0122-MERIDIAN T5, F-06): `gap_after = gap_before + sum_i weight_i * pay_i`, exactly, because
+/// the line the gap is measured against is an OLS fit and OLS is linear in the outcome.
+///
+/// The one place both entry points (`optimize` and `check_defensibility`) take the post-schedule
+/// gap from, so a schedule has one `new_unexplained_gap`.
+///
+///  * `reference_line` (target `Reference`): the line is the reference group's own fit
+///    `beta = (X_R'X_R)^-1 X_R' y_R`. A dollar to a compared employee raises the gap by `1/n_T`.
+///    A dollar to reference employee `j` moves `beta` and with it every compared fair wage:
+///    the gap changes by `-xbar_T' (X_R'X_R)^-1 x_j` (formula B of the 0122 re-ground).
+///  * `pooled` (target `Pooled`): the gap is the group indicator's coefficient `gamma` of the
+///    pooled fit `Z = [X, d]`; by Frisch-Waugh-Lovell `gamma` moves by `d~_i / d~'d~` per dollar
+///    to row `i` (formula C), which is row `i` of `Z (Z'Z)^-1 e_d`.
+pub struct GapWeights {
+    /// One weight per compared (target) matrix row.
+    pub target: Vec<f64>,
+    /// One weight per reference matrix row.
+    pub reference: Vec<f64>,
+}
+
+impl GapWeights {
+    /// `cov` is `(X_R'X_R)^-1` of the reference design, the inverse the reference interval model
+    /// already holds (`Leverage::cov` of an `IntervalModel::new`).
+    pub fn reference_line(
+        x_reference: &DMatrix<f64>,
+        x_target: &DMatrix<f64>,
+        cov: &DMatrix<f64>,
+    ) -> GapWeights {
+        let n_t = x_target.nrows();
+        let k = x_target.ncols();
+        let mut xbar = DVector::<f64>::zeros(k);
+        for i in 0..n_t {
+            for c in 0..k {
+                xbar[c] += x_target[(i, c)];
+            }
+        }
+        if n_t > 0 {
+            xbar /= n_t as f64;
+        }
+        let v = cov * xbar;
+        let reference = (0..x_reference.nrows())
+            .map(|j| {
+                let dot: f64 = (0..k).map(|c| x_reference[(j, c)] * v[c]).sum();
+                nz(-dot)
+            })
+            .collect();
+        GapWeights {
+            target: vec![if n_t > 0 { 1.0 / n_t as f64 } else { 0.0 }; n_t],
+            reference,
+        }
+    }
+
+    /// The reference line with nobody in the reference group paid: only the compared weights
+    /// matter, so no inverse is needed.
+    pub fn uniform_target(n_target: usize, n_reference: usize) -> GapWeights {
+        GapWeights {
+            target: vec![
+                if n_target > 0 {
+                    1.0 / n_target as f64
+                } else {
+                    0.0
+                };
+                n_target
+            ],
+            reference: vec![0.0; n_reference],
+        }
+    }
+
+    /// `cov` is `(Z'Z)^-1` of the pooled design with the indicator as its LAST column (the
+    /// inverse of `PooledFit`'s interval model, `Leverage::cov` with `pad == 1`).
+    pub fn pooled(
+        x_reference: &DMatrix<f64>,
+        x_target: &DMatrix<f64>,
+        cov: &DMatrix<f64>,
+    ) -> GapWeights {
+        let k = x_reference.ncols();
+        let column: Vec<f64> = (0..=k).map(|c| cov[(c, k)]).collect();
+        let row_weight = |x: &DMatrix<f64>, i: usize, indicator: f64| -> f64 {
+            let dot: f64 = (0..k).map(|c| x[(i, c)] * column[c]).sum();
+            nz(dot + indicator * column[k])
+        };
+        GapWeights {
+            target: (0..x_target.nrows())
+                .map(|i| row_weight(x_target, i, 1.0))
+                .collect(),
+            reference: (0..x_reference.nrows())
+                .map(|j| row_weight(x_reference, j, 0.0))
+                .collect(),
+        }
+    }
+
+    /// `sum_i weight_i * pay_i`, summed in matrix order (compared rows, then reference rows) so the
+    /// total is byte-reproducible. `pay_*` are indexed like the matrix rows.
+    pub fn shift(&self, pay_target: &[f64], pay_reference: &[f64]) -> f64 {
+        let mut total = 0.0;
+        for (w, p) in self.target.iter().zip(pay_target) {
+            total += w * p;
+        }
+        for (w, p) in self.reference.iter().zip(pay_reference) {
+            total += w * p;
+        }
+        nz(total)
+    }
+}
+
+/// The exact test of the compared group on a schedule's wages (0122-MERIDIAN T9): OLS of the
+/// adjusted outcome on the model columns plus a compared-group indicator, the computation the
+/// frontier runs per budget (`calculate_efficient_frontier_inner`). `y_*` are the schedule's wages
+/// (pay after the adjustments). `None` when the regression has no residual degrees of freedom or
+/// cannot be solved: the caller's other numbers do not depend on it.
+pub fn pooled_group_test(
+    x_reference: &DMatrix<f64>,
+    y_reference: &DVector<f64>,
+    x_target: &DMatrix<f64>,
+    y_target: &DVector<f64>,
+    confidence: f64,
+) -> Option<GroupTest> {
+    let n_ref = x_reference.nrows();
+    let n_tgt = x_target.nrows();
+    let k = x_reference.ncols();
+    let n = n_ref + n_tgt;
+    if n <= k + 1 {
+        return None;
+    }
+    let mut design = DMatrix::<f64>::zeros(n, k + 1);
+    design.view_mut((0, 0), (n_ref, k)).copy_from(x_reference);
+    design.view_mut((n_ref, 0), (n_tgt, k)).copy_from(x_target);
+    design.view_mut((n_ref, k), (n_tgt, 1)).fill(1.0);
+    let mut y = DVector::<f64>::zeros(n);
+    y.rows_mut(0, n_ref).copy_from(y_reference);
+    y.rows_mut(n_ref, n_tgt).copy_from(y_target);
+    let beta = design.clone().svd(true, true).solve(&y, 1e-9).ok()?;
+    let cov = (design.transpose() * &design).try_inverse()?;
+    let residuals = &y - &design * &beta;
+    let dof = n - (k + 1);
+    let sigma_squared = residuals.dot(&residuals) / dof as f64;
+    let standard_error = (sigma_squared * cov[(k, k)]).sqrt();
+    let t_statistic = beta[k] / standard_error;
+    let p_value = two_sided_p(t_statistic, dof as f64);
+    Some(GroupTest {
+        group_coefficient: beta[k],
+        t_statistic,
+        p_value,
+        is_significant: p_value < 1.0 - confidence,
+        degrees_of_freedom: dof,
+        confidence_level: confidence,
+    })
 }
 
 /// Which groups the result's regression fits. Only fitted groups are judged on residual df.

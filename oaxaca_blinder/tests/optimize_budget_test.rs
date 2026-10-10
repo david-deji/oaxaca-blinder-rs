@@ -1,3 +1,6 @@
+//! The deprecated library method keeps its tests: callers of it still exist (0122-MERIDIAN T12).
+#![allow(deprecated)]
+
 use oaxaca_blinder::OaxacaBuilder;
 use polars::prelude::*;
 

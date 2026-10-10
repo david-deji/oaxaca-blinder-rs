@@ -172,6 +172,40 @@ mod tests {
 
     use crate::types::RangeTarget;
 
+    /// Every PAID row ends within a cent of its own lower bound, and there is at least one.
+    fn paid_rows_sit_on_the_lower_bound(result: &crate::types::OptimizationResult) -> bool {
+        let paid: Vec<_> = result
+            .adjustments
+            .iter()
+            .filter(|a| a.adjustment > 0.0)
+            .collect();
+        !paid.is_empty()
+            && paid
+                .iter()
+                .all(|a| (a.new_wage - a.fair_wage_lower_bound.unwrap()).abs() <= 0.01)
+    }
+
+    fn request_for(range: RangeTarget, budget: f64) -> OptimizationRequest {
+        let (csv_data, _) = create_mock_data();
+        OptimizationRequest {
+            csv_data,
+            outcome_variable: "wage".to_string(),
+            group_variable: "gender".to_string(),
+            reference_group: "Male".to_string(),
+            predictors: vec!["education".to_string(), "experience".to_string()],
+            categorical_predictors: Some(vec!["department".to_string()]),
+            strategy: Some(AllocationStrategy::Greedy),
+            budget,
+            target_gap: None,
+            target: None,
+            min_gap_pct: Some(0.0),
+            adjust_both_groups: Some(false),
+            forensic_mode: Some(false),
+            confidence_level: Some(0.95),
+            range_target: Some(range),
+        }
+    }
+
     #[test]
     fn test_lower_bound_optimization() {
         let (csv_data, _) = create_mock_data();
@@ -199,47 +233,27 @@ mod tests {
 
         let result = optimize_inner(req).expect("Optimization failed");
 
-        println!("Adjustments count: {}", result.adjustments.len());
+        // 0122-MERIDIAN T14 / V12 (TRUST-9): this test used to print "FAIL" and pass. Every row that
+        // is paid, with a budget that funds all of them, lands on its OWN lower bound.
+        assert!(
+            !result.adjustments.is_empty(),
+            "the roster has employees below their lower bound"
+        );
+        assert!(
+            paid_rows_sit_on_the_lower_bound(&result),
+            "a funded row is not paid exactly to its lower bound"
+        );
 
-        let mut checked_any = false;
-        for adj in &result.adjustments {
-            if let Some(lower) = adj.fair_wage_lower_bound {
-                // Check consistency:
-                // New Wage = Current + Adj.
-                // With Greedy and infinite budget, Adj should fill the gap to Target.
-                // Target is LowerBound.
-
-                // But specifically for those Adjusted, we expect:
-                // NewWage >= LowerBound - margin
-
-                // Note: adj.fair_wage is the Midpoint (Statistical Fair Wage)
-
-                // Allow some floating point error
-                let diff = adj.new_wage - lower;
-
-                if diff < -1.0 {
-                    println!(
-                        "FAIL: Index {} New {} < Lower {}",
-                        adj.index, adj.new_wage, lower
-                    );
-                    // panic!("Underpaid relative to Lower Bound!");
-                }
-
-                // Verify that we are NOT targeting the Midpoint if LowerBound is significantly lower
-                if (adj.fair_wage - lower) > 100.0 {
-                    // Start: Current
-                    // End: LowerBound using infinite budget
-                    // So NewWage should be close to LowerBound
-                    // It should NOT be close to Midpoint (fair_wage)
-                    if (adj.new_wage - adj.fair_wage).abs() < 10.0 {
-                        println!("WARNING: Adjustment seems to have targeted Midpoint instead of LowerBound. New: {}, Mid: {}, Lower: {}", adj.new_wage, adj.fair_wage, lower);
-                    }
-                }
-
-                checked_any = true;
-            }
-        }
-        assert!(checked_any, "Should have checked at least one adjustment");
+        // Mutate and confirm: pay the same roster to the MIDPOINT and the same assertion fails, so
+        // it can tell the two lines apart (a `new_wage >= lower - tolerance` check cannot: the
+        // midpoint is above the lower bound too).
+        let mut midpoint = request_for(RangeTarget::Midpoint, 5_000_000.0);
+        midpoint.min_gap_pct = Some(0.0);
+        let midpoint_result = optimize_inner(midpoint).expect("midpoint run");
+        assert!(
+            !paid_rows_sit_on_the_lower_bound(&midpoint_result),
+            "the lower-bound assertion cannot tell a midpoint payment from a lower-bound one"
+        );
     }
 
     #[test]
@@ -268,38 +282,27 @@ mod tests {
 
         let result = optimize_inner(req).expect("Optimization failed");
 
-        println!("Adjustments count: {}", result.adjustments.len());
-        println!("Required Budget: {}", result.required_budget);
-        println!("Total Cost: {}", result.total_cost);
-
-        // Assert that we spent money!
+        assert!(!result.adjustments.is_empty());
         assert!(
-            result.total_cost > 0.0,
-            "Auto budget should have spent money to fix gaps!"
+            paid_rows_sit_on_the_lower_bound(&result),
+            "auto budget: a funded row is not paid exactly to its lower bound"
         );
-
-        // Assert that Total Cost matches Required Budget (since we had 0 budget, effective budget should be required budget)
+        // The auto budget is the whole need to the LOWER bound, and it is spent.
+        let paid: f64 = result.adjustments.iter().map(|a| a.adjustment).sum();
+        assert!((paid - result.total_cost).abs() < 1e-6);
+        let to_lower: f64 = result
+            .adjustments
+            .iter()
+            .filter(|a| a.adjustment > 0.0)
+            .map(|a| a.fair_wage_lower_bound.unwrap() - a.current_wage)
+            .sum();
         assert!(
-            (result.total_cost - result.required_budget).abs() < 1.0,
-            "Total Cost should equal Required Budget for Auto Optimization"
+            (result.total_cost - to_lower).abs() < 1.0,
+            "spent {} but the shortfall to the lower bounds sums to {to_lower}",
+            result.total_cost
         );
-
-        let mut checked_any = false;
-        for adj in &result.adjustments {
-            if let Some(lower) = adj.fair_wage_lower_bound {
-                // Check if we hit the target LowerBound
-                let diff = adj.new_wage - lower;
-                if diff < -1.0 {
-                    println!(
-                        "FAIL: Index {} New {} < Lower {}",
-                        adj.index, adj.new_wage, lower
-                    );
-                }
-                checked_any = true;
-            }
-        }
-        assert!(checked_any, "Should have checked at least one adjustment");
     }
+
     #[test]
     fn test_defensibility_override() {
         use crate::defensibility::check_defensibility_inner;
@@ -742,8 +745,9 @@ mod tests {
 
         // The headline the per-row array is presented beside must agree with it: row 555 is
         // Female (non-reference), and there are 500 such rows, so 6000/500 = 12.0. Before the
-        // collapse this was 2.0 — the first-wins $1,000 only.
-        let moved = res.original_unexplained_gap - res.new_unexplained_gap;
+        // collapse this was 2.0 — the first-wins $1,000 only. The gap rises as money is paid
+        // (0122-MERIDIAN T7: compared minus the line, negative while underpaid).
+        let moved = res.new_unexplained_gap - res.original_unexplained_gap;
         assert!(
             (moved - 12.0).abs() < 1e-6,
             "aggregate must reflect the same 6000 the per-row array reports: expected 12.0, \
@@ -785,7 +789,7 @@ mod tests {
         assert_eq!(res.adjustments.len(), 1);
         assert_eq!(res.adjustments[0].index, 555);
         assert!((res.adjustments[0].adjustment - 6000.0).abs() < 1e-9);
-        let moved = res.original_unexplained_gap - res.new_unexplained_gap;
+        let moved = res.new_unexplained_gap - res.original_unexplained_gap;
         assert!((moved - 12.0).abs() < 1e-6, "got {}", moved);
     }
 
@@ -891,7 +895,7 @@ mod tests {
         );
         assert_eq!(res.unresolved_row_keys, Some(0));
 
-        let moved = res.original_unexplained_gap - res.new_unexplained_gap;
+        let moved = res.new_unexplained_gap - res.original_unexplained_gap;
         assert!(
             (moved - 12.0).abs() < 1e-6,
             "both deltas must reach the headline gap: expected 6000/500 = 12.0, got {}",

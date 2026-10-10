@@ -163,6 +163,12 @@ mod tests {
             steps: Some(10),
             max_budget: Some(10000.0),
             confidence_level: None,
+
+            strategy: None,
+            target: None,
+            range_target: None,
+            min_gap_pct: None,
+            adjust_both_groups: None,
         };
 
         let js_val = serde_wasm_bindgen::to_value(&req).unwrap();

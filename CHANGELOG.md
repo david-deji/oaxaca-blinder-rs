@@ -2,6 +2,58 @@
 
 ## [Unreleased]
 
+### Changed, BREAKING (0122-MERIDIAN, the remedy says what it does, 2026-10-09)
+- **`check_defensibility` reports every gap with `optimize`'s sign.** `original_gap`, `new_gap`,
+  `original_unexplained_gap` and `new_unexplained_gap` are the compared group's figure minus the line (or the reference
+  group's): negative while the compared group is underpaid, rising with money paid. They used to be the opposite sign on
+  all four (the 0118 carry). A consumer that negated them must stop.
+- **`adjust_both_groups` no longer credits reference raises to the compared group** (REM-3). `new_gap` is
+  `original_gap + cost_target / n_compared - cost_reference / n_reference`, and `new_unexplained_gap` is the gap on the
+  line REFITTED to the schedule's wages (the reference line moves when reference employees are raised; under `Pooled`
+  the group coefficient moves with every dollar). One shared function prices both entry points, so a schedule has one
+  `new_unexplained_gap`; it equals R `lm` refitted on the adjusted wages to 1e-6 on 62 cases. On the probe roster the
+  compared group's remaining gap was +2,103 and is -434.
+- **`required_budget` is the compared group's need in both entry points**, and `total_cost` stays the money spent on
+  both groups. New: `cost_target`, `cost_reference`, `need_target`, `need_reference` (optimise), `target_line`.
+- **`target_gap` is read.** It is a rule for the budget (no solver: for these amounts every dollar to a compared
+  employee moves the compared group's gap the same way, so the cost of a gap is fixed), on the sign and scale of
+  `original_unexplained_gap`. Already met pays nothing (a budget of 0 used to read as "no cap" and paid the full need);
+  out of reach pays every eligible shortfall and reports `target_gap_reachable: false`, `best_reachable_gap` and
+  `shortfall_to_target`. Under `Pooled` the budget is found along the strategy's own order. New result fields:
+  `best_reachable_gap`, `target_gap_reachable`, `shortfall_to_target`, `target_budget`, `budget_binding`,
+  `unfunded_amount`, `unfunded_count`, `threshold_excluded_count`, `closure` (share of the compared group's need paid,
+  0 to 1, monotone in the spend), `overshoot_mean`. Field definitions: `docs/DIAGNOSTICS.md`.
+- **Refused by name:** a negative or non-finite `budget` (`INVALID_BUDGET`; it used to fund the full need), a non-finite
+  `target_gap` (`INVALID_TARGET_GAP`), a negative or non-finite `min_gap_pct` (`INVALID_MIN_GAP_PCT`), and `target_gap`
+  with `adjust_both_groups` (`TARGET_GAP_WITH_REFERENCE_RAISES`). `budget == 0` is still "no cap" and is documented as
+  such on the request, the MCP schema and `docs/API.md`. `min_gap_pct` is documented as shortfall / current pay.
+- **Under `range_target` `LowerBound` / `UpperBound`** `original_unexplained_gap` and `new_unexplained_gap` are on the
+  midpoint line (the headline's), no longer measured from the bound, and reference employees raised with
+  `adjust_both_groups` are raised to the same point of THEIR range (they went to the midpoint whatever the target said).
+- **Where each employee stands.** Each adjustment carries `source` (`Compared` / `Reference`), `range_position` and
+  `range_position_before` (`Below` / `Inside` / `Above` against its own prediction range; `Below` is exactly
+  "not `is_defensible`", one cent of slack on each edge). `check_defensibility` adds `position_counts` over EVERY
+  analysed compared employee, before and after (an unnamed row counts at adjustment 0, so a partial schedule cannot
+  hide the people it left out; reference employees are in no count), and `group_test`: the exact pooled-indicator test
+  on the schedule's wages (closes the "not built" note of 0120 T8; equal to the frontier at equal budget and to R `lm`).
+- **The frontier follows the remedy.** `EfficientFrontierRequest` gains `strategy`, `target`, `range_target`,
+  `min_gap_pct`, `adjust_both_groups` (absent: the only remedy it could describe before). `Equitable` is recomputed per
+  step (the sweep is nested only for `Greedy`) and ties are paid in `optimize`'s order. The default budget axis ends at
+  the remedy's full cost instead of 1.1 times it.
+- **MCP:** `simulate_remediation`, `check_defensibility` and `generate_efficient_frontier` refuse an unknown `target`,
+  `strategy` or `range_target` by name (`UNKNOWN_TARGET`, `UNKNOWN_STRATEGY`, `UNKNOWN_RANGE_TARGET`); a misspelt
+  `"equitable"` used to run Greedy. The schemas list every field and say what the amounts do.
+- **Library:** `OaxacaResults::optimize_budget` is `#[deprecated]` (two allocators with opposite group conventions; its
+  `target_gap` is the raw `total_gap`); the READMEs no longer sell it as a solver. Stale solver text removed from
+  `ARCHITECTURE.md`, `CLAUDE.md`. The engine enums `OptimizationTarget`, `AllocationStrategy` and `RangeTarget` now
+  derive `Serialize`, `Clone`, `Copy` and `PartialEq`.
+- Result serialisation: an empty sum no longer serialises as `-0.0`.
+- Oracles: `verification/gen_remedy_goldens.R` (R `lm`, `predict.lm`, a REFIT of the line on every schedule, `uniroot` on
+  that refit for the budget) and `verification/gen_remedy_bruteforce.py` (every allocation on a 250 dollar grid), with
+  sha256 of generator and fixtures checked on load. `null_free_regression_test` stays on the pre-0118 golden except one
+  regenerated line (`optimize/noisy/forensic_both`, REM-3) and named comparisons for the keys, the defensibility sign and
+  the range-target gap.
+
 ### Changed, BREAKING (0120-MERIDIAN T8, optimiser Pooled target, 2026-10-09)
 - **The optimiser's `Pooled` target is the decomposition's `Pooled` line.** `OptimizationTarget::Pooled` used to stack
   both groups with no group column, which is `PooledNoIndicator` (Neumark), so the remedy was priced against one line
@@ -33,8 +85,8 @@
   critical value and df, extrapolated ordinals against `hatvalues`, and equal to the remedy's set. New type
   `DefensibilityRequest` (a flattened `VerificationRequest` plus `target`); `verify_adjustments` is unchanged.
   `check_defensibility_inner` is `check_defensibility_on(req, &Reference)`.
-- Still not built: the exact `group_test` on the defensibility run (E2-c's second half, the group coefficient's own t
-  and p), and E2-e / E2-f (coefficients and group shares for a redo-by-hand table).
+- Still not built: E2-e / E2-f (coefficients and group shares for a redo-by-hand table). The exact `group_test` on the
+  defensibility run was built by 0122-MERIDIAN.
 
 ### Changed, BREAKING (0120-MERIDIAN S1-S4, Track E core, 2026-10-09)
 - **Per-level driver rows no longer depend on which level sorts first.** The engine (WASM `decompose` and

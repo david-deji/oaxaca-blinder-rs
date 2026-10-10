@@ -195,7 +195,9 @@ fn defensibility_aggregates_are_over_the_analysed_rows_and_agree_with_optimize()
 
     // The divisor is the analysed target count (39), not the raw count (40).
     assert_eq!(res.analysed_target_count, 39);
-    let want = sum_gap / 39.0;
+    // One sign for both entry points (0122-MERIDIAN T7): mean(wage - fair wage), negative while
+    // the compared group sits below the line. `sum_gap` above is the other way round.
+    let want = -sum_gap / 39.0;
     assert!(
         (res.original_unexplained_gap - want).abs() < 1e-6,
         "{} vs oracle {}",
@@ -203,19 +205,18 @@ fn defensibility_aggregates_are_over_the_analysed_rows_and_agree_with_optimize()
         want
     );
     assert!(
-        (res.original_unexplained_gap - sum_gap / 40.0).abs() > 1.0,
+        (res.original_unexplained_gap + sum_gap / 40.0).abs() > 1.0,
         "a divisor of 40 would give a different figure"
     );
 
-    // Same magnitude as optimize's. The sign convention differs between the two entry points
-    // and has since before 0118: defensibility reports mean(fair - wage), optimize reports
-    // -mean(fair - wage).
+    // The same figure, same sign, from both entry points: equal, not equal in magnitude.
     assert!(
-        (res.original_unexplained_gap + opt.original_unexplained_gap).abs() < 1e-6,
+        (res.original_unexplained_gap - opt.original_unexplained_gap).abs() < 1e-6,
         "defensibility {} vs optimize {}",
         res.original_unexplained_gap,
         opt.original_unexplained_gap
     );
+    assert!(res.original_unexplained_gap < 0.0, "the group is underpaid");
 }
 
 #[test]
@@ -255,8 +256,9 @@ fn defensibility_gap_means_are_over_analysed_rows_of_both_groups() {
         // Pay the last target employee (98) their own gap, so `new_gap` moves.
         let paid_98 = f.formula_wage(98) - f.salary_cell(98).unwrap();
         assert!(paid_98 > 1000.0, "{label}: {paid_98}");
-        let want_orig = mean(&ref_rows) - mean(&tgt_rows);
-        let want_new = mean(&ref_rows) - (mean(&tgt_rows) + paid_98 / tgt_rows.len() as f64);
+        // Compared minus reference, as `optimize` reports it (0122-MERIDIAN T7).
+        let want_orig = mean(&tgt_rows) - mean(&ref_rows);
+        let want_new = (mean(&tgt_rows) + paid_98 / tgt_rows.len() as f64) - mean(&ref_rows);
 
         // Without the exclusion the reference mean would include row 52's wage.
         let raw_ref: Vec<usize> = f.reference_ordinals();
@@ -276,7 +278,7 @@ fn defensibility_gap_means_are_over_analysed_rows_of_both_groups() {
             want_new
         );
         assert!(
-            (res.original_gap - res.new_gap - paid_98 / tgt_rows.len() as f64).abs() < 1e-6,
+            (res.new_gap - res.original_gap - paid_98 / tgt_rows.len() as f64).abs() < 1e-6,
             "{label}: new_gap must move by the dollars paid over the analysed target count"
         );
         assert_eq!(res.analysed_reference_count, want_ref, "{label}");
@@ -289,7 +291,7 @@ fn defensibility_gap_means_are_over_analysed_rows_of_both_groups() {
             .map(|&i| f.formula_wage(i) - f.salary_cell(i).unwrap())
             .sum();
         assert!(
-            (res.original_unexplained_gap - sum_gap / tgt_rows.len() as f64).abs() < 1e-6,
+            (res.original_unexplained_gap + sum_gap / tgt_rows.len() as f64).abs() < 1e-6,
             "{label}"
         );
     }
@@ -332,7 +334,7 @@ fn defensibility_scores_the_last_employee_and_one_after_the_blank_against_their_
     assert!(message.contains("1550.00"), "{message}");
 
     // The new unexplained gap reflects exactly the 2650 paid to employee 98, over 39 employees.
-    let moved = res.original_unexplained_gap - res.new_unexplained_gap;
+    let moved = res.new_unexplained_gap - res.original_unexplained_gap;
     assert!((moved - 2650.0 / 39.0).abs() < 1e-6, "{moved}");
     assert_eq!(res.adjustments_on_excluded_rows, 0);
 }

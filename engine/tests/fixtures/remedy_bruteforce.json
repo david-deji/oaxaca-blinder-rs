@@ -1,0 +1,73 @@
+{
+  "_meta": {
+    "generator_sha256": "4a44be91202fd0fe47a791dd8dcc2ce29564e49a3af97f20650da1350c5ca085",
+    "fixture_sha256": {
+      "engine/tests/fixtures/0122-remedy-tiny.csv": "a302fb91425a1d9d64366c929f1de55c1e7c8e4ffdf9b52831fa773ee00928f9"
+    },
+    "expected_values_from_engine_output": false,
+    "grid_step": 250.0
+  },
+  "fair": [
+    42000.0,
+    46000.0,
+    52000.0
+  ],
+  "wage": [
+    40000.0,
+    47000.0,
+    49000.0
+  ],
+  "caps": [
+    2000.0,
+    0.0,
+    3000.0
+  ],
+  "g0": -1333.3333333333333,
+  "cases": [
+    {
+      "target_gap": -2000.0,
+      "feasible_points": 117,
+      "min_cost": 0.0
+    },
+    {
+      "target_gap": -1333.5,
+      "feasible_points": 117,
+      "min_cost": 0.0
+    },
+    {
+      "target_gap": -1000.0,
+      "feasible_points": 107,
+      "min_cost": 1000.0
+    },
+    {
+      "target_gap": -500.0,
+      "feasible_points": 63,
+      "min_cost": 2500.0
+    },
+    {
+      "target_gap": 0.0,
+      "feasible_points": 15,
+      "min_cost": 4000.0
+    },
+    {
+      "target_gap": 250.0,
+      "feasible_points": 3,
+      "min_cost": 4750.0
+    },
+    {
+      "target_gap": 333.0,
+      "feasible_points": 1,
+      "min_cost": 5000.0
+    },
+    {
+      "target_gap": 334.0,
+      "feasible_points": 0,
+      "min_cost": null
+    },
+    {
+      "target_gap": 500.0,
+      "feasible_points": 0,
+      "min_cost": null
+    }
+  ]
+}

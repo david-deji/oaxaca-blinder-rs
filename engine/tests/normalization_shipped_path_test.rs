@@ -467,6 +467,12 @@ fn frontier_and_defensibility_do_not_consume_a_scheme() {
         steps: Some(3),
         max_budget: Some(50_000.0),
         confidence_level: None,
+
+        strategy: None,
+        target: None,
+        range_target: None,
+        min_gap_pct: None,
+        adjust_both_groups: None,
     });
     assert!(f.is_ok(), "{:?}", f.err());
     let d = check_defensibility_inner(VerificationRequest {
@@ -689,6 +695,12 @@ fn a_column_named_intercept_is_a_predictor_and_never_the_constant() {
         steps: Some(4),
         max_budget: Some(40_000.0),
         confidence_level: None,
+
+        strategy: None,
+        target: None,
+        range_target: None,
+        min_gap_pct: None,
+        adjust_both_groups: None,
     })
     .unwrap();
     let fb = calculate_efficient_frontier_inner(EfficientFrontierRequest {
@@ -696,6 +708,12 @@ fn a_column_named_intercept_is_a_predictor_and_never_the_constant() {
         steps: Some(4),
         max_budget: Some(40_000.0),
         confidence_level: None,
+
+        strategy: None,
+        target: None,
+        range_target: None,
+        min_gap_pct: None,
+        adjust_both_groups: None,
     })
     .unwrap();
     assert_eq!(fa.len(), fb.len());

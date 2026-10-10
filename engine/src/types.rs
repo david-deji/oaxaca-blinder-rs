@@ -252,7 +252,7 @@ pub struct QuantileGroupReport {
     pub tie_share: f64,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OptimizationTarget {
     /// Match the reference group's own pay line.
     Reference,
@@ -265,10 +265,15 @@ pub enum OptimizationTarget {
     Pooled,
 }
 
-#[derive(Deserialize, Debug)]
+/// How a budget is spread over the employees below the pay line (0122-MERIDIAN T13). Both
+/// orders pay each employee at most their own shortfall to the chosen line; neither changes who is
+/// owed money, only who is paid first when the budget is short.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AllocationStrategy {
-    Greedy,    // Sort by Gap Descending
-    Equitable, // Distribute budget proportionally
+    /// Pays the largest shortfalls first, each in full, until the budget is spent.
+    Greedy,
+    /// Pays every employee the same share of their own shortfall (budget / total need).
+    Equitable,
 }
 
 #[derive(Deserialize, Debug)]
@@ -283,18 +288,37 @@ pub struct OptimizationRequest {
     pub reference_group: String,
     pub predictors: Vec<String>,
     pub categorical_predictors: Option<Vec<String>>,
+    /// The most the remedy may spend, in the outcome's units, TOTAL over every person paid.
+    /// `0` means no cap: every eligible shortfall is paid in full (0122-MERIDIAN T3). A negative
+    /// or non-finite value is refused (`INVALID_BUDGET`); it used to fund the full need.
     pub budget: f64,
+    /// The compared group's mean gap to the pay line the remedy should reach, on the SAME sign and
+    /// scale as `OptimizationResult::original_unexplained_gap`: the mean of (pay - fair pay) per
+    /// compared employee, negative while the group sits below the line. It is not the raw
+    /// `total_gap` between the two groups' mean pay. The remedy spends the least that brings the
+    /// group to this figure and no more (never more than `budget` when that is set). A figure the
+    /// group already meets pays nothing; one the eligible shortfalls cannot reach pays every
+    /// eligible shortfall and says so (`target_gap_reachable: false`). Refused with
+    /// `adjust_both_groups` (`TARGET_GAP_WITH_REFERENCE_RAISES`) and when not finite
+    /// (`INVALID_TARGET_GAP`).
     pub target_gap: Option<f64>,
     pub target: Option<OptimizationTarget>,
     pub strategy: Option<AllocationStrategy>,
-    pub min_gap_pct: Option<f64>,    // Percentage (e.g., 0.02 for 2%)
+    /// Smallest shortfall worth paying, as a FRACTION of the employee's CURRENT pay (shortfall /
+    /// current pay, not shortfall / fair pay): 0.02 is 2 %. Someone below the pay line by less
+    /// than this is left out of the remedy and counted in `threshold_excluded_count`. Must be
+    /// finite and not negative (`INVALID_MIN_GAP_PCT`).
+    pub min_gap_pct: Option<f64>,
     pub forensic_mode: Option<bool>, // If true, return ALL adjustments including negative gaps (overpaid)
+    /// Also raise reference-group employees below the pay line. The line is refitted on the raised
+    /// reference pay, so it moves; the compared group's gap and cost are reported net of that
+    /// (`cost_target`, `cost_reference`).
     pub adjust_both_groups: Option<bool>,
     pub confidence_level: Option<f64>, // e.g., 0.95 for 95% CI
     pub range_target: Option<RangeTarget>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RangeTarget {
     Midpoint,   // Default: Fair Wage (Point Estimate)
     LowerBound, // Minimum Defensible (Lower CI)
@@ -344,6 +368,74 @@ pub struct Adjustment {
     /// range the baseline group occupies (0120-MERIDIAN S6 / T12). Always `false` for a
     /// reference-group row.
     pub extrapolated: bool,
+    /// Which group this employee belongs to (0122-MERIDIAN T8): the compared group or the
+    /// reference group. Read it instead of joining the row back to the CSV by position.
+    pub source: RowSource,
+    /// Where `new_wage` sits against this row's own `[fair_wage_lower_bound,
+    /// fair_wage_upper_bound]` (0122-MERIDIAN T8). `Below` is exactly "not `is_defensible`".
+    pub range_position: RangePosition,
+    /// The same reading taken on `current_wage`: where the employee stood before the schedule.
+    pub range_position_before: RangePosition,
+}
+
+/// The group a row belongs to (0122-MERIDIAN T8).
+#[derive(Serialize, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RowSource {
+    /// The compared (target) group: the employees the remedy is for.
+    Compared,
+    /// The reference (baseline) group, whose pay line the fair wage extends.
+    Reference,
+}
+
+/// A wage against a prediction interval (0122-MERIDIAN T8, F-09). One cent of slack on each edge,
+/// the same `DEFENSIBLE_TOLERANCE` that decides `is_defensible`, so a wage paid exactly to a bound
+/// is `Inside` and `Below` is the exact complement of `is_defensible`.
+#[derive(Serialize, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RangePosition {
+    /// Below `lower - 0.01`.
+    Below,
+    /// From `lower - 0.01` to `upper + 0.01`.
+    Inside,
+    /// Above `upper + 0.01`.
+    Above,
+}
+
+/// How many analysed COMPARED employees sit below, inside and above their range, before and after
+/// a schedule (0122-MERIDIAN D4, F-08). Counted over every analysed compared row, a row the
+/// schedule does not name counting at adjustment 0, so a partial schedule cannot hide the people
+/// it left out. Reference rows are in no count.
+#[derive(Serialize, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PositionCounts {
+    /// After the schedule.
+    pub below: usize,
+    pub inside: usize,
+    pub above: usize,
+    /// Before the schedule (every adjustment 0).
+    pub below_before: usize,
+    pub inside_before: usize,
+    pub above_before: usize,
+    /// Above after the schedule and not above before it: people the schedule pushed over the top.
+    /// `above - newly_above` is "already above before the adjustments".
+    pub newly_above: usize,
+}
+
+/// The exact test of the compared group after a schedule (0122-MERIDIAN T9): the pooled regression
+/// of the schedule's wages on the model's columns plus a compared-group indicator. It is the same
+/// computation the frontier runs for its own schedule, so the two agree at equal budget. Not the
+/// bootstrap of `verify_adjustments`.
+#[derive(Serialize, Debug, Clone, PartialEq)]
+pub struct GroupTest {
+    /// The indicator's coefficient: how far the compared group sits from the reference group at
+    /// equal characteristics, in outcome units. Negative while the group is still below.
+    pub group_coefficient: f64,
+    pub t_statistic: f64,
+    /// Two-sided p-value of `t_statistic` under Student t with `degrees_of_freedom`.
+    pub p_value: f64,
+    /// `p_value < 1 - confidence_level`.
+    pub is_significant: bool,
+    /// `n - k - 1` of the pooled regression (model columns plus the indicator).
+    pub degrees_of_freedom: usize,
+    pub confidence_level: f64,
 }
 
 /// The prediction interval behind `fair_wage_lower_bound` / `fair_wage_upper_bound` and
@@ -364,15 +456,90 @@ pub struct IntervalBasis {
     pub critical_value: f64,
 }
 
+/// The result of `optimize` and of `check_defensibility` (one struct, two entry points).
+///
+/// SIGN (0122-MERIDIAN T7, one convention for both entry points). Every gap is the COMPARED
+/// group's figure minus the REFERENCE group's, or against the pay line, so it is negative while
+/// the compared group is underpaid and rises as money is paid. `original_unexplained_gap` is the
+/// mean over the analysed compared employees of (pay - fair pay), fair pay read off the MIDPOINT
+/// of the fitted line whatever `range_target` pays to; `new_unexplained_gap` is the same figure
+/// after the schedule with the line REFITTED on the schedule's wages, which is what moves it when
+/// reference employees are raised or the target line is `Pooled`. Per-person figures are dollars
+/// per compared employee; `total_cost`, `cost_*`, `need_*`, `required_budget` and
+/// `unfunded_amount` are totals.
+///
+/// Fields documented "optimise only" are `None` from `check_defensibility`; fields documented
+/// "defensibility only" are `None` from `optimize`. A zero here is never used to mean "not
+/// applicable".
 #[derive(Serialize, Debug)]
 pub struct OptimizationResult {
     pub adjustments: Vec<Adjustment>,
+    /// Money spent: `cost_target + cost_reference`.
     pub total_cost: f64,
+    /// Compared group's mean pay minus the reference group's, over the analysed rows.
     pub original_gap: f64,
+    /// `original_gap + cost_target / n_compared - cost_reference / n_reference`.
     pub new_gap: f64,
     pub original_unexplained_gap: f64,
     pub new_unexplained_gap: f64,
-    pub required_budget: f64, // Total budget needed to meet target
+    /// What it takes to pay every eligible COMPARED employee their full shortfall to the chosen
+    /// line: `need_target`, in both entry points (0122-MERIDIAN T4). Reference-group raises are
+    /// priced separately in `need_reference`.
+    pub required_budget: f64,
+    /// The pay line the shortfalls were measured to: `range_target`, `Midpoint` from
+    /// `check_defensibility`.
+    pub target_line: RangeTarget,
+    /// Money paid to compared employees.
+    pub cost_target: f64,
+    /// Money paid to reference employees (0 unless `adjust_both_groups` or a proposed schedule
+    /// names them).
+    pub cost_reference: f64,
+    /// Sum of the eligible compared shortfalls to `target_line`. Equals `required_budget`.
+    pub need_target: f64,
+    /// Optimise only: sum of the eligible reference shortfalls, what `adjust_both_groups` would
+    /// cost; 0 when the toggle is off.
+    pub need_reference: Option<f64>,
+    /// Optimise only: the group's mean gap (same sign as `original_unexplained_gap`) after paying
+    /// every eligible shortfall in full. With no target it is the best the remedy can reach; with
+    /// one it says whether the figure asked for is within reach. Honours `min_gap_pct` and
+    /// `range_target`.
+    pub best_reachable_gap: Option<f64>,
+    /// Optimise only, `None` without `target_gap`: `true` when the target is already met or the
+    /// eligible shortfalls can reach it, `false` when it is beyond `best_reachable_gap`.
+    pub target_gap_reachable: Option<bool>,
+    /// Optimise only, `None` unless the target is out of reach: `target_gap - best_reachable_gap`,
+    /// in dollars per compared employee.
+    pub shortfall_to_target: Option<f64>,
+    /// Optimise only, `None` without `target_gap`: the budget the target rule set, before
+    /// `budget` is applied. `0` when the target is already met, the least that reaches it when it
+    /// can be reached, the full eligible need (which does not reach it) when it cannot.
+    pub target_budget: Option<f64>,
+    /// Optimise only: `true` when the caller's `budget` is what stops the remedy short, i.e. it is
+    /// below both the eligible need and the budget the target asks for.
+    pub budget_binding: Option<bool>,
+    /// Optimise only: `need_target - cost_target`, what the compared group is still owed under the
+    /// threshold and the line.
+    pub unfunded_amount: Option<f64>,
+    /// Optimise only: eligible compared employees paid less than their shortfall. Under
+    /// `Equitable` that is every one of them while the budget is short.
+    pub unfunded_count: Option<usize>,
+    /// Optimise only: compared employees below the line by less than `min_gap_pct`, left out on
+    /// purpose. They are still below the line: "still below" is this plus `unfunded_count`.
+    pub threshold_excluded_count: Option<usize>,
+    /// Optimise only: share of the compared group's need paid, `cost_target / need_target`, from
+    /// 0 to 1. `None` when `need_target` is zero. Rises with every dollar; the same for both
+    /// strategies at the same cost.
+    pub closure: Option<f64>,
+    /// Optimise only: mean over the analysed compared employees of `max(0, pay - fair pay)`, on
+    /// the midpoint line, independent of `min_gap_pct`, the budget and `range_target`. With
+    /// `Reference`, `Midpoint`, threshold 0 and no reference raises it equals `best_reachable_gap`:
+    /// paying everyone below the line to it leaves the group this far above.
+    pub overshoot_mean: Option<f64>,
+    /// Defensibility only: where the analysed compared employees stand against their range.
+    pub position_counts: Option<PositionCounts>,
+    /// Defensibility only: the exact group test after the schedule; `None` when the pooled
+    /// regression has no residual degrees of freedom.
+    pub group_test: Option<GroupTest>,
     pub model_coefficients: Vec<Contribution>,
     /// Literal key-space discriminator for `Adjustment.row_key` — always `"rowKeyV1"`
     /// (`crate::row_key::ROW_KEY_SPACE`). A reader that does not recognise the value must
@@ -472,10 +639,26 @@ pub struct FrontierPoint {
 pub struct EfficientFrontierRequest {
     #[serde(flatten)]
     pub decomposition_params: DecompositionRequest,
-    pub steps: Option<usize>,    // Default 50
-    pub max_budget: Option<f64>, // If None, auto-detect
+    pub steps: Option<usize>, // Default 50
+    /// The last budget on the axis. `None` is the remedy's own full cost, so the axis ends exactly
+    /// where the remedy stops spending (0122-MERIDIAN D6, F-11); it used to run 10 % past it.
+    pub max_budget: Option<f64>,
     /// Level whose complement is the significance threshold of `FrontierPoint::is_significant`.
     /// Refused outside [0.50, 0.999]; `None` means 0.95 (0120-MERIDIAN S7).
     #[serde(default)]
     pub confidence_level: Option<f64>,
+    /// The remedy the curve follows (0122-MERIDIAN T10, D6): the same settings `optimize` takes,
+    /// so the curve describes the schedule the screen shows. Absent means `Reference`, `Greedy`,
+    /// `Midpoint`, threshold 0, compared group only, the only remedy the curve could describe
+    /// before.
+    #[serde(default)]
+    pub strategy: Option<AllocationStrategy>,
+    #[serde(default)]
+    pub target: Option<OptimizationTarget>,
+    #[serde(default)]
+    pub range_target: Option<RangeTarget>,
+    #[serde(default)]
+    pub min_gap_pct: Option<f64>,
+    #[serde(default)]
+    pub adjust_both_groups: Option<bool>,
 }
