@@ -1,6 +1,6 @@
 # LOOP-LEDGER — oaxaca-blinder-rs (Meridian's engine)
 
-> Updated: 2026-10-08 · Epics since last consolidation: 0 (first engine-scoped cycle)
+> Updated: 2026-10-10 · Bookkeeping by `scripts/dev-loop/loop.py` from 0122 on (generated tables at the end); the hand-kept Proposals and Receipts sections below are the history before it.
 > Schema: `internal-ops-bureau/knowledge/dev-loop.md` § LOOP-LEDGER.md schema (telos-machina, 0724-OPS).
 > Issues live in the app repo (`pay-equity-app/issues/`, prefix MERIDIAN). The app's own ledger is
 > `pay-equity-app/LOOP-LEDGER.md`; this one tracks engine-only cycles. Cross-repo cycles are recorded in both.
@@ -33,16 +33,17 @@
 ## Open issues by age
 | Issue | Filed | Days open | Named as declined option (count) |
 |---|---|---|---|
-| 0117-MERIDIAN (engine PR backlog) | 2026-10-08 | 0 | n/a |
+| 0121-MERIDIAN (repo ready for outside users, release 0.3.0) | 2026-10-09 | 1 | n/a |
+| 0123-MERIDIAN (Meridian on a phone, app) | 2026-10-10 | 0 | n/a |
 
-## Proposals
+## Proposals (hand-kept, before loop.py)
 | Date | Picked | Appetite | Reason | Declined (ids) | Proposal file |
 |---|---|---|---|---|---|
 | 2026-10-08 | **A, then B, C, D** (David queued all four, in that order) | scoped | A: the only finding where money reaches the wrong person, reachable with one blank cell; B, C, D follow in order, each re-grounded before it starts | none declined | `ground/2026-10-08-proposal.md` |
 | 2026-10-09 | **Meridian phone layout after D, before the release** (David): the app shell keeps its 240 px sidebar at 390 px (about 150 px of content); one app epic for the shell plus 0120's deferred screen items | scoped | the release review should start from a usable phone app | before D; after the release | `pay-equity-app/issues/0120-*` Deferred table |
 | 2026-10-09 | **Release 0.3.0 after D** (David): the consolidation after D becomes a release review of everything since v0.2.0 (2025-11-26, 184 commits), one breaking release carrying C and D; 0.3.0, no 1.0 stability promise yet | scoped | crates.io holds oaxaca_blinder 0.2.2 for outside users; C and D both change outputs, so one break instead of two | release before D; library-only release; 1.0.0 | `ground/2026-10-09-release-review.md` (inventory, in progress) |
 
-## Receipts
+## Receipts (hand-kept, before loop.py)
 | Epic | verify-live receipt | Result | Commit |
 |---|---|---|---|
 | 0117 (PR triage) | none: no `verify-live.sh` in this repo. Local gates: fmt clean, clippy -D warnings clean, 211/211 tests; CI Quality Gates pass on #96. App receipt `pay-equity-app/ground/receipts/0117-live.json` pass 10/10 | pass | 9e4bd97 |
@@ -51,10 +52,30 @@
 | 0120 (numbers read as findings are artefacts) | engine `ground/receipts/0120-live.json` pass 10/10 (wasm_verify, published_vs_pkg, app real-blob specs 73/73, app verify-live embedded, app tree committed, main CI 37997358357 incl. gate, CI raw hashes = baselines = built here = shipped manifests, shipped-blob relabel and carve-out invariance, T8 zero-budget identity); app `pay-equity-app/ground/receipts/0120-live.json` pass 18/18 with 7 new checks each shown red on a planted change; engine PRs #104 and #105 merged | pass | engine 6f3113e + receipt PR, app c1698b96 |
 | 0122 (the remedy says what it does) | engine `ground/receipts/0122-live.json` pass 13/13 (wasm_verify, published_vs_pkg, app real-blob specs 211/211, app verify-live embedded, app tree committed, main CI 38057011148 incl. gate, CI raw hashes = baselines = built here = shipped manifests, shipped-blob relabel, carve-out and T8 identity, new: target-gap rule and reference-raise closure on Fixture F, both red on the pre-fix blobs in `0122-planted-blobs.json`); app `pay-equity-app/ground/receipts/0122-live.json` pass 22/22 with 4 new checks (cap's unfunded people, unreachable target's named floor, reference raises as their own cost line, copy gate fr/en 1280/390) each caught on planted changes and the three V15 ones red on a dist from the pre-fix blobs; engine PR #107 merged | pass | engine 096f76b + receipt PR, app 048d6e25 |
 
-## Cost log
-| Epic | Output tokens by model | Orchestrator share | Wall-clock | Source |
-|---|---|---|---|---|
+<!-- loop.py:tables start -->
+Epics since last consolidation: 3
+consolidate_due: false
 
-## Consolidations
-| Date | Epics since previous | What was paid down |
-|---|---|---|
+### Proposals
+| Date | Epic | Option | Appetite | Reason | Declined | Proposal |
+|---|---|---|---|---|---|---|
+| 2026-10-10T21:29:40+00:00 | 0122 | D | scoped | David queued A, B, C, D at scoped on 2026-10-08; D re-grounded 2026-10-09, D1-D6 decided by David (D5 with the legislative carve-out) | none | ground/2026-10-08-proposal.md |
+
+### Receipts
+| Ran at | Epic | Result | Commit | Discriminating |
+|---|---|---|---|---|
+| 2026-10-09T09:41:02Z | 0119 | pass | 6ec23be | no |
+| 2026-10-09T22:57:12Z | 0120 | pass | 2f1c1f5 | no |
+| 2026-10-10T18:06:56Z | 0122 |  |  | no |
+| 2026-10-10T22:24:36Z | 0122 | pass | b438a9a | yes |
+
+### Cost log
+| Date | Epic | Tokens | Wall clock (min) | Source | Overrun |
+|---|---|---|---|---|---|
+| 2026-10-10T22:43:42+00:00 | 0122 | claude-opus-5-5: 236453, claude-sonnet-5-5: 49807, claude-fable-5-1: 30151 | 1650.0 | token-use-by-seat.py --root ~/.claude/projects/-mnt-telos-telos-machina --match f2133a88 --since 2026-10-09T19:00 (dispatched) + orchestrator transcript count since the same time; wall clock re-ground start to close, idle time included | no |
+
+### Consolidations
+| Date | What |
+|---|---|
+|  |  |
+<!-- loop.py:tables end -->
