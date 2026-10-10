@@ -489,3 +489,93 @@ fn a_roster_with_nothing_to_pay_returns_the_single_baseline_point() {
     assert_eq!(pts.len(), 1);
     assert_eq!(pts[0].budget, 0.0);
 }
+
+/// The curve at a stated level, for one setting.
+fn frontier_at_level(s: Settings, level: Option<f64>) -> Vec<FrontierPoint> {
+    calculate_efficient_frontier_inner(EfficientFrontierRequest {
+        decomposition_params: decomposition_request(FixtureF::noisy().csv_bytes(), false),
+        steps: Some(2),
+        max_budget: None,
+        confidence_level: level,
+        strategy: Some(s.strategy),
+        target: Some(s.target),
+        range_target: Some(s.range),
+        min_gap_pct: Some(s.min_pct),
+        adjust_both_groups: Some(s.both),
+    })
+    .unwrap()
+}
+
+#[test]
+fn the_frontier_level_also_sets_the_interval_a_bound_remedy_pays_to() {
+    // 0122-MERIDIAN C-04. Paying to a bound of the prediction interval reads that bound at a
+    // level, and the frontier hands its own level to the remedy it follows. At 80 % the lower
+    // bound is higher than at 95 %, so the remedy costs more and the axis ends further out. The
+    // oracle is `optimize` at the same level; a frontier that drops the level pays the 95 % bound.
+    let s = Settings {
+        range: RangeTarget::LowerBound,
+        ..BASE
+    };
+    let level = 0.80;
+    let mut req = optimization_request(FixtureF::noisy().csv_bytes(), false);
+    req.strategy = Some(s.strategy);
+    req.target = Some(s.target);
+    req.range_target = Some(s.range);
+    req.min_gap_pct = Some(s.min_pct);
+    req.adjust_both_groups = Some(s.both);
+    req.confidence_level = Some(level);
+    let at_level = optimize_inner(req).unwrap();
+
+    let curve = frontier_at_level(s, Some(level));
+    let last = curve.last().unwrap();
+    assert!(
+        near(last.budget, at_level.total_cost, 1e-9),
+        "the axis ends at {} but the remedy at level {level} costs {}",
+        last.budget,
+        at_level.total_cost
+    );
+    let (coefficient, _) = oracle(&schedule_of(&at_level));
+    assert!(
+        near(last.group_coefficient, coefficient, 1e-7),
+        "the last point is not the fit of the schedule the remedy pays at level {level}"
+    );
+    // The same setting at the default level is another remedy.
+    let default_level = frontier_at_level(s, None);
+    assert!(
+        (default_level.last().unwrap().budget - last.budget).abs() > 100.0,
+        "level 0.80 and 0.95 priced the lower bound alike"
+    );
+    // And the level the curve reports is the one it was asked for.
+    assert!(curve.iter().all(|p| p.confidence_level == level));
+}
+
+#[test]
+fn an_axis_the_curve_cannot_draw_is_refused_by_name() {
+    // 0122-MERIDIAN C-02. A last budget that is not a number, is infinite or is negative used to
+    // come back as a curve of nulls or a lone baseline point; no step is a curve with no points.
+    let call = |steps: Option<usize>, max_budget: Option<f64>| {
+        calculate_efficient_frontier_inner(EfficientFrontierRequest {
+            decomposition_params: decomposition_request(FixtureF::noisy().csv_bytes(), false),
+            steps,
+            max_budget,
+            confidence_level: None,
+            strategy: None,
+            target: None,
+            range_target: None,
+            min_gap_pct: None,
+            adjust_both_groups: None,
+        })
+    };
+    for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY, -5.0, -0.01] {
+        let err = call(Some(3), Some(bad)).unwrap_err();
+        assert!(
+            err.starts_with("INVALID_BUDGET"),
+            "max_budget {bad} was not refused by name: {err}"
+        );
+    }
+    let err = call(Some(0), None).unwrap_err();
+    assert!(err.starts_with("INVALID_STEPS"), "steps 0: {err}");
+    // What stays allowed: no last budget, and a last budget of 0 (one baseline point).
+    assert_eq!(call(Some(3), None).unwrap().len(), 4);
+    assert_eq!(call(Some(3), Some(0.0)).unwrap().len(), 1);
+}

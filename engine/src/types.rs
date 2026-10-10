@@ -423,8 +423,17 @@ pub struct PositionCounts {
 /// of the schedule's wages on the model's columns plus a compared-group indicator. It is the same
 /// computation the frontier runs for its own schedule, so the two agree at equal budget. Not the
 /// bootstrap of `verify_adjustments`.
+///
+/// It is always read on the POOLED line (`line`), whatever target the remedy aimed at. Under
+/// `target: Pooled` `group_coefficient` equals `new_unexplained_gap`. Under `target: Reference`
+/// the two are the compared group's gap after the schedule on two different lines, and they can
+/// differ in size and in sign: read the group's direction off one of them, never one beside the
+/// other (0122-MERIDIAN S-01).
 #[derive(Serialize, Debug, Clone, PartialEq)]
 pub struct GroupTest {
+    /// The line `group_coefficient` is measured against. Always `"Pooled"`: the regression of the
+    /// schedule's wages on the model columns plus the compared-group indicator.
+    pub line: &'static str,
     /// The indicator's coefficient: how far the compared group sits from the reference group at
     /// equal characteristics, in outcome units. Negative while the group is still below.
     pub group_coefficient: f64,
@@ -481,10 +490,16 @@ pub struct OptimizationResult {
     /// `original_gap + cost_target / n_compared - cost_reference / n_reference`.
     pub new_gap: f64,
     pub original_unexplained_gap: f64,
+    /// The compared group's gap after the schedule, on the line the remedy aimed at (the reference
+    /// group's refitted line for `target: Reference`, the pooled line for `Pooled`). Under
+    /// `Reference` it is not `group_test.group_coefficient`, which is always on the pooled line.
     pub new_unexplained_gap: f64,
     /// What it takes to pay every eligible COMPARED employee their full shortfall to the chosen
-    /// line: `need_target`, in both entry points (0122-MERIDIAN T4). Reference-group raises are
-    /// priced separately in `need_reference`.
+    /// line: `need_target` (0122-MERIDIAN T4). Reference-group raises are priced separately in
+    /// `need_reference`. The two entry points report the same figure on the default basis, the
+    /// midpoint line and no threshold; `optimize` honours `range_target` and `min_gap_pct`, and
+    /// `check_defensibility` always reads the midpoint line at threshold 0 (`target_line`), so
+    /// they differ when either is set. The screen reads it from `optimize`.
     pub required_budget: f64,
     /// The pay line the shortfalls were measured to: `range_target`, `Midpoint` from
     /// `check_defensibility`.
@@ -499,10 +514,17 @@ pub struct OptimizationResult {
     /// Optimise only: sum of the eligible reference shortfalls, what `adjust_both_groups` would
     /// cost; 0 when the toggle is off.
     pub need_reference: Option<f64>,
-    /// Optimise only: the group's mean gap (same sign as `original_unexplained_gap`) after paying
-    /// every eligible shortfall in full. With no target it is the best the remedy can reach; with
-    /// one it says whether the figure asked for is within reach. Honours `min_gap_pct` and
-    /// `range_target`.
+    /// Optimise only: the highest the group's mean gap (same sign as `original_unexplained_gap`)
+    /// gets on the strategy's own path as the budget grows, up to the eligible need. With no target
+    /// it is the best the remedy can reach; with one it says whether the figure asked for is
+    /// within reach. Honours `min_gap_pct` and `range_target`.
+    ///
+    /// On the reference line, and for any roster whose paid employees all raise the gap, that is
+    /// the gap after paying every eligible shortfall in full. On the pooled line a compared
+    /// employee far beyond the reference group's characteristics can LOWER the gap when paid
+    /// (0122-MERIDIAN C-01); the path then peaks before its end and this is the peak, reached at
+    /// `target_budget` when the target is out of reach. With `adjust_both_groups` the path mixes
+    /// two groups, no group target is accepted, and this is the gap after the full schedule.
     pub best_reachable_gap: Option<f64>,
     /// Optimise only, `None` without `target_gap`: `true` when the target is already met or the
     /// eligible shortfalls can reach it, `false` when it is beyond `best_reachable_gap`.
@@ -512,7 +534,8 @@ pub struct OptimizationResult {
     pub shortfall_to_target: Option<f64>,
     /// Optimise only, `None` without `target_gap`: the budget the target rule set, before
     /// `budget` is applied. `0` when the target is already met, the least that reaches it when it
-    /// can be reached, the full eligible need (which does not reach it) when it cannot.
+    /// can be reached, and when it cannot the budget that gets nearest: the full eligible need,
+    /// or on a pooled roster where paying someone lowers the gap, the budget where the gap peaks.
     pub target_budget: Option<f64>,
     /// Optimise only: `true` when the caller's `budget` is what stops the remedy short, i.e. it is
     /// below both the eligible need and the budget the target asks for.
@@ -521,14 +544,17 @@ pub struct OptimizationResult {
     /// threshold and the line.
     pub unfunded_amount: Option<f64>,
     /// Optimise only: eligible compared employees paid less than their shortfall. Under
-    /// `Equitable` that is every one of them while the budget is short.
+    /// `Equitable` that is every one of them while the budget is short. Counted against the PAY
+    /// LINE: not the same set as `position_counts.below`, which is counted against the range's
+    /// lower bound and lives on `check_defensibility`.
     pub unfunded_count: Option<usize>,
     /// Optimise only: compared employees below the line by less than `min_gap_pct`, left out on
     /// purpose. They are still below the line: "still below" is this plus `unfunded_count`.
     pub threshold_excluded_count: Option<usize>,
     /// Optimise only: share of the compared group's need paid, `cost_target / need_target`, from
     /// 0 to 1. `None` when `need_target` is zero. Rises with every dollar; the same for both
-    /// strategies at the same cost.
+    /// strategies at the same cost. It counts money, not the target: 0 when a target is already
+    /// met (nothing is paid) and 1 when one is out of reach (everything is).
     pub closure: Option<f64>,
     /// Optimise only: mean over the analysed compared employees of `max(0, pay - fair pay)`, on
     /// the midpoint line, independent of `min_gap_pct`, the budget and `range_target`. With
@@ -536,9 +562,13 @@ pub struct OptimizationResult {
     /// paying everyone below the line to it leaves the group this far above.
     pub overshoot_mean: Option<f64>,
     /// Defensibility only: where the analysed compared employees stand against their range.
+    /// `below` is counted against the range's lower bound, not the pay line `unfunded_count` and
+    /// `threshold_excluded_count` are counted against, so the two "below" figures differ.
     pub position_counts: Option<PositionCounts>,
     /// Defensibility only: the exact group test after the schedule; `None` when the pooled
-    /// regression has no residual degrees of freedom.
+    /// regression has no residual degrees of freedom. Descriptive: the raises are functions of the
+    /// fitted line and remove the group's negative residuals, so the p-value describes the
+    /// adjusted roster and is not evidence that the schedule is fair.
     pub group_test: Option<GroupTest>,
     pub model_coefficients: Vec<Contribution>,
     /// Literal key-space discriminator for `Adjustment.row_key` — always `"rowKeyV1"`

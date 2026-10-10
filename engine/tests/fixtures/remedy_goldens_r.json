@@ -1,17 +1,18 @@
 {
   "_meta": {
-    "generated_utc": "2026-10-10 01:32:40 UTC",
+    "generated_utc": "2026-10-10 02:56:21 UTC",
     "r_version": "4.6.1",
     "packages": {
       "jsonlite": "2.0.0",
       "digest": "0.6.39"
     },
-    "generator_sha256": "e999cd1056f8bccaae5b839d5323bbb08b31dfd9497ccfc2a96da0f3a4e07ea5",
+    "generator_sha256": "d28c50dbb2f326d82b3bc0869726f3d4eb568219f18a0b79b2ef1ec75e60cc9e",
     "fixture_sha256": {
       "engine/tests/fixtures/0122-fixture-f-noisy.csv": "e39a5059f67596d2d1f37434ee253f190474d5c9aeeead8def945570e3f04b26",
       "oaxaca_blinder/tests/fixtures/diag_kink_overlap.csv": "57e57d33bd30477fcfc342414d6e29b7506e27fbc340a189e222196e6f08642f",
       "oaxaca_blinder/tests/fixtures/employers_trust_fixture.csv": "91582bcc86845bfbf1e1b376abb0ac03fe6c4a6bff4a093e1a5b895a32cfeb7d",
-      "engine/tests/fixtures/0122-remedy-tiny.csv": "a302fb91425a1d9d64366c929f1de55c1e7c8e4ffdf9b52831fa773ee00928f9"
+      "engine/tests/fixtures/0122-remedy-tiny.csv": "a302fb91425a1d9d64366c929f1de55c1e7c8e4ffdf9b52831fa773ee00928f9",
+      "engine/tests/fixtures/0122-remedy-nonmonotone.csv": "66ccaa4eb9addf6aa11700b14f2203c2fb73c9fcef0ee377d68e886af6678278"
     },
     "tolerances": {
       "dollars": 9.9999999999999995e-07,
@@ -123,20 +124,20 @@
         "required_budget": 5000.0000000000291,
         "need_target": 5000.0000000000291,
         "need_reference": 0,
-        "total_cost": 2500.0000000000441,
-        "cost_target": 2500.0000000000441,
+        "total_cost": 2500.0000000000437,
+        "cost_target": 2500.0000000000437,
         "cost_reference": 0,
         "best_reachable_gap": 333.33333333332848,
         "overshoot_mean": 333.33333333332848,
-        "closure": 0.50000000000000588,
-        "unfunded_amount": 2499.999999999985,
+        "closure": 0.50000000000000577,
+        "unfunded_amount": 2499.9999999999854,
         "unfunded_count": 2,
         "threshold_excluded_count": 0,
         "budget_binding": false,
         "target_state": "reachable",
         "target_gap_reachable": true,
         "shortfall_to_target": null,
-        "target_budget": 2500.0000000000441
+        "target_budget": 2500.0000000000437
       },
       "rows": [
         {
@@ -154,7 +155,7 @@
         {
           "index": 5,
           "source": "Compared",
-          "adjustment": 2500.0000000000441,
+          "adjustment": 2500.0000000000437,
           "current_wage": 49000,
           "new_wage": 51500.000000000044,
           "fair_wage": 52000.000000000007,
@@ -432,7 +433,7 @@
         "target_state": "reachable",
         "target_gap_reachable": true,
         "shortfall_to_target": null,
-        "target_budget": 2500.0000000000441
+        "target_budget": 2500.0000000000437
       },
       "rows": [
         {
@@ -4731,20 +4732,20 @@
         "required_budget": 15661.094291827503,
         "need_target": 15661.094291827503,
         "need_reference": 0,
-        "total_cost": 7830.5471459137489,
-        "cost_target": 7830.5471459137489,
+        "total_cost": 7830.547145913747,
+        "cost_target": 7830.547145913747,
         "cost_reference": 0,
         "best_reachable_gap": -787.97555743588362,
         "overshoot_mean": 96.248743243556959,
-        "closure": 0.49999999999999983,
-        "unfunded_amount": 7830.5471459137543,
+        "closure": 0.49999999999999972,
+        "unfunded_amount": 7830.5471459137561,
         "unfunded_count": 4,
         "threshold_excluded_count": 25,
         "budget_binding": false,
         "target_state": "reachable",
         "target_gap_reachable": true,
         "shortfall_to_target": null,
-        "target_budget": 7830.5471459137489
+        "target_budget": 7830.547145913747
       },
       "rows": [
         {
@@ -4774,7 +4775,7 @@
         {
           "index": 26,
           "source": "Compared",
-          "adjustment": 1744.3693710138114,
+          "adjustment": 1744.3693710138095,
           "current_wage": 32450,
           "new_wage": 34194.36937101381,
           "fair_wage": 35053.685347531857,
@@ -7925,20 +7926,20 @@
         "required_budget": 50636.540652281292,
         "need_target": 50636.540652281292,
         "need_reference": 0,
-        "total_cost": 25207.425684139413,
-        "cost_target": 25207.425684139413,
+        "total_cost": 25207.425684139405,
+        "cost_target": 25207.425684139405,
         "cost_reference": 0,
         "best_reachable_gap": 85.878599102747273,
         "overshoot_mean": 85.696324382004789,
-        "closure": 0.49781097522513634,
-        "unfunded_amount": 25429.114968141879,
+        "closure": 0.49781097522513623,
+        "unfunded_amount": 25429.114968141886,
         "unfunded_count": 22,
         "threshold_excluded_count": 0,
         "budget_binding": false,
         "target_state": "reachable",
         "target_gap_reachable": true,
         "shortfall_to_target": null,
-        "target_budget": 25207.425684139413
+        "target_budget": 25207.425684139405
       },
       "rows": [
         {
@@ -7992,7 +7993,7 @@
         {
           "index": 13,
           "source": "Compared",
-          "adjustment": 704.9405088185049,
+          "adjustment": 704.94050881849762,
           "current_wage": 33750,
           "new_wage": 34454.940508818501,
           "fair_wage": 36132.038323353634,
@@ -8769,20 +8770,20 @@
         "required_budget": 50636.540652281292,
         "need_target": 50636.540652281292,
         "need_reference": 0,
-        "total_cost": 12475.913852708376,
-        "cost_target": 12475.913852708376,
+        "total_cost": 12475.913852708371,
+        "cost_target": 12475.913852708371,
         "cost_reference": 0,
         "best_reachable_gap": 85.878599102747273,
         "overshoot_mean": 85.696324382004789,
-        "closure": 0.24638163847684386,
-        "unfunded_amount": 38160.626799572914,
+        "closure": 0.24638163847684375,
+        "unfunded_amount": 38160.626799572921,
         "unfunded_count": 27,
         "threshold_excluded_count": 0,
         "budget_binding": false,
         "target_state": "reachable",
         "target_gap_reachable": true,
         "shortfall_to_target": null,
-        "target_budget": 12475.913852708376
+        "target_budget": 12475.913852708371
       },
       "rows": [
         {
@@ -8884,9 +8885,9 @@
         {
           "index": 26,
           "source": "Compared",
-          "adjustment": 743.08377985420339,
+          "adjustment": 743.08377985419793,
           "current_wage": 32450,
-          "new_wage": 33193.083779854205,
+          "new_wage": 33193.083779854198,
           "fair_wage": 35151.708980212323,
           "lower": 33589.778627126318,
           "upper": 36713.639333298328,
@@ -9613,20 +9614,20 @@
         "required_budget": 13524.765396116622,
         "need_target": 13524.765396116622,
         "need_reference": 0,
-        "total_cost": 6726.3063124704504,
-        "cost_target": 6726.3063124704504,
+        "total_cost": 6726.3063124704531,
+        "cost_target": 6726.3063124704531,
         "cost_reference": 0,
         "best_reachable_gap": -841.3412063688844,
         "overshoot_mean": 85.696324382004789,
-        "closure": 0.49733256847484991,
-        "unfunded_amount": 6798.4590836461712,
+        "closure": 0.49733256847485013,
+        "unfunded_amount": 6798.4590836461684,
         "unfunded_count": 10,
         "threshold_excluded_count": 0,
         "budget_binding": false,
         "target_state": "reachable",
         "target_gap_reachable": true,
         "shortfall_to_target": null,
-        "target_budget": 6726.3063124704504
+        "target_budget": 6726.3063124704531
       },
       "rows": [
         {
@@ -9752,7 +9753,7 @@
         {
           "index": 68,
           "source": "Compared",
-          "adjustment": 8.7884397991811056,
+          "adjustment": 8.7884397991838341,
           "current_wage": 70250,
           "new_wage": 70258.788439799187,
           "fair_wage": 72900.288022067005,
@@ -9843,20 +9844,20 @@
         "required_budget": 15905.692932576254,
         "need_target": 15905.692932576254,
         "need_reference": 0,
-        "total_cost": 7850.701424613213,
-        "cost_target": 7850.701424613213,
+        "total_cost": 7850.7014246132103,
+        "cost_target": 7850.7014246132103,
         "cost_reference": 0,
         "best_reachable_gap": -790.12131068493397,
         "overshoot_mean": 85.696324382004789,
-        "closure": 0.49357808288466881,
-        "unfunded_amount": 8054.9915079630409,
+        "closure": 0.49357808288466865,
+        "unfunded_amount": 8054.9915079630437,
         "unfunded_count": 4,
         "threshold_excluded_count": 25,
         "budget_binding": false,
         "target_state": "reachable",
         "target_gap_reachable": true,
         "shortfall_to_target": null,
-        "target_budget": 7850.701424613213
+        "target_budget": 7850.7014246132103
       },
       "rows": [
         {
@@ -9886,7 +9887,7 @@
         {
           "index": 26,
           "source": "Compared",
-          "adjustment": 1856.069677203388,
+          "adjustment": 1856.0696772033853,
           "current_wage": 32450,
           "new_wage": 34306.069677203384,
           "fair_wage": 35151.708980212323,
@@ -18571,20 +18572,20 @@
         "required_budget": 36406.096148339282,
         "need_target": 36406.096148339282,
         "need_reference": 0,
-        "total_cost": 18817.976959299398,
-        "cost_target": 18817.976959299398,
+        "total_cost": 18817.976959299394,
+        "cost_target": 18817.976959299394,
         "cost_reference": 0,
         "best_reachable_gap": 1019.0071792083091,
         "overshoot_mean": 1294.6461764171002,
-        "closure": 0.51689082187291335,
-        "unfunded_amount": 17588.119189039884,
+        "closure": 0.51689082187291324,
+        "unfunded_amount": 17588.119189039888,
         "unfunded_count": 15,
         "threshold_excluded_count": 0,
         "budget_binding": false,
         "target_state": "reachable",
         "target_gap_reachable": true,
         "shortfall_to_target": null,
-        "target_budget": 18817.976959299398
+        "target_budget": 18817.976959299394
       },
       "rows": [
         {
@@ -18710,9 +18711,9 @@
         {
           "index": 83,
           "source": "Compared",
-          "adjustment": 1692.6377431260262,
+          "adjustment": 1692.6377431260225,
           "current_wage": 56031.220000000001,
-          "new_wage": 57723.857743126027,
+          "new_wage": 57723.85774312602,
           "fair_wage": 58302.596412888059,
           "lower": 53520.295283287764,
           "upper": 63084.897542488354,
@@ -19496,6 +19497,2502 @@
           "upper": 63084.897542488354,
           "range_position": "Inside",
           "range_position_before": "Inside"
+        }
+      ]
+    },
+    "F_ref_lower_level80": {
+      "config": {
+        "fixture": "engine/tests/fixtures/0122-fixture-f-noisy.csv",
+        "outcome": "Salary",
+        "group": "Gender",
+        "ref": "Male",
+        "cont": ["Experience", "Level"],
+        "cats": [],
+        "kind": "remedy",
+        "target": "Reference",
+        "strategy": "Greedy",
+        "range": "LowerBound",
+        "min_pct": 0,
+        "adjust_both": false,
+        "budget": 0,
+        "target_gap_spec": null,
+        "level": 0.80000000000000004,
+        "rows": true,
+        "overrides": []
+      },
+      "expected": {
+        "original_gap": -1770.1666666666642,
+        "new_gap": -644.73922387381026,
+        "original_unexplained_gap": -1179.5029147315713,
+        "new_unexplained_gap": -54.07547193871833,
+        "required_budget": 45017.097711714116,
+        "need_target": 45017.097711714116,
+        "need_reference": 0,
+        "total_cost": 45017.097711714116,
+        "cost_target": 45017.097711714116,
+        "cost_reference": 0,
+        "best_reachable_gap": -54.07547193871833,
+        "overshoot_mean": 96.248743243556959,
+        "closure": 1,
+        "unfunded_amount": 0,
+        "unfunded_count": 0,
+        "threshold_excluded_count": 0,
+        "budget_binding": false,
+        "target_state": "none",
+        "target_gap_reachable": null,
+        "shortfall_to_target": null,
+        "target_budget": null
+      },
+      "rows": [
+        {
+          "index": 1,
+          "source": "Compared",
+          "adjustment": 1760.9091961965751,
+          "current_wage": 54050,
+          "new_wage": 55810.909196196575,
+          "fair_wage": 56009.532727108526,
+          "lower": 55810.909196196575,
+          "upper": 56208.156258020477,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 6,
+          "source": "Compared",
+          "adjustment": 1006.2872656777326,
+          "current_wage": 58750,
+          "new_wage": 59756.287265677733,
+          "fair_wage": 59961.068357368211,
+          "lower": 59756.287265677733,
+          "upper": 60165.849449058689,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 8,
+          "source": "Compared",
+          "adjustment": 2749.5314346788145,
+          "current_wage": 52050,
+          "new_wage": 54799.531434678815,
+          "fair_wage": 54998.283783908788,
+          "lower": 54799.531434678815,
+          "upper": 55197.036133138761,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 11,
+          "source": "Compared",
+          "adjustment": 349.84957743858104,
+          "current_wage": 64450,
+          "new_wage": 64799.849577438581,
+          "fair_wage": 65001.73638294368,
+          "lower": 64799.849577438581,
+          "upper": 65203.623188448779,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 13,
+          "source": "Compared",
+          "adjustment": 2095.5191684359597,
+          "current_wage": 33750,
+          "new_wage": 35845.51916843596,
+          "fair_wage": 36049.35760030838,
+          "lower": 35845.51916843596,
+          "upper": 36253.1960321808,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 18,
+          "source": "Compared",
+          "adjustment": 1340.6835409456471,
+          "current_wage": 62450,
+          "new_wage": 63790.683540945647,
+          "fair_wage": 63990.487439743942,
+          "lower": 63790.683540945647,
+          "upper": 64190.291338542236,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 23,
+          "source": "Compared",
+          "adjustment": 690.81402262084157,
+          "current_wage": 44150,
+          "new_wage": 44840.814022620842,
+          "fair_wage": 45041.561256143534,
+          "lower": 44840.814022620842,
+          "upper": 45242.308489666226,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 26,
+          "source": "Compared",
+          "adjustment": 2399.2713152483993,
+          "current_wage": 32450,
+          "new_wage": 34849.271315248399,
+          "fair_wage": 35053.685347531857,
+          "lower": 34849.271315248399,
+          "upper": 35258.099379815314,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 31,
+          "source": "Compared",
+          "adjustment": 1645.1270106082156,
+          "current_wage": 61150,
+          "new_wage": 62795.127010608216,
+          "fair_wage": 62994.815186967411,
+          "lower": 62795.127010608216,
+          "upper": 63194.503363326607,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 36,
+          "source": "Compared",
+          "adjustment": 992.40934452395595,
+          "current_wage": 46850,
+          "new_wage": 47842.409344523956,
+          "fair_wage": 48044.154704896318,
+          "lower": 47842.409344523956,
+          "upper": 48245.900065268681,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 38,
+          "source": "Compared",
+          "adjustment": 2634.1987627295384,
+          "current_wage": 59150,
+          "new_wage": 61784.198762729538,
+          "fair_wage": 61983.56624376768,
+          "lower": 61784.198762729538,
+          "upper": 62182.933724805822,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 41,
+          "source": "Compared",
+          "adjustment": 245.48812537365302,
+          "current_wage": 51550,
+          "new_wage": 51795.488125373653,
+          "fair_wage": 51995.690335156003,
+          "lower": 51795.488125373653,
+          "upper": 52195.892544938353,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 43,
+          "source": "Compared",
+          "adjustment": 1984.0372529212254,
+          "current_wage": 40850,
+          "new_wage": 42834.037252921225,
+          "fair_wage": 43034.640060167272,
+          "lower": 42834.037252921225,
+          "upper": 43235.242867413319,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 48,
+          "source": "Compared",
+          "adjustment": 1230.604368690103,
+          "current_wage": 49550,
+          "new_wage": 50780.604368690103,
+          "fair_wage": 50984.441391956272,
+          "lower": 50780.604368690103,
+          "upper": 51188.278415222441,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 51,
+          "source": "Compared",
+          "adjustment": 2938.8346470320394,
+          "current_wage": 57850,
+          "new_wage": 60788.834647032039,
+          "fair_wage": 60987.89399099115,
+          "lower": 60788.834647032039,
+          "upper": 61186.95333495026,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 53,
+          "source": "Compared",
+          "adjustment": 574.17637294907036,
+          "current_wage": 55250,
+          "new_wage": 55824.17637294907,
+          "fair_wage": 56025.109417531734,
+          "lower": 55824.17637294907,
+          "upper": 56226.042462114397,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 56,
+          "source": "Compared",
+          "adjustment": 2287.0146393764589,
+          "current_wage": 43550,
+          "new_wage": 45837.014639376459,
+          "fair_wage": 46037.233508920057,
+          "lower": 45837.014639376459,
+          "upper": 46237.452378463655,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 61,
+          "source": "Compared",
+          "adjustment": 1535.4369298881938,
+          "current_wage": 48250,
+          "new_wage": 49785.436929888194,
+          "fair_wage": 49988.769139179749,
+          "lower": 49785.436929888194,
+          "upper": 50192.101348471304,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 66,
+          "source": "Compared",
+          "adjustment": 878.03505401532311,
+          "current_wage": 53950,
+          "new_wage": 54828.035054015323,
+          "fair_wage": 55029.437164755211,
+          "lower": 54828.035054015323,
+          "upper": 55230.839275495098,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 68,
+          "source": "Compared",
+          "adjustment": 2513.7965830670582,
+          "current_wage": 70250,
+          "new_wage": 72763.796583067058,
+          "fair_wage": 72967.11440515588,
+          "lower": 72763.796583067058,
+          "upper": 73170.432227244703,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 71,
+          "source": "Compared",
+          "adjustment": 130.95768019511888,
+          "current_wage": 58650,
+          "new_wage": 58780.957680195119,
+          "fair_wage": 58980.972795014895,
+          "lower": 58780.957680195119,
+          "upper": 59180.987909834672,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 73,
+          "source": "Compared",
+          "adjustment": 1869.2219835150172,
+          "current_wage": 51950,
+          "new_wage": 53819.221983515017,
+          "fair_wage": 54018.188221555472,
+          "lower": 53819.221983515017,
+          "upper": 54217.154459595928,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 78,
+          "source": "Compared",
+          "adjustment": 1116.5109367876721,
+          "current_wage": 56650,
+          "new_wage": 57766.510936787672,
+          "fair_wage": 57969.723851815164,
+          "lower": 57766.510936787672,
+          "upper": 58172.936766842657,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 81,
+          "source": "Compared",
+          "adjustment": 2818.5558210012096,
+          "current_wage": 68950,
+          "new_wage": 71768.55582100121,
+          "fair_wage": 71971.442152379357,
+          "lower": 71768.55582100121,
+          "upper": 72174.328483757505,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 83,
+          "source": "Compared",
+          "adjustment": 458.13706631117384,
+          "current_wage": 62350,
+          "new_wage": 62808.137066311174,
+          "fair_wage": 63010.391877390619,
+          "lower": 62808.137066311174,
+          "upper": 63212.646688470064,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 86,
+          "source": "Compared",
+          "adjustment": 2173.2680182136464,
+          "current_wage": 50650,
+          "new_wage": 52823.268018213646,
+          "fair_wage": 53022.515968778942,
+          "lower": 52823.268018213646,
+          "upper": 53221.763919344237,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 91,
+          "source": "Compared",
+          "adjustment": 1421.5185424911542,
+          "current_wage": 55350,
+          "new_wage": 56771.518542491154,
+          "fair_wage": 56974.051599038634,
+          "lower": 56771.518542491154,
+          "upper": 57176.584655586114,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 96,
+          "source": "Compared",
+          "adjustment": 771.50770111104794,
+          "current_wage": 41050,
+          "new_wage": 41821.507701111048,
+          "fair_wage": 42023.391116967541,
+          "lower": 41821.507701111048,
+          "upper": 42225.274532824034,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 98,
+          "source": "Compared",
+          "adjustment": 2405.395349670689,
+          "current_wage": 53350,
+          "new_wage": 55755.395349670689,
+          "fair_wage": 55962.802655838903,
+          "lower": 55755.395349670689,
+          "upper": 56170.209962007117,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        }
+      ]
+    },
+    "F_ref_lower_level80_half": {
+      "config": {
+        "fixture": "engine/tests/fixtures/0122-fixture-f-noisy.csv",
+        "outcome": "Salary",
+        "group": "Gender",
+        "ref": "Male",
+        "cont": ["Experience", "Level"],
+        "cats": [],
+        "kind": "remedy",
+        "target": "Reference",
+        "strategy": "Greedy",
+        "range": "LowerBound",
+        "min_pct": 0,
+        "adjust_both": false,
+        "budget": 0,
+        "target_gap_spec": {
+          "kind": "frac",
+          "value": 0.5
+        },
+        "level": 0.80000000000000004,
+        "rows": true,
+        "overrides": [],
+        "target_gap": -616.78919333514477
+      },
+      "expected": {
+        "original_gap": -1770.1666666666642,
+        "new_gap": -1207.4529452702409,
+        "original_unexplained_gap": -1179.5029147315713,
+        "new_unexplained_gap": -616.78919333514477,
+        "required_budget": 45017.097711714116,
+        "need_target": 45017.097711714116,
+        "need_reference": 0,
+        "total_cost": 22508.548855857058,
+        "cost_target": 22508.548855857058,
+        "cost_reference": 0,
+        "best_reachable_gap": -54.07547193871833,
+        "overshoot_mean": 96.248743243556959,
+        "closure": 0.5,
+        "unfunded_amount": 22508.548855857058,
+        "unfunded_count": 21,
+        "threshold_excluded_count": 0,
+        "budget_binding": false,
+        "target_state": "reachable",
+        "target_gap_reachable": true,
+        "shortfall_to_target": null,
+        "target_budget": 22508.548855857058
+      },
+      "rows": [
+        {
+          "index": 1,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 54050,
+          "new_wage": 54050,
+          "fair_wage": 56009.532727108526,
+          "lower": 55810.909196196575,
+          "upper": 56208.156258020477,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 6,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 58750,
+          "new_wage": 58750,
+          "fair_wage": 59961.068357368211,
+          "lower": 59756.287265677733,
+          "upper": 60165.849449058689,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 8,
+          "source": "Compared",
+          "adjustment": 2749.5314346788145,
+          "current_wage": 52050,
+          "new_wage": 54799.531434678815,
+          "fair_wage": 54998.283783908788,
+          "lower": 54799.531434678815,
+          "upper": 55197.036133138761,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 11,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 64450,
+          "new_wage": 64450,
+          "fair_wage": 65001.73638294368,
+          "lower": 64799.849577438581,
+          "upper": 65203.623188448779,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 13,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 33750,
+          "new_wage": 33750,
+          "fair_wage": 36049.35760030838,
+          "lower": 35845.51916843596,
+          "upper": 36253.1960321808,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 18,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 62450,
+          "new_wage": 62450,
+          "fair_wage": 63990.487439743942,
+          "lower": 63790.683540945647,
+          "upper": 64190.291338542236,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 23,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 44150,
+          "new_wage": 44150,
+          "fair_wage": 45041.561256143534,
+          "lower": 44840.814022620842,
+          "upper": 45242.308489666226,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 26,
+          "source": "Compared",
+          "adjustment": 2399.2713152483993,
+          "current_wage": 32450,
+          "new_wage": 34849.271315248399,
+          "fair_wage": 35053.685347531857,
+          "lower": 34849.271315248399,
+          "upper": 35258.099379815314,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 31,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 61150,
+          "new_wage": 61150,
+          "fair_wage": 62994.815186967411,
+          "lower": 62795.127010608216,
+          "upper": 63194.503363326607,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 36,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 46850,
+          "new_wage": 46850,
+          "fair_wage": 48044.154704896318,
+          "lower": 47842.409344523956,
+          "upper": 48245.900065268681,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 38,
+          "source": "Compared",
+          "adjustment": 2634.1987627295384,
+          "current_wage": 59150,
+          "new_wage": 61784.198762729538,
+          "fair_wage": 61983.56624376768,
+          "lower": 61784.198762729538,
+          "upper": 62182.933724805822,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 41,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 51550,
+          "new_wage": 51550,
+          "fair_wage": 51995.690335156003,
+          "lower": 51795.488125373653,
+          "upper": 52195.892544938353,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 43,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 40850,
+          "new_wage": 40850,
+          "fair_wage": 43034.640060167272,
+          "lower": 42834.037252921225,
+          "upper": 43235.242867413319,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 48,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 49550,
+          "new_wage": 49550,
+          "fair_wage": 50984.441391956272,
+          "lower": 50780.604368690103,
+          "upper": 51188.278415222441,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 51,
+          "source": "Compared",
+          "adjustment": 2938.8346470320394,
+          "current_wage": 57850,
+          "new_wage": 60788.834647032039,
+          "fair_wage": 60987.89399099115,
+          "lower": 60788.834647032039,
+          "upper": 61186.95333495026,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 53,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 55250,
+          "new_wage": 55250,
+          "fair_wage": 56025.109417531734,
+          "lower": 55824.17637294907,
+          "upper": 56226.042462114397,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 56,
+          "source": "Compared",
+          "adjustment": 2287.0146393764589,
+          "current_wage": 43550,
+          "new_wage": 45837.014639376459,
+          "fair_wage": 46037.233508920057,
+          "lower": 45837.014639376459,
+          "upper": 46237.452378463655,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 61,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 48250,
+          "new_wage": 48250,
+          "fair_wage": 49988.769139179749,
+          "lower": 49785.436929888194,
+          "upper": 50192.101348471304,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 66,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 53950,
+          "new_wage": 53950,
+          "fair_wage": 55029.437164755211,
+          "lower": 54828.035054015323,
+          "upper": 55230.839275495098,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 68,
+          "source": "Compared",
+          "adjustment": 2513.7965830670582,
+          "current_wage": 70250,
+          "new_wage": 72763.796583067058,
+          "fair_wage": 72967.11440515588,
+          "lower": 72763.796583067058,
+          "upper": 73170.432227244703,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 71,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 58650,
+          "new_wage": 58650,
+          "fair_wage": 58980.972795014895,
+          "lower": 58780.957680195119,
+          "upper": 59180.987909834672,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 73,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 51950,
+          "new_wage": 51950,
+          "fair_wage": 54018.188221555472,
+          "lower": 53819.221983515017,
+          "upper": 54217.154459595928,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 78,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 56650,
+          "new_wage": 56650,
+          "fair_wage": 57969.723851815164,
+          "lower": 57766.510936787672,
+          "upper": 58172.936766842657,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 81,
+          "source": "Compared",
+          "adjustment": 2818.5558210012096,
+          "current_wage": 68950,
+          "new_wage": 71768.55582100121,
+          "fair_wage": 71971.442152379357,
+          "lower": 71768.55582100121,
+          "upper": 72174.328483757505,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 83,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 62350,
+          "new_wage": 62350,
+          "fair_wage": 63010.391877390619,
+          "lower": 62808.137066311174,
+          "upper": 63212.646688470064,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 86,
+          "source": "Compared",
+          "adjustment": 1761.9503030528504,
+          "current_wage": 50650,
+          "new_wage": 52411.95030305285,
+          "fair_wage": 53022.515968778942,
+          "lower": 52823.268018213646,
+          "upper": 53221.763919344237,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 91,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 55350,
+          "new_wage": 55350,
+          "fair_wage": 56974.051599038634,
+          "lower": 56771.518542491154,
+          "upper": 57176.584655586114,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 96,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 41050,
+          "new_wage": 41050,
+          "fair_wage": 42023.391116967541,
+          "lower": 41821.507701111048,
+          "upper": 42225.274532824034,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 98,
+          "source": "Compared",
+          "adjustment": 2405.395349670689,
+          "current_wage": 53350,
+          "new_wage": 55755.395349670689,
+          "fair_wage": 55962.802655838903,
+          "lower": 55755.395349670689,
+          "upper": 56170.209962007117,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        }
+      ]
+    },
+    "F_pooled_upper_level80": {
+      "config": {
+        "fixture": "engine/tests/fixtures/0122-fixture-f-noisy.csv",
+        "outcome": "Salary",
+        "group": "Gender",
+        "ref": "Male",
+        "cont": ["Experience", "Level"],
+        "cats": [],
+        "kind": "remedy",
+        "target": "Pooled",
+        "strategy": "Greedy",
+        "range": "UpperBound",
+        "min_pct": 0,
+        "adjust_both": false,
+        "budget": 40000,
+        "target_gap_spec": null,
+        "level": 0.80000000000000004,
+        "rows": true,
+        "overrides": []
+      },
+      "expected": {
+        "original_gap": -1770.1666666666642,
+        "new_gap": -770.16666666666424,
+        "original_unexplained_gap": -1180.2171919250275,
+        "new_unexplained_gap": -181.41185011902644,
+        "required_budget": 87393.388552489821,
+        "need_target": 87393.388552489821,
+        "need_reference": 0,
+        "total_cost": 40000,
+        "cost_target": 40000,
+        "cost_reference": 0,
+        "best_reachable_gap": 1005.353733508986,
+        "overshoot_mean": 85.696324382004789,
+        "closure": 0.45770052703672637,
+        "unfunded_amount": 47393.388552489821,
+        "unfunded_count": 30,
+        "threshold_excluded_count": 0,
+        "budget_binding": true,
+        "target_state": "none",
+        "target_gap_reachable": null,
+        "shortfall_to_target": null,
+        "target_budget": null
+      },
+      "rows": [
+        {
+          "index": 1,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 54050,
+          "new_wage": 54050,
+          "fair_wage": 56036.263587670779,
+          "lower": 55040.625229837518,
+          "upper": 57031.90194550404,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 3,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 47450,
+          "new_wage": 47450,
+          "fair_wage": 47213.299499398956,
+          "lower": 46206.508537546972,
+          "upper": 48220.09046125094,
+          "range_position": "Inside",
+          "range_position_before": "Inside"
+        },
+        {
+          "index": 6,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 58750,
+          "new_wage": 58750,
+          "fair_wage": 59759.155359242104,
+          "lower": 58746.347158576209,
+          "upper": 60771.963559907999,
+          "range_position": "Inside",
+          "range_position_before": "Inside"
+        },
+        {
+          "index": 8,
+          "source": "Compared",
+          "adjustment": 3902.7025678083228,
+          "current_wage": 52050,
+          "new_wage": 55952.702567808323,
+          "fair_wage": 54956.721444032497,
+          "lower": 53960.740320256671,
+          "upper": 55952.702567808323,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 11,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 64450,
+          "new_wage": 64450,
+          "fair_wage": 65057.6532769365,
+          "lower": 64052.143644120144,
+          "upper": 66063.162909752849,
+          "range_position": "Inside",
+          "range_position_before": "Inside"
+        },
+        {
+          "index": 13,
+          "source": "Compared",
+          "adjustment": 3395.4781973001227,
+          "current_wage": 33750,
+          "new_wage": 37145.478197300123,
+          "fair_wage": 36132.038323353634,
+          "lower": 35118.598449407145,
+          "upper": 37145.478197300123,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 16,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 50150,
+          "new_wage": 50150,
+          "fair_wage": 50253.500329319853,
+          "lower": 49240.609996070467,
+          "upper": 51266.39066256924,
+          "range_position": "Inside",
+          "range_position_before": "Inside"
+        },
+        {
+          "index": 18,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 62450,
+          "new_wage": 62450,
+          "fair_wage": 63978.111133298233,
+          "lower": 62978.472704916938,
+          "upper": 64977.749561679528,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 21,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 54850,
+          "new_wage": 54850,
+          "fair_wage": 53976.392100891186,
+          "lower": 52980.761865586777,
+          "upper": 54972.022336195594,
+          "range_position": "Inside",
+          "range_position_before": "Inside"
+        },
+        {
+          "index": 23,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 44150,
+          "new_wage": 44150,
+          "fair_wage": 45153.42801261937,
+          "lower": 44150.992063060163,
+          "upper": 46155.863962178577,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 26,
+          "source": "Compared",
+          "adjustment": 3717.1152557901733,
+          "current_wage": 32450,
+          "new_wage": 36167.115255790173,
+          "fair_wage": 35151.708980212323,
+          "lower": 34136.302704634472,
+          "upper": 36167.115255790173,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 28,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 52850,
+          "new_wage": 52850,
+          "fair_wage": 52896.849957252911,
+          "lower": 51895.989893073602,
+          "upper": 53897.71002143222,
+          "range_position": "Inside",
+          "range_position_before": "Inside"
+        },
+        {
+          "index": 31,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 61150,
+          "new_wage": 61150,
+          "fair_wage": 62997.781790156921,
+          "lower": 61998.627498596165,
+          "upper": 63996.936081717678,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 33,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 58550,
+          "new_wage": 58550,
+          "fair_wage": 58195.347874947314,
+          "lower": 57183.694007940911,
+          "upper": 59207.001741953718,
+          "range_position": "Inside",
+          "range_position_before": "Inside"
+        },
+        {
+          "index": 36,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 46850,
+          "new_wage": 46850,
+          "fair_wage": 48193.628842540274,
+          "lower": 47188.950350486484,
+          "upper": 49198.307334594065,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 38,
+          "source": "Compared",
+          "adjustment": 3766.385581461167,
+          "current_wage": 59150,
+          "new_wage": 62916.385581461167,
+          "fair_wage": 61918.239646518647,
+          "lower": 60920.093711576126,
+          "upper": 62916.385581461167,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 41,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 51550,
+          "new_wage": 51550,
+          "fair_wage": 51916.5206141116,
+          "lower": 50916.494821240311,
+          "upper": 52916.546406982889,
+          "range_position": "Inside",
+          "range_position_before": "Inside"
+        },
+        {
+          "index": 43,
+          "source": "Compared",
+          "adjustment": 3055.5709134298013,
+          "current_wage": 40850,
+          "new_wage": 43905.570913429801,
+          "fair_wage": 43093.556525839791,
+          "lower": 42091.101629017678,
+          "upper": 44096.011422661904,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 46,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 57250,
+          "new_wage": 57250,
+          "fair_wage": 57215.018531806003,
+          "lower": 56201.617372837958,
+          "upper": 58228.419690774048,
+          "range_position": "Inside",
+          "range_position_before": "Inside"
+        },
+        {
+          "index": 48,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 49550,
+          "new_wage": 49550,
+          "fair_wage": 50836.978470473325,
+          "lower": 49826.903457262713,
+          "upper": 51847.053483683936,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 51,
+          "source": "Compared",
+          "adjustment": 4085.08489696373,
+          "current_wage": 57850,
+          "new_wage": 61935.08489696373,
+          "fair_wage": 60937.910303377328,
+          "lower": 59940.735709790926,
+          "upper": 61935.08489696373,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 53,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 55250,
+          "new_wage": 55250,
+          "fair_wage": 56135.476388167735,
+          "lower": 55133.523252578707,
+          "upper": 57137.429523756764,
+          "range_position": "Inside",
+          "range_position_before": "Inside"
+        },
+        {
+          "index": 56,
+          "source": "Compared",
+          "adjustment": 3584.556592717352,
+          "current_wage": 43550,
+          "new_wage": 47134.556592717352,
+          "fair_wage": 46133.757355760681,
+          "lower": 45132.95811880401,
+          "upper": 47134.556592717352,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 58,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 59950,
+          "new_wage": 59950,
+          "fair_wage": 59858.368159739061,
+          "lower": 58857.317800126686,
+          "upper": 60859.418519351435,
+          "range_position": "Inside",
+          "range_position_before": "Inside"
+        },
+        {
+          "index": 61,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 48250,
+          "new_wage": 48250,
+          "fair_wage": 49856.649127332006,
+          "lower": 48847.881660342951,
+          "upper": 50865.416594321061,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 63,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 41650,
+          "new_wage": 41650,
+          "fair_wage": 41033.685039060198,
+          "lower": 40026.837482352261,
+          "upper": 42040.532595768134,
+          "range_position": "Inside",
+          "range_position_before": "Inside"
+        },
+        {
+          "index": 66,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 53950,
+          "new_wage": 53950,
+          "fair_wage": 55155.147045026424,
+          "lower": 54151.91327362031,
+          "upper": 56158.380816432538,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 68,
+          "source": "Compared",
+          "adjustment": 3661.9214344147476,
+          "current_wage": 70250,
+          "new_wage": 73911.921434414748,
+          "fair_wage": 72900.288022067005,
+          "lower": 71888.654609719262,
+          "upper": 73911.921434414748,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 71,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 58650,
+          "new_wage": 58650,
+          "fair_wage": 58878.038816597749,
+          "lower": 57878.442279520787,
+          "upper": 59877.635353674712,
+          "range_position": "Inside",
+          "range_position_before": "Inside"
+        },
+        {
+          "index": 73,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 51950,
+          "new_wage": 51950,
+          "fair_wage": 54075.604901388142,
+          "lower": 53079.028351244349,
+          "upper": 55072.181451531935,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 76,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 44350,
+          "new_wage": 44350,
+          "fair_wage": 44073.885868981102,
+          "lower": 43072.582943746813,
+          "upper": 45075.188794215392,
+          "range_position": "Inside",
+          "range_position_before": "Inside"
+        },
+        {
+          "index": 78,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 56650,
+          "new_wage": 56650,
+          "fair_wage": 57798.496672959482,
+          "lower": 56790.182965520187,
+          "upper": 58806.810380398776,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 81,
+          "source": "Compared",
+          "adjustment": 3980.0632611903275,
+          "current_wage": 68950,
+          "new_wage": 72930.063261190327,
+          "fair_wage": 71919.958678925701,
+          "lower": 70909.854096661074,
+          "upper": 72930.063261190327,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 83,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 62350,
+          "new_wage": 62350,
+          "fair_wage": 63096.994590653878,
+          "lower": 62090.823138554253,
+          "upper": 64103.166042753503,
+          "range_position": "Inside",
+          "range_position_before": "Inside"
+        },
+        {
+          "index": 86,
+          "source": "Compared",
+          "adjustment": 3442.6532631680093,
+          "current_wage": 50650,
+          "new_wage": 54092.653263168009,
+          "fair_wage": 53095.275558246838,
+          "lower": 52097.897853325667,
+          "upper": 54092.653263168009,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 88,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 71050,
+          "new_wage": 71050,
+          "fair_wage": 70840.416535287426,
+          "lower": 69831.245874198852,
+          "upper": 71849.587196376,
+          "range_position": "Inside",
+          "range_position_before": "Inside"
+        },
+        {
+          "index": 91,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 55350,
+          "new_wage": 55350,
+          "fair_wage": 56818.167329818163,
+          "lower": 55811.778985852259,
+          "upper": 57824.555673784067,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 93,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 52750,
+          "new_wage": 52750,
+          "fair_wage": 52015.733414608563,
+          "lower": 51020.139245396807,
+          "upper": 53011.327583820319,
+          "range_position": "Inside",
+          "range_position_before": "Inside"
+        },
+        {
+          "index": 96,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 41050,
+          "new_wage": 41050,
+          "fair_wage": 42014.014382201509,
+          "lower": 41007.831407507256,
+          "upper": 43020.197356895762,
+          "range_position": "Inside",
+          "range_position_before": "Inside"
+        },
+        {
+          "index": 98,
+          "source": "Compared",
+          "adjustment": 3408.4680357562465,
+          "current_wage": 53350,
+          "new_wage": 56758.468035756247,
+          "fair_wage": 55738.625186179888,
+          "lower": 54718.78233660353,
+          "upper": 56758.468035756247,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        }
+      ]
+    },
+    "N_pooled_greedy_full": {
+      "config": {
+        "fixture": "engine/tests/fixtures/0122-remedy-nonmonotone.csv",
+        "outcome": "wage",
+        "group": "group",
+        "ref": "R",
+        "cont": "x",
+        "cats": [],
+        "kind": "remedy",
+        "target": "Pooled",
+        "strategy": "Greedy",
+        "range": "Midpoint",
+        "min_pct": 0,
+        "adjust_both": false,
+        "budget": 0,
+        "target_gap_spec": null,
+        "level": 0.94999999999999996,
+        "rows": true,
+        "overrides": []
+      },
+      "expected": {
+        "original_gap": 8886.8000000000029,
+        "new_gap": 14458.01785973271,
+        "original_unexplained_gap": -5571.2178597327074,
+        "new_unexplained_gap": 160.77537908207586,
+        "required_budget": 27856.089298663537,
+        "need_target": 27856.089298663537,
+        "need_reference": 0,
+        "total_cost": 27856.089298663537,
+        "cost_target": 27856.089298663537,
+        "cost_reference": 0,
+        "best_reachable_gap": 722.98247485689592,
+        "overshoot_mean": 0,
+        "closure": 1,
+        "unfunded_amount": 0,
+        "unfunded_count": 0,
+        "threshold_excluded_count": 0,
+        "budget_binding": false,
+        "target_state": "none",
+        "target_gap_reachable": null,
+        "shortfall_to_target": null,
+        "target_budget": null
+      },
+      "rows": [
+        {
+          "index": 10,
+          "source": "Compared",
+          "adjustment": 5100.63990469282,
+          "current_wage": 41117,
+          "new_wage": 46217.63990469282,
+          "fair_wage": 46217.63990469282,
+          "lower": 44283.926086653606,
+          "upper": 48151.353722732034,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 11,
+          "source": "Compared",
+          "adjustment": 5383.9197140785036,
+          "current_wage": 44249,
+          "new_wage": 49632.919714078504,
+          "fair_wage": 49632.919714078504,
+          "lower": 47682.919111976087,
+          "upper": 51582.92031618092,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 12,
+          "source": "Compared",
+          "adjustment": 5229.9197140785036,
+          "current_wage": 44403,
+          "new_wage": 49632.919714078504,
+          "fair_wage": 49632.919714078504,
+          "lower": 47682.919111976087,
+          "upper": 51582.92031618092,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 13,
+          "source": "Compared",
+          "adjustment": 7689.6123484926793,
+          "current_wage": 54466,
+          "new_wage": 62155.612348492679,
+          "fair_wage": 62155.612348492679,
+          "lower": 60016.547778083048,
+          "upper": 64294.676918902311,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 14,
+          "source": "Compared",
+          "adjustment": 4451.9976173210307,
+          "current_wage": 82749,
+          "new_wage": 87200.997617321031,
+          "fair_wage": 87200.997617321031,
+          "lower": 84256.001837401098,
+          "upper": 90145.993397240964,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        }
+      ]
+    },
+    "N_pooled_greedy_best_minus100": {
+      "config": {
+        "fixture": "engine/tests/fixtures/0122-remedy-nonmonotone.csv",
+        "outcome": "wage",
+        "group": "group",
+        "ref": "R",
+        "cont": "x",
+        "cats": [],
+        "kind": "remedy",
+        "target": "Pooled",
+        "strategy": "Greedy",
+        "range": "Midpoint",
+        "min_pct": 0,
+        "adjust_both": false,
+        "budget": 0,
+        "target_gap_spec": {
+          "kind": "best_plus",
+          "value": -100
+        },
+        "level": 0.94999999999999996,
+        "rows": true,
+        "overrides": [],
+        "target_gap": 622.98247485689592
+      },
+      "expected": {
+        "original_gap": 8886.8000000000029,
+        "new_gap": 13510.040048168288,
+        "original_unexplained_gap": -5571.2178597327074,
+        "new_unexplained_gap": 622.98247485689478,
+        "required_budget": 27856.089298663537,
+        "need_target": 27856.089298663537,
+        "need_reference": 0,
+        "total_cost": 23116.200240841452,
+        "cost_target": 23116.200240841452,
+        "cost_reference": 0,
+        "best_reachable_gap": 722.98247485689592,
+        "overshoot_mean": 0,
+        "closure": 0.82984370106648486,
+        "unfunded_amount": 4739.8890578220853,
+        "unfunded_count": 2,
+        "threshold_excluded_count": 0,
+        "budget_binding": false,
+        "target_state": "reachable",
+        "target_gap_reachable": true,
+        "shortfall_to_target": null,
+        "target_budget": 23116.200240841452
+      },
+      "rows": [
+        {
+          "index": 10,
+          "source": "Compared",
+          "adjustment": 4812.7484641917654,
+          "current_wage": 41117,
+          "new_wage": 45929.748464191769,
+          "fair_wage": 46217.63990469282,
+          "lower": 44283.926086653606,
+          "upper": 48151.353722732034,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 11,
+          "source": "Compared",
+          "adjustment": 5383.9197140785036,
+          "current_wage": 44249,
+          "new_wage": 49632.919714078504,
+          "fair_wage": 49632.919714078504,
+          "lower": 47682.919111976087,
+          "upper": 51582.92031618092,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 12,
+          "source": "Compared",
+          "adjustment": 5229.9197140785036,
+          "current_wage": 44403,
+          "new_wage": 49632.919714078504,
+          "fair_wage": 49632.919714078504,
+          "lower": 47682.919111976087,
+          "upper": 51582.92031618092,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 13,
+          "source": "Compared",
+          "adjustment": 7689.6123484926793,
+          "current_wage": 54466,
+          "new_wage": 62155.612348492679,
+          "fair_wage": 62155.612348492679,
+          "lower": 60016.547778083048,
+          "upper": 64294.676918902311,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 14,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 82749,
+          "new_wage": 82749,
+          "fair_wage": 87200.997617321031,
+          "lower": 84256.001837401098,
+          "upper": 90145.993397240964,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        }
+      ]
+    },
+    "N_pooled_greedy_best_minus1": {
+      "config": {
+        "fixture": "engine/tests/fixtures/0122-remedy-nonmonotone.csv",
+        "outcome": "wage",
+        "group": "group",
+        "ref": "R",
+        "cont": "x",
+        "cats": [],
+        "kind": "remedy",
+        "target": "Pooled",
+        "strategy": "Greedy",
+        "range": "Midpoint",
+        "min_pct": 0,
+        "adjust_both": false,
+        "budget": 0,
+        "target_gap_spec": {
+          "kind": "best_plus",
+          "value": -1
+        },
+        "level": 0.94999999999999996,
+        "rows": true,
+        "overrides": [],
+        "target_gap": 721.98247485689592
+      },
+      "expected": {
+        "original_gap": 8886.8000000000029,
+        "new_gap": 13567.042553387502,
+        "original_unexplained_gap": -5571.2178597327074,
+        "new_unexplained_gap": 721.98247485689694,
+        "required_budget": 27856.089298663537,
+        "need_target": 27856.089298663537,
+        "need_reference": 0,
+        "total_cost": 23401.212766937497,
+        "cost_target": 23401.212766937497,
+        "cost_reference": 0,
+        "best_reachable_gap": 722.98247485689592,
+        "overshoot_mean": 0,
+        "closure": 0.84007530691180787,
+        "unfunded_amount": 4454.8765317260404,
+        "unfunded_count": 2,
+        "threshold_excluded_count": 0,
+        "budget_binding": false,
+        "target_state": "reachable",
+        "target_gap_reachable": true,
+        "shortfall_to_target": null,
+        "target_budget": 23401.212766937497
+      },
+      "rows": [
+        {
+          "index": 10,
+          "source": "Compared",
+          "adjustment": 5097.7609902878103,
+          "current_wage": 41117,
+          "new_wage": 46214.76099028781,
+          "fair_wage": 46217.63990469282,
+          "lower": 44283.926086653606,
+          "upper": 48151.353722732034,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 11,
+          "source": "Compared",
+          "adjustment": 5383.9197140785036,
+          "current_wage": 44249,
+          "new_wage": 49632.919714078504,
+          "fair_wage": 49632.919714078504,
+          "lower": 47682.919111976087,
+          "upper": 51582.92031618092,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 12,
+          "source": "Compared",
+          "adjustment": 5229.9197140785036,
+          "current_wage": 44403,
+          "new_wage": 49632.919714078504,
+          "fair_wage": 49632.919714078504,
+          "lower": 47682.919111976087,
+          "upper": 51582.92031618092,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 13,
+          "source": "Compared",
+          "adjustment": 7689.6123484926793,
+          "current_wage": 54466,
+          "new_wage": 62155.612348492679,
+          "fair_wage": 62155.612348492679,
+          "lower": 60016.547778083048,
+          "upper": 64294.676918902311,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 14,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 82749,
+          "new_wage": 82749,
+          "fair_wage": 87200.997617321031,
+          "lower": 84256.001837401098,
+          "upper": 90145.993397240964,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        }
+      ]
+    },
+    "N_pooled_greedy_best": {
+      "config": {
+        "fixture": "engine/tests/fixtures/0122-remedy-nonmonotone.csv",
+        "outcome": "wage",
+        "group": "group",
+        "ref": "R",
+        "cont": "x",
+        "cats": [],
+        "kind": "remedy",
+        "target": "Pooled",
+        "strategy": "Greedy",
+        "range": "Midpoint",
+        "min_pct": 0,
+        "adjust_both": false,
+        "budget": 0,
+        "target_gap_spec": {
+          "kind": "frac",
+          "value": 1
+        },
+        "level": 0.94999999999999996,
+        "rows": true,
+        "overrides": [],
+        "target_gap": 722.98247485689626
+      },
+      "expected": {
+        "original_gap": 8886.8000000000029,
+        "new_gap": 13567.618336268504,
+        "original_unexplained_gap": -5571.2178597327074,
+        "new_unexplained_gap": 722.98247485689592,
+        "required_budget": 27856.089298663537,
+        "need_target": 27856.089298663537,
+        "need_reference": 0,
+        "total_cost": 23404.091681342506,
+        "cost_target": 23404.091681342506,
+        "cost_reference": 0,
+        "best_reachable_gap": 722.98247485689592,
+        "overshoot_mean": 0,
+        "closure": 0.84017865646580092,
+        "unfunded_amount": 4451.9976173210307,
+        "unfunded_count": 1,
+        "threshold_excluded_count": 0,
+        "budget_binding": false,
+        "target_state": "reachable",
+        "target_gap_reachable": true,
+        "shortfall_to_target": null,
+        "target_budget": 23404.091681342506
+      },
+      "rows": [
+        {
+          "index": 10,
+          "source": "Compared",
+          "adjustment": 5100.63990469282,
+          "current_wage": 41117,
+          "new_wage": 46217.63990469282,
+          "fair_wage": 46217.63990469282,
+          "lower": 44283.926086653606,
+          "upper": 48151.353722732034,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 11,
+          "source": "Compared",
+          "adjustment": 5383.9197140785036,
+          "current_wage": 44249,
+          "new_wage": 49632.919714078504,
+          "fair_wage": 49632.919714078504,
+          "lower": 47682.919111976087,
+          "upper": 51582.92031618092,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 12,
+          "source": "Compared",
+          "adjustment": 5229.9197140785036,
+          "current_wage": 44403,
+          "new_wage": 49632.919714078504,
+          "fair_wage": 49632.919714078504,
+          "lower": 47682.919111976087,
+          "upper": 51582.92031618092,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 13,
+          "source": "Compared",
+          "adjustment": 7689.6123484926793,
+          "current_wage": 54466,
+          "new_wage": 62155.612348492679,
+          "fair_wage": 62155.612348492679,
+          "lower": 60016.547778083048,
+          "upper": 64294.676918902311,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 14,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 82749,
+          "new_wage": 82749,
+          "fair_wage": 87200.997617321031,
+          "lower": 84256.001837401098,
+          "upper": 90145.993397240964,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        }
+      ]
+    },
+    "N_pooled_greedy_half": {
+      "config": {
+        "fixture": "engine/tests/fixtures/0122-remedy-nonmonotone.csv",
+        "outcome": "wage",
+        "group": "group",
+        "ref": "R",
+        "cont": "x",
+        "cats": [],
+        "kind": "remedy",
+        "target": "Pooled",
+        "strategy": "Greedy",
+        "range": "Midpoint",
+        "min_pct": 0,
+        "adjust_both": false,
+        "budget": 0,
+        "target_gap_spec": {
+          "kind": "frac",
+          "value": 0.5
+        },
+        "level": 0.94999999999999996,
+        "rows": true,
+        "overrides": [],
+        "target_gap": -2424.1176924379056
+      },
+      "expected": {
+        "original_gap": 8886.8000000000029,
+        "new_gap": 11654.050764854721,
+        "original_unexplained_gap": -5571.2178597327074,
+        "new_unexplained_gap": -2424.1176924379065,
+        "required_budget": 27856.089298663537,
+        "need_target": 27856.089298663537,
+        "need_reference": 0,
+        "total_cost": 13836.253824273606,
+        "cost_target": 13836.253824273606,
+        "cost_reference": 0,
+        "best_reachable_gap": 722.98247485689592,
+        "overshoot_mean": 0,
+        "closure": 0.49670482011764061,
+        "unfunded_amount": 14019.835474389931,
+        "unfunded_count": 3,
+        "threshold_excluded_count": 0,
+        "budget_binding": false,
+        "target_state": "reachable",
+        "target_gap_reachable": true,
+        "shortfall_to_target": null,
+        "target_budget": 13836.253824273606
+      },
+      "rows": [
+        {
+          "index": 10,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 41117,
+          "new_wage": 41117,
+          "fair_wage": 46217.63990469282,
+          "lower": 44283.926086653606,
+          "upper": 48151.353722732034,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 11,
+          "source": "Compared",
+          "adjustment": 5383.9197140785036,
+          "current_wage": 44249,
+          "new_wage": 49632.919714078504,
+          "fair_wage": 49632.919714078504,
+          "lower": 47682.919111976087,
+          "upper": 51582.92031618092,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 12,
+          "source": "Compared",
+          "adjustment": 762.72176170242346,
+          "current_wage": 44403,
+          "new_wage": 45165.721761702422,
+          "fair_wage": 49632.919714078504,
+          "lower": 47682.919111976087,
+          "upper": 51582.92031618092,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 13,
+          "source": "Compared",
+          "adjustment": 7689.6123484926793,
+          "current_wage": 54466,
+          "new_wage": 62155.612348492679,
+          "fair_wage": 62155.612348492679,
+          "lower": 60016.547778083048,
+          "upper": 64294.676918902311,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 14,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 82749,
+          "new_wage": 82749,
+          "fair_wage": 87200.997617321031,
+          "lower": 84256.001837401098,
+          "upper": 90145.993397240964,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        }
+      ]
+    },
+    "N_pooled_greedy_unreachable": {
+      "config": {
+        "fixture": "engine/tests/fixtures/0122-remedy-nonmonotone.csv",
+        "outcome": "wage",
+        "group": "group",
+        "ref": "R",
+        "cont": "x",
+        "cats": [],
+        "kind": "remedy",
+        "target": "Pooled",
+        "strategy": "Greedy",
+        "range": "Midpoint",
+        "min_pct": 0,
+        "adjust_both": false,
+        "budget": 0,
+        "target_gap_spec": {
+          "kind": "best_plus",
+          "value": 100
+        },
+        "level": 0.94999999999999996,
+        "rows": true,
+        "overrides": [],
+        "target_gap": 822.98247485689592
+      },
+      "expected": {
+        "original_gap": 8886.8000000000029,
+        "new_gap": 13567.618336268504,
+        "original_unexplained_gap": -5571.2178597327074,
+        "new_unexplained_gap": 722.98247485689592,
+        "required_budget": 27856.089298663537,
+        "need_target": 27856.089298663537,
+        "need_reference": 0,
+        "total_cost": 23404.091681342506,
+        "cost_target": 23404.091681342506,
+        "cost_reference": 0,
+        "best_reachable_gap": 722.98247485689592,
+        "overshoot_mean": 0,
+        "closure": 0.84017865646580092,
+        "unfunded_amount": 4451.9976173210307,
+        "unfunded_count": 1,
+        "threshold_excluded_count": 0,
+        "budget_binding": false,
+        "target_state": "unreachable",
+        "target_gap_reachable": false,
+        "shortfall_to_target": 100,
+        "target_budget": 23404.091681342506
+      },
+      "rows": [
+        {
+          "index": 10,
+          "source": "Compared",
+          "adjustment": 5100.63990469282,
+          "current_wage": 41117,
+          "new_wage": 46217.63990469282,
+          "fair_wage": 46217.63990469282,
+          "lower": 44283.926086653606,
+          "upper": 48151.353722732034,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 11,
+          "source": "Compared",
+          "adjustment": 5383.9197140785036,
+          "current_wage": 44249,
+          "new_wage": 49632.919714078504,
+          "fair_wage": 49632.919714078504,
+          "lower": 47682.919111976087,
+          "upper": 51582.92031618092,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 12,
+          "source": "Compared",
+          "adjustment": 5229.9197140785036,
+          "current_wage": 44403,
+          "new_wage": 49632.919714078504,
+          "fair_wage": 49632.919714078504,
+          "lower": 47682.919111976087,
+          "upper": 51582.92031618092,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 13,
+          "source": "Compared",
+          "adjustment": 7689.6123484926793,
+          "current_wage": 54466,
+          "new_wage": 62155.612348492679,
+          "fair_wage": 62155.612348492679,
+          "lower": 60016.547778083048,
+          "upper": 64294.676918902311,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 14,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 82749,
+          "new_wage": 82749,
+          "fair_wage": 87200.997617321031,
+          "lower": 84256.001837401098,
+          "upper": 90145.993397240964,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        }
+      ]
+    },
+    "N_pooled_greedy_cap_before_peak": {
+      "config": {
+        "fixture": "engine/tests/fixtures/0122-remedy-nonmonotone.csv",
+        "outcome": "wage",
+        "group": "group",
+        "ref": "R",
+        "cont": "x",
+        "cats": [],
+        "kind": "remedy",
+        "target": "Pooled",
+        "strategy": "Greedy",
+        "range": "Midpoint",
+        "min_pct": 0,
+        "adjust_both": false,
+        "budget": 8000,
+        "target_gap_spec": null,
+        "level": 0.94999999999999996,
+        "rows": true,
+        "overrides": []
+      },
+      "expected": {
+        "original_gap": 8886.8000000000029,
+        "new_gap": 10486.800000000003,
+        "original_unexplained_gap": -5571.2178597327074,
+        "new_unexplained_gap": -4221.0042940893245,
+        "required_budget": 27856.089298663537,
+        "need_target": 27856.089298663537,
+        "need_reference": 0,
+        "total_cost": 8000,
+        "cost_target": 8000,
+        "cost_reference": 0,
+        "best_reachable_gap": 722.98247485689592,
+        "overshoot_mean": 0,
+        "closure": 0.28719034873225435,
+        "unfunded_amount": 19856.089298663537,
+        "unfunded_count": 4,
+        "threshold_excluded_count": 0,
+        "budget_binding": true,
+        "target_state": "none",
+        "target_gap_reachable": null,
+        "shortfall_to_target": null,
+        "target_budget": null
+      },
+      "rows": [
+        {
+          "index": 10,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 41117,
+          "new_wage": 41117,
+          "fair_wage": 46217.63990469282,
+          "lower": 44283.926086653606,
+          "upper": 48151.353722732034,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 11,
+          "source": "Compared",
+          "adjustment": 310.3876515073207,
+          "current_wage": 44249,
+          "new_wage": 44559.387651507321,
+          "fair_wage": 49632.919714078504,
+          "lower": 47682.919111976087,
+          "upper": 51582.92031618092,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 12,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 44403,
+          "new_wage": 44403,
+          "fair_wage": 49632.919714078504,
+          "lower": 47682.919111976087,
+          "upper": 51582.92031618092,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 13,
+          "source": "Compared",
+          "adjustment": 7689.6123484926793,
+          "current_wage": 54466,
+          "new_wage": 62155.612348492679,
+          "fair_wage": 62155.612348492679,
+          "lower": 60016.547778083048,
+          "upper": 64294.676918902311,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 14,
+          "source": "Compared",
+          "adjustment": 0,
+          "current_wage": 82749,
+          "new_wage": 82749,
+          "fair_wage": 87200.997617321031,
+          "lower": 84256.001837401098,
+          "upper": 90145.993397240964,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        }
+      ]
+    },
+    "N_pooled_greedy_cap_after_peak": {
+      "config": {
+        "fixture": "engine/tests/fixtures/0122-remedy-nonmonotone.csv",
+        "outcome": "wage",
+        "group": "group",
+        "ref": "R",
+        "cont": "x",
+        "cats": [],
+        "kind": "remedy",
+        "target": "Pooled",
+        "strategy": "Greedy",
+        "range": "Midpoint",
+        "min_pct": 0,
+        "adjust_both": false,
+        "budget": 25000,
+        "target_gap_spec": null,
+        "level": 0.94999999999999996,
+        "rows": true,
+        "overrides": []
+      },
+      "expected": {
+        "original_gap": 8886.8000000000029,
+        "new_gap": 13886.799999999996,
+        "original_unexplained_gap": -5571.2178597327074,
+        "new_unexplained_gap": 521.44800469803567,
+        "required_budget": 27856.089298663537,
+        "need_target": 27856.089298663537,
+        "need_reference": 0,
+        "total_cost": 25000,
+        "cost_target": 25000,
+        "cost_reference": 0,
+        "best_reachable_gap": 722.98247485689592,
+        "overshoot_mean": 0,
+        "closure": 0.89746983978829487,
+        "unfunded_amount": 2856.0892986635372,
+        "unfunded_count": 1,
+        "threshold_excluded_count": 0,
+        "budget_binding": true,
+        "target_state": "none",
+        "target_gap_reachable": null,
+        "shortfall_to_target": null,
+        "target_budget": null
+      },
+      "rows": [
+        {
+          "index": 10,
+          "source": "Compared",
+          "adjustment": 5100.63990469282,
+          "current_wage": 41117,
+          "new_wage": 46217.63990469282,
+          "fair_wage": 46217.63990469282,
+          "lower": 44283.926086653606,
+          "upper": 48151.353722732034,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 11,
+          "source": "Compared",
+          "adjustment": 5383.9197140785036,
+          "current_wage": 44249,
+          "new_wage": 49632.919714078504,
+          "fair_wage": 49632.919714078504,
+          "lower": 47682.919111976087,
+          "upper": 51582.92031618092,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 12,
+          "source": "Compared",
+          "adjustment": 5229.9197140785036,
+          "current_wage": 44403,
+          "new_wage": 49632.919714078504,
+          "fair_wage": 49632.919714078504,
+          "lower": 47682.919111976087,
+          "upper": 51582.92031618092,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 13,
+          "source": "Compared",
+          "adjustment": 7689.6123484926793,
+          "current_wage": 54466,
+          "new_wage": 62155.612348492679,
+          "fair_wage": 62155.612348492679,
+          "lower": 60016.547778083048,
+          "upper": 64294.676918902311,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 14,
+          "source": "Compared",
+          "adjustment": 1595.9083186574935,
+          "current_wage": 82749,
+          "new_wage": 84344.908318657486,
+          "fair_wage": 87200.997617321031,
+          "lower": 84256.001837401098,
+          "upper": 90145.993397240964,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        }
+      ]
+    },
+    "N_pooled_equitable_full": {
+      "config": {
+        "fixture": "engine/tests/fixtures/0122-remedy-nonmonotone.csv",
+        "outcome": "wage",
+        "group": "group",
+        "ref": "R",
+        "cont": "x",
+        "cats": [],
+        "kind": "remedy",
+        "target": "Pooled",
+        "strategy": "Equitable",
+        "range": "Midpoint",
+        "min_pct": 0,
+        "adjust_both": false,
+        "budget": 0,
+        "target_gap_spec": null,
+        "level": 0.94999999999999996,
+        "rows": true,
+        "overrides": []
+      },
+      "expected": {
+        "original_gap": 8886.8000000000029,
+        "new_gap": 14458.01785973271,
+        "original_unexplained_gap": -5571.2178597327074,
+        "new_unexplained_gap": 160.77537908207586,
+        "required_budget": 27856.089298663537,
+        "need_target": 27856.089298663537,
+        "need_reference": 0,
+        "total_cost": 27856.089298663537,
+        "cost_target": 27856.089298663537,
+        "cost_reference": 0,
+        "best_reachable_gap": 160.77537908207586,
+        "overshoot_mean": 0,
+        "closure": 1,
+        "unfunded_amount": 0,
+        "unfunded_count": 0,
+        "threshold_excluded_count": 0,
+        "budget_binding": false,
+        "target_state": "none",
+        "target_gap_reachable": null,
+        "shortfall_to_target": null,
+        "target_budget": null
+      },
+      "rows": [
+        {
+          "index": 10,
+          "source": "Compared",
+          "adjustment": 5100.63990469282,
+          "current_wage": 41117,
+          "new_wage": 46217.63990469282,
+          "fair_wage": 46217.63990469282,
+          "lower": 44283.926086653606,
+          "upper": 48151.353722732034,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 11,
+          "source": "Compared",
+          "adjustment": 5383.9197140785036,
+          "current_wage": 44249,
+          "new_wage": 49632.919714078504,
+          "fair_wage": 49632.919714078504,
+          "lower": 47682.919111976087,
+          "upper": 51582.92031618092,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 12,
+          "source": "Compared",
+          "adjustment": 5229.9197140785036,
+          "current_wage": 44403,
+          "new_wage": 49632.919714078504,
+          "fair_wage": 49632.919714078504,
+          "lower": 47682.919111976087,
+          "upper": 51582.92031618092,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 13,
+          "source": "Compared",
+          "adjustment": 7689.6123484926793,
+          "current_wage": 54466,
+          "new_wage": 62155.612348492679,
+          "fair_wage": 62155.612348492679,
+          "lower": 60016.547778083048,
+          "upper": 64294.676918902311,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 14,
+          "source": "Compared",
+          "adjustment": 4451.9976173210307,
+          "current_wage": 82749,
+          "new_wage": 87200.997617321031,
+          "fair_wage": 87200.997617321031,
+          "lower": 84256.001837401098,
+          "upper": 90145.993397240964,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        }
+      ]
+    },
+    "N_pooled_equitable_best_minus100": {
+      "config": {
+        "fixture": "engine/tests/fixtures/0122-remedy-nonmonotone.csv",
+        "outcome": "wage",
+        "group": "group",
+        "ref": "R",
+        "cont": "x",
+        "cats": [],
+        "kind": "remedy",
+        "target": "Pooled",
+        "strategy": "Equitable",
+        "range": "Midpoint",
+        "min_pct": 0,
+        "adjust_both": false,
+        "budget": 0,
+        "target_gap_spec": {
+          "kind": "best_plus",
+          "value": -100
+        },
+        "level": 0.94999999999999996,
+        "rows": true,
+        "overrides": [],
+        "target_gap": 60.775379082075858
+      },
+      "expected": {
+        "original_gap": 8886.8000000000029,
+        "new_gap": 14360.822737065668,
+        "original_unexplained_gap": -5571.2178597327074,
+        "new_unexplained_gap": 60.775379082079851,
+        "required_budget": 27856.089298663537,
+        "need_target": 27856.089298663537,
+        "need_reference": 0,
+        "total_cost": 27370.113685328317,
+        "cost_target": 27370.113685328317,
+        "cost_reference": 0,
+        "best_reachable_gap": 160.77537908207586,
+        "overshoot_mean": 0,
+        "closure": 0.98255406176636084,
+        "unfunded_amount": 485.97561333522026,
+        "unfunded_count": 5,
+        "threshold_excluded_count": 0,
+        "budget_binding": false,
+        "target_state": "reachable",
+        "target_gap_reachable": true,
+        "shortfall_to_target": null,
+        "target_budget": 27370.113685328317
+      },
+      "rows": [
+        {
+          "index": 10,
+          "source": "Compared",
+          "adjustment": 5011.654455963514,
+          "current_wage": 41117,
+          "new_wage": 46128.654455963515,
+          "fair_wage": 46217.63990469282,
+          "lower": 44283.926086653606,
+          "upper": 48151.353722732034,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 11,
+          "source": "Compared",
+          "adjustment": 5289.992183291818,
+          "current_wage": 44249,
+          "new_wage": 49538.992183291819,
+          "fair_wage": 49632.919714078504,
+          "lower": 47682.919111976087,
+          "upper": 51582.92031618092,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 12,
+          "source": "Compared",
+          "adjustment": 5138.6788577797979,
+          "current_wage": 44403,
+          "new_wage": 49541.6788577798,
+          "fair_wage": 49632.919714078504,
+          "lower": 47682.919111976087,
+          "upper": 51582.92031618092,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 13,
+          "source": "Compared",
+          "adjustment": 7555.4598464202472,
+          "current_wage": 54466,
+          "new_wage": 62021.45984642025,
+          "fair_wage": 62155.612348492679,
+          "lower": 60016.547778083048,
+          "upper": 64294.676918902311,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 14,
+          "source": "Compared",
+          "adjustment": 4374.3283418729397,
+          "current_wage": 82749,
+          "new_wage": 87123.328341872941,
+          "fair_wage": 87200.997617321031,
+          "lower": 84256.001837401098,
+          "upper": 90145.993397240964,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        }
+      ]
+    },
+    "N_ref_greedy_full": {
+      "config": {
+        "fixture": "engine/tests/fixtures/0122-remedy-nonmonotone.csv",
+        "outcome": "wage",
+        "group": "group",
+        "ref": "R",
+        "cont": "x",
+        "cats": [],
+        "kind": "remedy",
+        "target": "Reference",
+        "strategy": "Greedy",
+        "range": "Midpoint",
+        "min_pct": 0,
+        "adjust_both": false,
+        "budget": 0,
+        "target_gap_spec": null,
+        "level": 0.94999999999999996,
+        "rows": true,
+        "overrides": []
+      },
+      "expected": {
+        "original_gap": 8886.8000000000029,
+        "new_gap": 12797.375757575755,
+        "original_unexplained_gap": -3690.0484848484921,
+        "new_unexplained_gap": 220.5272727272648,
+        "required_budget": 19552.878787878784,
+        "need_target": 19552.878787878784,
+        "need_reference": 0,
+        "total_cost": 19552.878787878784,
+        "cost_target": 19552.878787878784,
+        "cost_reference": 0,
+        "best_reachable_gap": 220.5272727272648,
+        "overshoot_mean": 220.5272727272648,
+        "closure": 1,
+        "unfunded_amount": 0,
+        "unfunded_count": 0,
+        "threshold_excluded_count": 0,
+        "budget_binding": false,
+        "target_state": "none",
+        "target_gap_reachable": null,
+        "shortfall_to_target": null,
+        "target_budget": null
+      },
+      "rows": [
+        {
+          "index": 10,
+          "source": "Compared",
+          "adjustment": 4878.4545454545369,
+          "current_wage": 41117,
+          "new_wage": 45995.454545454537,
+          "fair_wage": 45995.454545454537,
+          "lower": 45296.899022890306,
+          "upper": 46694.010068018768,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 11,
+          "source": "Compared",
+          "adjustment": 4717.3636363636324,
+          "current_wage": 44249,
+          "new_wage": 48966.363636363632,
+          "fair_wage": 48966.363636363632,
+          "lower": 48203.194241776182,
+          "upper": 49729.533030951083,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 12,
+          "source": "Compared",
+          "adjustment": 4563.3636363636324,
+          "current_wage": 44403,
+          "new_wage": 48966.363636363632,
+          "fair_wage": 48966.363636363632,
+          "lower": 48203.194241776182,
+          "upper": 49729.533030951083,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 13,
+          "source": "Compared",
+          "adjustment": 5393.6969696969827,
+          "current_wage": 54466,
+          "new_wage": 59859.696969696983,
+          "fair_wage": 59859.696969696983,
+          "lower": 58541.82429569988,
+          "upper": 61177.569643694085,
+          "range_position": "Inside",
+          "range_position_before": "Below"
         }
       ]
     },
@@ -21611,6 +24108,2640 @@
           "lower": 55642.478701857959,
           "upper": 56283.126609819847,
           "range_position": "Above",
+          "range_position_before": "Below"
+        }
+      ]
+    },
+    "F_sched_upper_plus005": {
+      "config": {
+        "fixture": "engine/tests/fixtures/0122-fixture-f-noisy.csv",
+        "outcome": "Salary",
+        "group": "Gender",
+        "ref": "Male",
+        "cont": ["Experience", "Level"],
+        "cats": [],
+        "kind": "schedule",
+        "target": "Reference",
+        "schedule": {
+          "kind": "to_upper",
+          "delta": 0.0050000000000000001
+        },
+        "level": 0.94999999999999996,
+        "rows": true,
+        "overrides": [],
+        "adjustments": [
+          {
+            "index": 1,
+            "value": 2266.2958445095164
+          },
+          {
+            "index": 6,
+            "value": 1527.3413336642216
+          },
+          {
+            "index": 8,
+            "value": 3255.2458508730224
+          },
+          {
+            "index": 11,
+            "value": 863.53936629690986
+          },
+          {
+            "index": 13,
+            "value": 2614.1747141000478
+          },
+          {
+            "index": 18,
+            "value": 1849.0735407007769
+          },
+          {
+            "index": 23,
+            "value": 1201.6042619434475
+          },
+          {
+            "index": 26,
+            "value": 2919.3914300053975
+          },
+          {
+            "index": 28,
+            "value": 451.06103950383374
+          },
+          {
+            "index": 31,
+            "value": 2153.2225638959526
+          },
+          {
+            "index": 36,
+            "value": 1505.7392375834415
+          },
+          {
+            "index": 38,
+            "value": 3141.4783324869377
+          },
+          {
+            "index": 41,
+            "value": 754.89159549022122
+          },
+          {
+            "index": 43,
+            "value": 2494.4600111633436
+          },
+          {
+            "index": 48,
+            "value": 1749.2563302685185
+          },
+          {
+            "index": 51,
+            "value": 3445.3301866989887
+          },
+          {
+            "index": 53,
+            "value": 1085.4393936150109
+          },
+          {
+            "index": 56,
+            "value": 2796.4604989196987
+          },
+          {
+            "index": 58,
+            "value": 336.32588641393056
+          },
+          {
+            "index": 61,
+            "value": 2052.8044327853522
+          },
+          {
+            "index": 66,
+            "value": 1390.4915759075184
+          },
+          {
+            "index": 68,
+            "value": 3031.1274788804685
+          },
+          {
+            "index": 71,
+            "value": 639.88510218111594
+          },
+          {
+            "index": 73,
+            "value": 2375.4806226373939
+          },
+          {
+            "index": 78,
+            "value": 1633.5749049952165
+          },
+          {
+            "index": 81,
+            "value": 3334.7888232992364
+          },
+          {
+            "index": 83,
+            "value": 972.76321584589721
+          },
+          {
+            "index": 86,
+            "value": 2680.2434522671201
+          },
+          {
+            "index": 91,
+            "value": 1936.8526653089239
+          },
+          {
+            "index": 96,
+            "value": 1285.1888652802909
+          },
+          {
+            "index": 98,
+            "value": 2933.1316098198467
+          }
+        ]
+      },
+      "expected": {
+        "original_gap": -1770.1666666666642,
+        "new_gap": -253.25006248312275,
+        "original_unexplained_gap": -1179.5029147315713,
+        "new_unexplained_gap": 337.413689451967,
+        "required_budget": 51030.066319005127,
+        "need_target": 51030.066319005127,
+        "total_cost": 60676.664167341602,
+        "cost_target": 60676.664167341602,
+        "cost_reference": 0,
+        "position_counts": {
+          "below": 0,
+          "inside": 34,
+          "above": 6,
+          "below_before": 29,
+          "inside_before": 5,
+          "above_before": 6,
+          "newly_above": 0
+        },
+        "group_test": {
+          "group_coefficient": 336.80201433941602,
+          "t_statistic": 11.430803777644831,
+          "p_value": 1.3086166648407994e-19,
+          "degrees_of_freedom": 96,
+          "is_significant": true
+        }
+      },
+      "rows": [
+        {
+          "index": 1,
+          "source": "Compared",
+          "adjustment": 2266.2958445095164,
+          "current_wage": 54050,
+          "new_wage": 56316.295844509514,
+          "fair_wage": 56009.532727108526,
+          "lower": 55702.774609707536,
+          "upper": 56316.290844509516,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 6,
+          "source": "Compared",
+          "adjustment": 1527.3413336642216,
+          "current_wage": 58750,
+          "new_wage": 60277.341333664219,
+          "fair_wage": 59961.068357368211,
+          "lower": 59644.8003810722,
+          "upper": 60277.336333664221,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 8,
+          "source": "Compared",
+          "adjustment": 3255.2458508730224,
+          "current_wage": 52050,
+          "new_wage": 55305.24585087302,
+          "fair_wage": 54998.283783908788,
+          "lower": 54691.326716944553,
+          "upper": 55305.240850873022,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 11,
+          "source": "Compared",
+          "adjustment": 863.53936629690986,
+          "current_wage": 64450,
+          "new_wage": 65313.539366296907,
+          "fair_wage": 65001.73638294368,
+          "lower": 64689.93839959045,
+          "upper": 65313.53436629691,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 13,
+          "source": "Compared",
+          "adjustment": 2614.1747141000478,
+          "current_wage": 33750,
+          "new_wage": 36364.174714100045,
+          "fair_wage": 36049.35760030838,
+          "lower": 35734.545486516712,
+          "upper": 36364.169714100048,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 18,
+          "source": "Compared",
+          "adjustment": 1849.0735407007769,
+          "current_wage": 62450,
+          "new_wage": 64299.073540700774,
+          "fair_wage": 63990.487439743942,
+          "lower": 63681.906338787107,
+          "upper": 64299.068540700777,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 23,
+          "source": "Compared",
+          "adjustment": 1201.6042619434475,
+          "current_wage": 44150,
+          "new_wage": 45351.604261943445,
+          "fair_wage": 45041.561256143534,
+          "lower": 44731.52325034362,
+          "upper": 45351.599261943447,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 26,
+          "source": "Compared",
+          "adjustment": 2919.3914300053975,
+          "current_wage": 32450,
+          "new_wage": 35369.391430005395,
+          "fair_wage": 35053.685347531857,
+          "lower": 34737.984265058316,
+          "upper": 35369.386430005397,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 28,
+          "source": "Compared",
+          "adjustment": 451.06103950383374,
+          "current_wage": 52850,
+          "new_wage": 53301.061039503831,
+          "fair_wage": 52991.362587932526,
+          "lower": 52681.669136361219,
+          "upper": 53301.056039503834,
+          "range_position": "Inside",
+          "range_position_before": "Inside"
+        },
+        {
+          "index": 31,
+          "source": "Compared",
+          "adjustment": 2153.2225638959526,
+          "current_wage": 61150,
+          "new_wage": 63303.22256389595,
+          "fair_wage": 62994.815186967411,
+          "lower": 62686.41281003887,
+          "upper": 63303.217563895952,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 36,
+          "source": "Compared",
+          "adjustment": 1505.7392375834415,
+          "current_wage": 46850,
+          "new_wage": 48355.739237583439,
+          "fair_wage": 48044.154704896318,
+          "lower": 47732.575172209195,
+          "upper": 48355.734237583441,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 38,
+          "source": "Compared",
+          "adjustment": 3141.4783324869377,
+          "current_wage": 59150,
+          "new_wage": 62291.478332486935,
+          "fair_wage": 61983.56624376768,
+          "lower": 61675.659155048423,
+          "upper": 62291.473332486938,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 41,
+          "source": "Compared",
+          "adjustment": 754.89159549022122,
+          "current_wage": 51550,
+          "new_wage": 52304.891595490219,
+          "fair_wage": 51995.690335156003,
+          "lower": 51686.494074821785,
+          "upper": 52304.886595490221,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 43,
+          "source": "Compared",
+          "adjustment": 2494.4600111633436,
+          "current_wage": 40850,
+          "new_wage": 43344.460011163341,
+          "fair_wage": 43034.640060167272,
+          "lower": 42724.825109171201,
+          "upper": 43344.455011163343,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 48,
+          "source": "Compared",
+          "adjustment": 1749.2563302685185,
+          "current_wage": 49550,
+          "new_wage": 51299.256330268516,
+          "fair_wage": 50984.441391956272,
+          "lower": 50669.631453644026,
+          "upper": 51299.251330268518,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 51,
+          "source": "Compared",
+          "adjustment": 3445.3301866989887,
+          "current_wage": 57850,
+          "new_wage": 61295.330186698986,
+          "fair_wage": 60987.89399099115,
+          "lower": 60680.462795283311,
+          "upper": 61295.325186698989,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 53,
+          "source": "Compared",
+          "adjustment": 1085.4393936150109,
+          "current_wage": 55250,
+          "new_wage": 56335.439393615008,
+          "fair_wage": 56025.109417531734,
+          "lower": 55714.784441448457,
+          "upper": 56335.434393615011,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 56,
+          "source": "Compared",
+          "adjustment": 2796.4604989196987,
+          "current_wage": 43550,
+          "new_wage": 46346.460498919696,
+          "fair_wage": 46037.233508920057,
+          "lower": 45728.011518920415,
+          "upper": 46346.455498919699,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 58,
+          "source": "Compared",
+          "adjustment": 336.32588641393056,
+          "current_wage": 59950,
+          "new_wage": 60286.325886413928,
+          "fair_wage": 59976.645047791419,
+          "lower": 59666.969209168907,
+          "upper": 60286.320886413931,
+          "range_position": "Inside",
+          "range_position_before": "Inside"
+        },
+        {
+          "index": 61,
+          "source": "Compared",
+          "adjustment": 2052.8044327853522,
+          "current_wage": 48250,
+          "new_wage": 50302.804432785349,
+          "fair_wage": 49988.769139179749,
+          "lower": 49674.738845574146,
+          "upper": 50302.799432785352,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 66,
+          "source": "Compared",
+          "adjustment": 1390.4915759075184,
+          "current_wage": 53950,
+          "new_wage": 55340.491575907516,
+          "fair_wage": 55029.437164755211,
+          "lower": 54718.387753602903,
+          "upper": 55340.486575907518,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 68,
+          "source": "Compared",
+          "adjustment": 3031.1274788804685,
+          "current_wage": 70250,
+          "new_wage": 73281.127478880473,
+          "fair_wage": 72967.11440515588,
+          "lower": 72653.106331431292,
+          "upper": 73281.122478880468,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 71,
+          "source": "Compared",
+          "adjustment": 639.88510218111594,
+          "current_wage": 58650,
+          "new_wage": 59289.885102181113,
+          "fair_wage": 58980.972795014895,
+          "lower": 58672.065487848675,
+          "upper": 59289.880102181116,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 73,
+          "source": "Compared",
+          "adjustment": 2375.4806226373939,
+          "current_wage": 51950,
+          "new_wage": 54325.480622637391,
+          "fair_wage": 54018.188221555472,
+          "lower": 53710.900820473551,
+          "upper": 54325.475622637394,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 78,
+          "source": "Compared",
+          "adjustment": 1633.5749049952165,
+          "current_wage": 56650,
+          "new_wage": 58283.574904995214,
+          "fair_wage": 57969.723851815164,
+          "lower": 57655.877798635112,
+          "upper": 58283.569904995216,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 81,
+          "source": "Compared",
+          "adjustment": 3334.7888232992364,
+          "current_wage": 68950,
+          "new_wage": 72284.788823299241,
+          "fair_wage": 71971.442152379357,
+          "lower": 71658.100481459478,
+          "upper": 72284.783823299236,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 83,
+          "source": "Compared",
+          "adjustment": 972.76321584589721,
+          "current_wage": 62350,
+          "new_wage": 63322.763215845895,
+          "fair_wage": 63010.391877390619,
+          "lower": 62698.025538935341,
+          "upper": 63322.758215845897,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 86,
+          "source": "Compared",
+          "adjustment": 2680.2434522671201,
+          "current_wage": 50650,
+          "new_wage": 53330.243452267117,
+          "fair_wage": 53022.515968778942,
+          "lower": 52714.793485290764,
+          "upper": 53330.23845226712,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 91,
+          "source": "Compared",
+          "adjustment": 1936.8526653089239,
+          "current_wage": 55350,
+          "new_wage": 57286.852665308921,
+          "fair_wage": 56974.051599038634,
+          "lower": 56661.255532768344,
+          "upper": 57286.847665308924,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 96,
+          "source": "Compared",
+          "adjustment": 1285.1888652802909,
+          "current_wage": 41050,
+          "new_wage": 42335.188865280288,
+          "fair_wage": 42023.391116967541,
+          "lower": 41711.598368654792,
+          "upper": 42335.183865280291,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 98,
+          "source": "Compared",
+          "adjustment": 2933.1316098198467,
+          "current_wage": 53350,
+          "new_wage": 56283.131609819844,
+          "fair_wage": 55962.802655838903,
+          "lower": 55642.478701857959,
+          "upper": 56283.126609819847,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        }
+      ]
+    },
+    "F_sched_upper_plus015": {
+      "config": {
+        "fixture": "engine/tests/fixtures/0122-fixture-f-noisy.csv",
+        "outcome": "Salary",
+        "group": "Gender",
+        "ref": "Male",
+        "cont": ["Experience", "Level"],
+        "cats": [],
+        "kind": "schedule",
+        "target": "Reference",
+        "schedule": {
+          "kind": "to_upper",
+          "delta": 0.014999999999999999
+        },
+        "level": 0.94999999999999996,
+        "rows": true,
+        "overrides": [],
+        "adjustments": [
+          {
+            "index": 1,
+            "value": 2266.3058445095162
+          },
+          {
+            "index": 6,
+            "value": 1527.3513336642216
+          },
+          {
+            "index": 8,
+            "value": 3255.2558508730222
+          },
+          {
+            "index": 11,
+            "value": 863.54936629690985
+          },
+          {
+            "index": 13,
+            "value": 2614.1847141000476
+          },
+          {
+            "index": 18,
+            "value": 1849.0835407007769
+          },
+          {
+            "index": 23,
+            "value": 1201.6142619434474
+          },
+          {
+            "index": 26,
+            "value": 2919.4014300053973
+          },
+          {
+            "index": 28,
+            "value": 451.07103950383373
+          },
+          {
+            "index": 31,
+            "value": 2153.2325638959524
+          },
+          {
+            "index": 36,
+            "value": 1505.7492375834415
+          },
+          {
+            "index": 38,
+            "value": 3141.4883324869375
+          },
+          {
+            "index": 41,
+            "value": 754.90159549022121
+          },
+          {
+            "index": 43,
+            "value": 2494.4700111633433
+          },
+          {
+            "index": 48,
+            "value": 1749.2663302685185
+          },
+          {
+            "index": 51,
+            "value": 3445.3401866989884
+          },
+          {
+            "index": 53,
+            "value": 1085.4493936150109
+          },
+          {
+            "index": 56,
+            "value": 2796.4704989196985
+          },
+          {
+            "index": 58,
+            "value": 336.33588641393055
+          },
+          {
+            "index": 61,
+            "value": 2052.814432785352
+          },
+          {
+            "index": 66,
+            "value": 1390.5015759075184
+          },
+          {
+            "index": 68,
+            "value": 3031.1374788804683
+          },
+          {
+            "index": 71,
+            "value": 639.89510218111593
+          },
+          {
+            "index": 73,
+            "value": 2375.4906226373937
+          },
+          {
+            "index": 78,
+            "value": 1633.5849049952164
+          },
+          {
+            "index": 81,
+            "value": 3334.7988232992361
+          },
+          {
+            "index": 83,
+            "value": 972.7732158458972
+          },
+          {
+            "index": 86,
+            "value": 2680.2534522671199
+          },
+          {
+            "index": 91,
+            "value": 1936.8626653089239
+          },
+          {
+            "index": 96,
+            "value": 1285.1988652802909
+          },
+          {
+            "index": 98,
+            "value": 2933.1416098198465
+          }
+        ]
+      },
+      "expected": {
+        "original_gap": -1770.1666666666642,
+        "new_gap": -253.24231248312572,
+        "original_unexplained_gap": -1179.5029147315713,
+        "new_unexplained_gap": 337.42143945196824,
+        "required_budget": 51030.066319005127,
+        "need_target": 51030.066319005127,
+        "total_cost": 60676.974167341592,
+        "cost_target": 60676.974167341592,
+        "cost_reference": 0,
+        "position_counts": {
+          "below": 0,
+          "inside": 3,
+          "above": 37,
+          "below_before": 29,
+          "inside_before": 5,
+          "above_before": 6,
+          "newly_above": 31
+        },
+        "group_test": {
+          "group_coefficient": 336.80976268836963,
+          "t_statistic": 11.431113733980842,
+          "p_value": 1.306639927405543e-19,
+          "degrees_of_freedom": 96,
+          "is_significant": true
+        }
+      },
+      "rows": [
+        {
+          "index": 1,
+          "source": "Compared",
+          "adjustment": 2266.3058445095162,
+          "current_wage": 54050,
+          "new_wage": 56316.305844509516,
+          "fair_wage": 56009.532727108526,
+          "lower": 55702.774609707536,
+          "upper": 56316.290844509516,
+          "range_position": "Above",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 6,
+          "source": "Compared",
+          "adjustment": 1527.3513336642216,
+          "current_wage": 58750,
+          "new_wage": 60277.351333664221,
+          "fair_wage": 59961.068357368211,
+          "lower": 59644.8003810722,
+          "upper": 60277.336333664221,
+          "range_position": "Above",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 8,
+          "source": "Compared",
+          "adjustment": 3255.2558508730222,
+          "current_wage": 52050,
+          "new_wage": 55305.255850873022,
+          "fair_wage": 54998.283783908788,
+          "lower": 54691.326716944553,
+          "upper": 55305.240850873022,
+          "range_position": "Above",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 11,
+          "source": "Compared",
+          "adjustment": 863.54936629690985,
+          "current_wage": 64450,
+          "new_wage": 65313.549366296909,
+          "fair_wage": 65001.73638294368,
+          "lower": 64689.93839959045,
+          "upper": 65313.53436629691,
+          "range_position": "Above",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 13,
+          "source": "Compared",
+          "adjustment": 2614.1847141000476,
+          "current_wage": 33750,
+          "new_wage": 36364.184714100047,
+          "fair_wage": 36049.35760030838,
+          "lower": 35734.545486516712,
+          "upper": 36364.169714100048,
+          "range_position": "Above",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 18,
+          "source": "Compared",
+          "adjustment": 1849.0835407007769,
+          "current_wage": 62450,
+          "new_wage": 64299.083540700776,
+          "fair_wage": 63990.487439743942,
+          "lower": 63681.906338787107,
+          "upper": 64299.068540700777,
+          "range_position": "Above",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 23,
+          "source": "Compared",
+          "adjustment": 1201.6142619434474,
+          "current_wage": 44150,
+          "new_wage": 45351.614261943447,
+          "fair_wage": 45041.561256143534,
+          "lower": 44731.52325034362,
+          "upper": 45351.599261943447,
+          "range_position": "Above",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 26,
+          "source": "Compared",
+          "adjustment": 2919.4014300053973,
+          "current_wage": 32450,
+          "new_wage": 35369.401430005397,
+          "fair_wage": 35053.685347531857,
+          "lower": 34737.984265058316,
+          "upper": 35369.386430005397,
+          "range_position": "Above",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 28,
+          "source": "Compared",
+          "adjustment": 451.07103950383373,
+          "current_wage": 52850,
+          "new_wage": 53301.071039503833,
+          "fair_wage": 52991.362587932526,
+          "lower": 52681.669136361219,
+          "upper": 53301.056039503834,
+          "range_position": "Above",
+          "range_position_before": "Inside"
+        },
+        {
+          "index": 31,
+          "source": "Compared",
+          "adjustment": 2153.2325638959524,
+          "current_wage": 61150,
+          "new_wage": 63303.232563895952,
+          "fair_wage": 62994.815186967411,
+          "lower": 62686.41281003887,
+          "upper": 63303.217563895952,
+          "range_position": "Above",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 36,
+          "source": "Compared",
+          "adjustment": 1505.7492375834415,
+          "current_wage": 46850,
+          "new_wage": 48355.749237583441,
+          "fair_wage": 48044.154704896318,
+          "lower": 47732.575172209195,
+          "upper": 48355.734237583441,
+          "range_position": "Above",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 38,
+          "source": "Compared",
+          "adjustment": 3141.4883324869375,
+          "current_wage": 59150,
+          "new_wage": 62291.488332486937,
+          "fair_wage": 61983.56624376768,
+          "lower": 61675.659155048423,
+          "upper": 62291.473332486938,
+          "range_position": "Above",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 41,
+          "source": "Compared",
+          "adjustment": 754.90159549022121,
+          "current_wage": 51550,
+          "new_wage": 52304.901595490221,
+          "fair_wage": 51995.690335156003,
+          "lower": 51686.494074821785,
+          "upper": 52304.886595490221,
+          "range_position": "Above",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 43,
+          "source": "Compared",
+          "adjustment": 2494.4700111633433,
+          "current_wage": 40850,
+          "new_wage": 43344.470011163343,
+          "fair_wage": 43034.640060167272,
+          "lower": 42724.825109171201,
+          "upper": 43344.455011163343,
+          "range_position": "Above",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 48,
+          "source": "Compared",
+          "adjustment": 1749.2663302685185,
+          "current_wage": 49550,
+          "new_wage": 51299.266330268518,
+          "fair_wage": 50984.441391956272,
+          "lower": 50669.631453644026,
+          "upper": 51299.251330268518,
+          "range_position": "Above",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 51,
+          "source": "Compared",
+          "adjustment": 3445.3401866989884,
+          "current_wage": 57850,
+          "new_wage": 61295.340186698988,
+          "fair_wage": 60987.89399099115,
+          "lower": 60680.462795283311,
+          "upper": 61295.325186698989,
+          "range_position": "Above",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 53,
+          "source": "Compared",
+          "adjustment": 1085.4493936150109,
+          "current_wage": 55250,
+          "new_wage": 56335.44939361501,
+          "fair_wage": 56025.109417531734,
+          "lower": 55714.784441448457,
+          "upper": 56335.434393615011,
+          "range_position": "Above",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 56,
+          "source": "Compared",
+          "adjustment": 2796.4704989196985,
+          "current_wage": 43550,
+          "new_wage": 46346.470498919698,
+          "fair_wage": 46037.233508920057,
+          "lower": 45728.011518920415,
+          "upper": 46346.455498919699,
+          "range_position": "Above",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 58,
+          "source": "Compared",
+          "adjustment": 336.33588641393055,
+          "current_wage": 59950,
+          "new_wage": 60286.33588641393,
+          "fair_wage": 59976.645047791419,
+          "lower": 59666.969209168907,
+          "upper": 60286.320886413931,
+          "range_position": "Above",
+          "range_position_before": "Inside"
+        },
+        {
+          "index": 61,
+          "source": "Compared",
+          "adjustment": 2052.814432785352,
+          "current_wage": 48250,
+          "new_wage": 50302.814432785352,
+          "fair_wage": 49988.769139179749,
+          "lower": 49674.738845574146,
+          "upper": 50302.799432785352,
+          "range_position": "Above",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 66,
+          "source": "Compared",
+          "adjustment": 1390.5015759075184,
+          "current_wage": 53950,
+          "new_wage": 55340.501575907518,
+          "fair_wage": 55029.437164755211,
+          "lower": 54718.387753602903,
+          "upper": 55340.486575907518,
+          "range_position": "Above",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 68,
+          "source": "Compared",
+          "adjustment": 3031.1374788804683,
+          "current_wage": 70250,
+          "new_wage": 73281.137478880468,
+          "fair_wage": 72967.11440515588,
+          "lower": 72653.106331431292,
+          "upper": 73281.122478880468,
+          "range_position": "Above",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 71,
+          "source": "Compared",
+          "adjustment": 639.89510218111593,
+          "current_wage": 58650,
+          "new_wage": 59289.895102181115,
+          "fair_wage": 58980.972795014895,
+          "lower": 58672.065487848675,
+          "upper": 59289.880102181116,
+          "range_position": "Above",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 73,
+          "source": "Compared",
+          "adjustment": 2375.4906226373937,
+          "current_wage": 51950,
+          "new_wage": 54325.490622637393,
+          "fair_wage": 54018.188221555472,
+          "lower": 53710.900820473551,
+          "upper": 54325.475622637394,
+          "range_position": "Above",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 78,
+          "source": "Compared",
+          "adjustment": 1633.5849049952164,
+          "current_wage": 56650,
+          "new_wage": 58283.584904995216,
+          "fair_wage": 57969.723851815164,
+          "lower": 57655.877798635112,
+          "upper": 58283.569904995216,
+          "range_position": "Above",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 81,
+          "source": "Compared",
+          "adjustment": 3334.7988232992361,
+          "current_wage": 68950,
+          "new_wage": 72284.798823299236,
+          "fair_wage": 71971.442152379357,
+          "lower": 71658.100481459478,
+          "upper": 72284.783823299236,
+          "range_position": "Above",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 83,
+          "source": "Compared",
+          "adjustment": 972.7732158458972,
+          "current_wage": 62350,
+          "new_wage": 63322.773215845897,
+          "fair_wage": 63010.391877390619,
+          "lower": 62698.025538935341,
+          "upper": 63322.758215845897,
+          "range_position": "Above",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 86,
+          "source": "Compared",
+          "adjustment": 2680.2534522671199,
+          "current_wage": 50650,
+          "new_wage": 53330.253452267119,
+          "fair_wage": 53022.515968778942,
+          "lower": 52714.793485290764,
+          "upper": 53330.23845226712,
+          "range_position": "Above",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 91,
+          "source": "Compared",
+          "adjustment": 1936.8626653089239,
+          "current_wage": 55350,
+          "new_wage": 57286.862665308923,
+          "fair_wage": 56974.051599038634,
+          "lower": 56661.255532768344,
+          "upper": 57286.847665308924,
+          "range_position": "Above",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 96,
+          "source": "Compared",
+          "adjustment": 1285.1988652802909,
+          "current_wage": 41050,
+          "new_wage": 42335.19886528029,
+          "fair_wage": 42023.391116967541,
+          "lower": 41711.598368654792,
+          "upper": 42335.183865280291,
+          "range_position": "Above",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 98,
+          "source": "Compared",
+          "adjustment": 2933.1416098198465,
+          "current_wage": 53350,
+          "new_wage": 56283.141609819846,
+          "fair_wage": 55962.802655838903,
+          "lower": 55642.478701857959,
+          "upper": 56283.126609819847,
+          "range_position": "Above",
+          "range_position_before": "Below"
+        }
+      ]
+    },
+    "F_sched_lower_minus005": {
+      "config": {
+        "fixture": "engine/tests/fixtures/0122-fixture-f-noisy.csv",
+        "outcome": "Salary",
+        "group": "Gender",
+        "ref": "Male",
+        "cont": ["Experience", "Level"],
+        "cats": [],
+        "kind": "schedule",
+        "target": "Reference",
+        "schedule": {
+          "kind": "to_lower",
+          "delta": -0.0050000000000000001
+        },
+        "level": 0.94999999999999996,
+        "rows": true,
+        "overrides": [],
+        "adjustments": [
+          {
+            "index": 1,
+            "value": 1652.7696097075359
+          },
+          {
+            "index": 6,
+            "value": 894.79538107220026
+          },
+          {
+            "index": 8,
+            "value": 2641.3217169445534
+          },
+          {
+            "index": 11,
+            "value": 239.93339959044999
+          },
+          {
+            "index": 13,
+            "value": 1984.540486516712
+          },
+          {
+            "index": 18,
+            "value": 1231.9013387871064
+          },
+          {
+            "index": 23,
+            "value": 581.51825034362002
+          },
+          {
+            "index": 26,
+            "value": 2287.9792650583158
+          },
+          {
+            "index": 31,
+            "value": 1536.4078100388697
+          },
+          {
+            "index": 36,
+            "value": 882.57017220919545
+          },
+          {
+            "index": 38,
+            "value": 2525.6541550484226
+          },
+          {
+            "index": 41,
+            "value": 136.48907482178504
+          },
+          {
+            "index": 43,
+            "value": 1874.8201091712008
+          },
+          {
+            "index": 48,
+            "value": 1119.6264536440258
+          },
+          {
+            "index": 51,
+            "value": 2830.4577952833106
+          },
+          {
+            "index": 53,
+            "value": 464.77944144845708
+          },
+          {
+            "index": 56,
+            "value": 2178.0065189204151
+          },
+          {
+            "index": 61,
+            "value": 1424.7338455741456
+          },
+          {
+            "index": 66,
+            "value": 768.38275360290311
+          },
+          {
+            "index": 68,
+            "value": 2403.1013314312922
+          },
+          {
+            "index": 71,
+            "value": 22.060487848674821
+          },
+          {
+            "index": 73,
+            "value": 1760.8958204735509
+          },
+          {
+            "index": 78,
+            "value": 1005.8727986351124
+          },
+          {
+            "index": 81,
+            "value": 2708.0954814594779
+          },
+          {
+            "index": 83,
+            "value": 348.0205389353406
+          },
+          {
+            "index": 86,
+            "value": 2064.7884852907637
+          },
+          {
+            "index": 91,
+            "value": 1311.2505327683439
+          },
+          {
+            "index": 96,
+            "value": 661.59336865479156
+          },
+          {
+            "index": 98,
+            "value": 2292.473701857959
+          }
+        ]
+      },
+      "expected": {
+        "original_gap": -1770.1666666666642,
+        "new_gap": -724.29566353819973,
+        "original_unexplained_gap": -1179.5029147315713,
+        "new_unexplained_gap": -133.63191160310635,
+        "required_budget": 51030.066319005127,
+        "need_target": 51030.066319005127,
+        "total_cost": 41834.840125138529,
+        "cost_target": 41834.840125138529,
+        "cost_reference": 0,
+        "position_counts": {
+          "below": 0,
+          "inside": 34,
+          "above": 6,
+          "below_before": 29,
+          "inside_before": 5,
+          "above_before": 6,
+          "newly_above": 0
+        },
+        "group_test": {
+          "group_coefficient": -134.12027055122397,
+          "t_statistic": -2.7254107044630254,
+          "p_value": 0.0076331599381846736,
+          "degrees_of_freedom": 96,
+          "is_significant": true
+        }
+      },
+      "rows": [
+        {
+          "index": 1,
+          "source": "Compared",
+          "adjustment": 1652.7696097075359,
+          "current_wage": 54050,
+          "new_wage": 55702.769609707539,
+          "fair_wage": 56009.532727108526,
+          "lower": 55702.774609707536,
+          "upper": 56316.290844509516,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 6,
+          "source": "Compared",
+          "adjustment": 894.79538107220026,
+          "current_wage": 58750,
+          "new_wage": 59644.795381072203,
+          "fair_wage": 59961.068357368211,
+          "lower": 59644.8003810722,
+          "upper": 60277.336333664221,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 8,
+          "source": "Compared",
+          "adjustment": 2641.3217169445534,
+          "current_wage": 52050,
+          "new_wage": 54691.321716944556,
+          "fair_wage": 54998.283783908788,
+          "lower": 54691.326716944553,
+          "upper": 55305.240850873022,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 11,
+          "source": "Compared",
+          "adjustment": 239.93339959044999,
+          "current_wage": 64450,
+          "new_wage": 64689.933399590453,
+          "fair_wage": 65001.73638294368,
+          "lower": 64689.93839959045,
+          "upper": 65313.53436629691,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 13,
+          "source": "Compared",
+          "adjustment": 1984.540486516712,
+          "current_wage": 33750,
+          "new_wage": 35734.540486516715,
+          "fair_wage": 36049.35760030838,
+          "lower": 35734.545486516712,
+          "upper": 36364.169714100048,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 18,
+          "source": "Compared",
+          "adjustment": 1231.9013387871064,
+          "current_wage": 62450,
+          "new_wage": 63681.901338787109,
+          "fair_wage": 63990.487439743942,
+          "lower": 63681.906338787107,
+          "upper": 64299.068540700777,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 23,
+          "source": "Compared",
+          "adjustment": 581.51825034362002,
+          "current_wage": 44150,
+          "new_wage": 44731.518250343623,
+          "fair_wage": 45041.561256143534,
+          "lower": 44731.52325034362,
+          "upper": 45351.599261943447,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 26,
+          "source": "Compared",
+          "adjustment": 2287.9792650583158,
+          "current_wage": 32450,
+          "new_wage": 34737.979265058319,
+          "fair_wage": 35053.685347531857,
+          "lower": 34737.984265058316,
+          "upper": 35369.386430005397,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 31,
+          "source": "Compared",
+          "adjustment": 1536.4078100388697,
+          "current_wage": 61150,
+          "new_wage": 62686.407810038872,
+          "fair_wage": 62994.815186967411,
+          "lower": 62686.41281003887,
+          "upper": 63303.217563895952,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 36,
+          "source": "Compared",
+          "adjustment": 882.57017220919545,
+          "current_wage": 46850,
+          "new_wage": 47732.570172209198,
+          "fair_wage": 48044.154704896318,
+          "lower": 47732.575172209195,
+          "upper": 48355.734237583441,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 38,
+          "source": "Compared",
+          "adjustment": 2525.6541550484226,
+          "current_wage": 59150,
+          "new_wage": 61675.654155048425,
+          "fair_wage": 61983.56624376768,
+          "lower": 61675.659155048423,
+          "upper": 62291.473332486938,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 41,
+          "source": "Compared",
+          "adjustment": 136.48907482178504,
+          "current_wage": 51550,
+          "new_wage": 51686.489074821788,
+          "fair_wage": 51995.690335156003,
+          "lower": 51686.494074821785,
+          "upper": 52304.886595490221,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 43,
+          "source": "Compared",
+          "adjustment": 1874.8201091712008,
+          "current_wage": 40850,
+          "new_wage": 42724.820109171204,
+          "fair_wage": 43034.640060167272,
+          "lower": 42724.825109171201,
+          "upper": 43344.455011163343,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 48,
+          "source": "Compared",
+          "adjustment": 1119.6264536440258,
+          "current_wage": 49550,
+          "new_wage": 50669.626453644029,
+          "fair_wage": 50984.441391956272,
+          "lower": 50669.631453644026,
+          "upper": 51299.251330268518,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 51,
+          "source": "Compared",
+          "adjustment": 2830.4577952833106,
+          "current_wage": 57850,
+          "new_wage": 60680.457795283313,
+          "fair_wage": 60987.89399099115,
+          "lower": 60680.462795283311,
+          "upper": 61295.325186698989,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 53,
+          "source": "Compared",
+          "adjustment": 464.77944144845708,
+          "current_wage": 55250,
+          "new_wage": 55714.77944144846,
+          "fair_wage": 56025.109417531734,
+          "lower": 55714.784441448457,
+          "upper": 56335.434393615011,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 56,
+          "source": "Compared",
+          "adjustment": 2178.0065189204151,
+          "current_wage": 43550,
+          "new_wage": 45728.006518920418,
+          "fair_wage": 46037.233508920057,
+          "lower": 45728.011518920415,
+          "upper": 46346.455498919699,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 61,
+          "source": "Compared",
+          "adjustment": 1424.7338455741456,
+          "current_wage": 48250,
+          "new_wage": 49674.733845574148,
+          "fair_wage": 49988.769139179749,
+          "lower": 49674.738845574146,
+          "upper": 50302.799432785352,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 66,
+          "source": "Compared",
+          "adjustment": 768.38275360290311,
+          "current_wage": 53950,
+          "new_wage": 54718.382753602906,
+          "fair_wage": 55029.437164755211,
+          "lower": 54718.387753602903,
+          "upper": 55340.486575907518,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 68,
+          "source": "Compared",
+          "adjustment": 2403.1013314312922,
+          "current_wage": 70250,
+          "new_wage": 72653.101331431288,
+          "fair_wage": 72967.11440515588,
+          "lower": 72653.106331431292,
+          "upper": 73281.122478880468,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 71,
+          "source": "Compared",
+          "adjustment": 22.060487848674821,
+          "current_wage": 58650,
+          "new_wage": 58672.060487848677,
+          "fair_wage": 58980.972795014895,
+          "lower": 58672.065487848675,
+          "upper": 59289.880102181116,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 73,
+          "source": "Compared",
+          "adjustment": 1760.8958204735509,
+          "current_wage": 51950,
+          "new_wage": 53710.895820473554,
+          "fair_wage": 54018.188221555472,
+          "lower": 53710.900820473551,
+          "upper": 54325.475622637394,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 78,
+          "source": "Compared",
+          "adjustment": 1005.8727986351124,
+          "current_wage": 56650,
+          "new_wage": 57655.872798635115,
+          "fair_wage": 57969.723851815164,
+          "lower": 57655.877798635112,
+          "upper": 58283.569904995216,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 81,
+          "source": "Compared",
+          "adjustment": 2708.0954814594779,
+          "current_wage": 68950,
+          "new_wage": 71658.095481459473,
+          "fair_wage": 71971.442152379357,
+          "lower": 71658.100481459478,
+          "upper": 72284.783823299236,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 83,
+          "source": "Compared",
+          "adjustment": 348.0205389353406,
+          "current_wage": 62350,
+          "new_wage": 62698.020538935343,
+          "fair_wage": 63010.391877390619,
+          "lower": 62698.025538935341,
+          "upper": 63322.758215845897,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 86,
+          "source": "Compared",
+          "adjustment": 2064.7884852907637,
+          "current_wage": 50650,
+          "new_wage": 52714.788485290766,
+          "fair_wage": 53022.515968778942,
+          "lower": 52714.793485290764,
+          "upper": 53330.23845226712,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 91,
+          "source": "Compared",
+          "adjustment": 1311.2505327683439,
+          "current_wage": 55350,
+          "new_wage": 56661.250532768347,
+          "fair_wage": 56974.051599038634,
+          "lower": 56661.255532768344,
+          "upper": 57286.847665308924,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 96,
+          "source": "Compared",
+          "adjustment": 661.59336865479156,
+          "current_wage": 41050,
+          "new_wage": 41711.593368654794,
+          "fair_wage": 42023.391116967541,
+          "lower": 41711.598368654792,
+          "upper": 42335.183865280291,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 98,
+          "source": "Compared",
+          "adjustment": 2292.473701857959,
+          "current_wage": 53350,
+          "new_wage": 55642.473701857962,
+          "fair_wage": 55962.802655838903,
+          "lower": 55642.478701857959,
+          "upper": 56283.126609819847,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        }
+      ]
+    },
+    "F_sched_lower_minus015": {
+      "config": {
+        "fixture": "engine/tests/fixtures/0122-fixture-f-noisy.csv",
+        "outcome": "Salary",
+        "group": "Gender",
+        "ref": "Male",
+        "cont": ["Experience", "Level"],
+        "cats": [],
+        "kind": "schedule",
+        "target": "Reference",
+        "schedule": {
+          "kind": "to_lower",
+          "delta": -0.014999999999999999
+        },
+        "level": 0.94999999999999996,
+        "rows": true,
+        "overrides": [],
+        "adjustments": [
+          {
+            "index": 1,
+            "value": 1652.7596097075359
+          },
+          {
+            "index": 6,
+            "value": 894.78538107220027
+          },
+          {
+            "index": 8,
+            "value": 2641.3117169445536
+          },
+          {
+            "index": 11,
+            "value": 239.92339959045
+          },
+          {
+            "index": 13,
+            "value": 1984.530486516712
+          },
+          {
+            "index": 18,
+            "value": 1231.8913387871064
+          },
+          {
+            "index": 23,
+            "value": 581.50825034362003
+          },
+          {
+            "index": 26,
+            "value": 2287.9692650583161
+          },
+          {
+            "index": 31,
+            "value": 1536.3978100388697
+          },
+          {
+            "index": 36,
+            "value": 882.56017220919546
+          },
+          {
+            "index": 38,
+            "value": 2525.6441550484228
+          },
+          {
+            "index": 41,
+            "value": 136.47907482178505
+          },
+          {
+            "index": 43,
+            "value": 1874.8101091712008
+          },
+          {
+            "index": 48,
+            "value": 1119.6164536440258
+          },
+          {
+            "index": 51,
+            "value": 2830.4477952833108
+          },
+          {
+            "index": 53,
+            "value": 464.76944144845709
+          },
+          {
+            "index": 56,
+            "value": 2177.9965189204154
+          },
+          {
+            "index": 61,
+            "value": 1424.7238455741456
+          },
+          {
+            "index": 66,
+            "value": 768.37275360290312
+          },
+          {
+            "index": 68,
+            "value": 2403.0913314312925
+          },
+          {
+            "index": 71,
+            "value": 22.05048784867482
+          },
+          {
+            "index": 73,
+            "value": 1760.8858204735509
+          },
+          {
+            "index": 78,
+            "value": 1005.8627986351124
+          },
+          {
+            "index": 81,
+            "value": 2708.0854814594782
+          },
+          {
+            "index": 83,
+            "value": 348.01053893534061
+          },
+          {
+            "index": 86,
+            "value": 2064.7784852907639
+          },
+          {
+            "index": 91,
+            "value": 1311.2405327683439
+          },
+          {
+            "index": 96,
+            "value": 661.58336865479157
+          },
+          {
+            "index": 98,
+            "value": 2292.4637018579592
+          }
+        ]
+      },
+      "expected": {
+        "original_gap": -1770.1666666666642,
+        "new_gap": -724.30291353820212,
+        "original_unexplained_gap": -1179.5029147315713,
+        "new_unexplained_gap": -133.63916160310745,
+        "required_budget": 51030.066319005127,
+        "need_target": 51030.066319005127,
+        "total_cost": 41834.550125138536,
+        "cost_target": 41834.550125138536,
+        "cost_reference": 0,
+        "position_counts": {
+          "below": 29,
+          "inside": 5,
+          "above": 6,
+          "below_before": 29,
+          "inside_before": 5,
+          "above_before": 6,
+          "newly_above": 0
+        },
+        "group_test": {
+          "group_coefficient": -134.12752048291364,
+          "t_statistic": -2.7255334012046486,
+          "p_value": 0.0076305308358691291,
+          "degrees_of_freedom": 96,
+          "is_significant": true
+        }
+      },
+      "rows": [
+        {
+          "index": 1,
+          "source": "Compared",
+          "adjustment": 1652.7596097075359,
+          "current_wage": 54050,
+          "new_wage": 55702.759609707537,
+          "fair_wage": 56009.532727108526,
+          "lower": 55702.774609707536,
+          "upper": 56316.290844509516,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 6,
+          "source": "Compared",
+          "adjustment": 894.78538107220027,
+          "current_wage": 58750,
+          "new_wage": 59644.785381072201,
+          "fair_wage": 59961.068357368211,
+          "lower": 59644.8003810722,
+          "upper": 60277.336333664221,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 8,
+          "source": "Compared",
+          "adjustment": 2641.3117169445536,
+          "current_wage": 52050,
+          "new_wage": 54691.311716944554,
+          "fair_wage": 54998.283783908788,
+          "lower": 54691.326716944553,
+          "upper": 55305.240850873022,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 11,
+          "source": "Compared",
+          "adjustment": 239.92339959045,
+          "current_wage": 64450,
+          "new_wage": 64689.923399590451,
+          "fair_wage": 65001.73638294368,
+          "lower": 64689.93839959045,
+          "upper": 65313.53436629691,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 13,
+          "source": "Compared",
+          "adjustment": 1984.530486516712,
+          "current_wage": 33750,
+          "new_wage": 35734.530486516713,
+          "fair_wage": 36049.35760030838,
+          "lower": 35734.545486516712,
+          "upper": 36364.169714100048,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 18,
+          "source": "Compared",
+          "adjustment": 1231.8913387871064,
+          "current_wage": 62450,
+          "new_wage": 63681.891338787107,
+          "fair_wage": 63990.487439743942,
+          "lower": 63681.906338787107,
+          "upper": 64299.068540700777,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 23,
+          "source": "Compared",
+          "adjustment": 581.50825034362003,
+          "current_wage": 44150,
+          "new_wage": 44731.508250343621,
+          "fair_wage": 45041.561256143534,
+          "lower": 44731.52325034362,
+          "upper": 45351.599261943447,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 26,
+          "source": "Compared",
+          "adjustment": 2287.9692650583161,
+          "current_wage": 32450,
+          "new_wage": 34737.969265058317,
+          "fair_wage": 35053.685347531857,
+          "lower": 34737.984265058316,
+          "upper": 35369.386430005397,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 31,
+          "source": "Compared",
+          "adjustment": 1536.3978100388697,
+          "current_wage": 61150,
+          "new_wage": 62686.39781003887,
+          "fair_wage": 62994.815186967411,
+          "lower": 62686.41281003887,
+          "upper": 63303.217563895952,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 36,
+          "source": "Compared",
+          "adjustment": 882.56017220919546,
+          "current_wage": 46850,
+          "new_wage": 47732.560172209196,
+          "fair_wage": 48044.154704896318,
+          "lower": 47732.575172209195,
+          "upper": 48355.734237583441,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 38,
+          "source": "Compared",
+          "adjustment": 2525.6441550484228,
+          "current_wage": 59150,
+          "new_wage": 61675.644155048423,
+          "fair_wage": 61983.56624376768,
+          "lower": 61675.659155048423,
+          "upper": 62291.473332486938,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 41,
+          "source": "Compared",
+          "adjustment": 136.47907482178505,
+          "current_wage": 51550,
+          "new_wage": 51686.479074821786,
+          "fair_wage": 51995.690335156003,
+          "lower": 51686.494074821785,
+          "upper": 52304.886595490221,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 43,
+          "source": "Compared",
+          "adjustment": 1874.8101091712008,
+          "current_wage": 40850,
+          "new_wage": 42724.810109171201,
+          "fair_wage": 43034.640060167272,
+          "lower": 42724.825109171201,
+          "upper": 43344.455011163343,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 48,
+          "source": "Compared",
+          "adjustment": 1119.6164536440258,
+          "current_wage": 49550,
+          "new_wage": 50669.616453644026,
+          "fair_wage": 50984.441391956272,
+          "lower": 50669.631453644026,
+          "upper": 51299.251330268518,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 51,
+          "source": "Compared",
+          "adjustment": 2830.4477952833108,
+          "current_wage": 57850,
+          "new_wage": 60680.447795283311,
+          "fair_wage": 60987.89399099115,
+          "lower": 60680.462795283311,
+          "upper": 61295.325186698989,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 53,
+          "source": "Compared",
+          "adjustment": 464.76944144845709,
+          "current_wage": 55250,
+          "new_wage": 55714.769441448458,
+          "fair_wage": 56025.109417531734,
+          "lower": 55714.784441448457,
+          "upper": 56335.434393615011,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 56,
+          "source": "Compared",
+          "adjustment": 2177.9965189204154,
+          "current_wage": 43550,
+          "new_wage": 45727.996518920416,
+          "fair_wage": 46037.233508920057,
+          "lower": 45728.011518920415,
+          "upper": 46346.455498919699,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 61,
+          "source": "Compared",
+          "adjustment": 1424.7238455741456,
+          "current_wage": 48250,
+          "new_wage": 49674.723845574146,
+          "fair_wage": 49988.769139179749,
+          "lower": 49674.738845574146,
+          "upper": 50302.799432785352,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 66,
+          "source": "Compared",
+          "adjustment": 768.37275360290312,
+          "current_wage": 53950,
+          "new_wage": 54718.372753602904,
+          "fair_wage": 55029.437164755211,
+          "lower": 54718.387753602903,
+          "upper": 55340.486575907518,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 68,
+          "source": "Compared",
+          "adjustment": 2403.0913314312925,
+          "current_wage": 70250,
+          "new_wage": 72653.091331431293,
+          "fair_wage": 72967.11440515588,
+          "lower": 72653.106331431292,
+          "upper": 73281.122478880468,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 71,
+          "source": "Compared",
+          "adjustment": 22.05048784867482,
+          "current_wage": 58650,
+          "new_wage": 58672.050487848675,
+          "fair_wage": 58980.972795014895,
+          "lower": 58672.065487848675,
+          "upper": 59289.880102181116,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 73,
+          "source": "Compared",
+          "adjustment": 1760.8858204735509,
+          "current_wage": 51950,
+          "new_wage": 53710.885820473552,
+          "fair_wage": 54018.188221555472,
+          "lower": 53710.900820473551,
+          "upper": 54325.475622637394,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 78,
+          "source": "Compared",
+          "adjustment": 1005.8627986351124,
+          "current_wage": 56650,
+          "new_wage": 57655.862798635113,
+          "fair_wage": 57969.723851815164,
+          "lower": 57655.877798635112,
+          "upper": 58283.569904995216,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 81,
+          "source": "Compared",
+          "adjustment": 2708.0854814594782,
+          "current_wage": 68950,
+          "new_wage": 71658.085481459479,
+          "fair_wage": 71971.442152379357,
+          "lower": 71658.100481459478,
+          "upper": 72284.783823299236,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 83,
+          "source": "Compared",
+          "adjustment": 348.01053893534061,
+          "current_wage": 62350,
+          "new_wage": 62698.010538935341,
+          "fair_wage": 63010.391877390619,
+          "lower": 62698.025538935341,
+          "upper": 63322.758215845897,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 86,
+          "source": "Compared",
+          "adjustment": 2064.7784852907639,
+          "current_wage": 50650,
+          "new_wage": 52714.778485290764,
+          "fair_wage": 53022.515968778942,
+          "lower": 52714.793485290764,
+          "upper": 53330.23845226712,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 91,
+          "source": "Compared",
+          "adjustment": 1311.2405327683439,
+          "current_wage": 55350,
+          "new_wage": 56661.240532768345,
+          "fair_wage": 56974.051599038634,
+          "lower": 56661.255532768344,
+          "upper": 57286.847665308924,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 96,
+          "source": "Compared",
+          "adjustment": 661.58336865479157,
+          "current_wage": 41050,
+          "new_wage": 41711.583368654792,
+          "fair_wage": 42023.391116967541,
+          "lower": 41711.598368654792,
+          "upper": 42335.183865280291,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 98,
+          "source": "Compared",
+          "adjustment": 2292.4637018579592,
+          "current_wage": 53350,
+          "new_wage": 55642.46370185796,
+          "fair_wage": 55962.802655838903,
+          "lower": 55642.478701857959,
+          "upper": 56283.126609819847,
+          "range_position": "Below",
+          "range_position_before": "Below"
+        }
+      ]
+    },
+    "F_sched_lower_exact": {
+      "config": {
+        "fixture": "engine/tests/fixtures/0122-fixture-f-noisy.csv",
+        "outcome": "Salary",
+        "group": "Gender",
+        "ref": "Male",
+        "cont": ["Experience", "Level"],
+        "cats": [],
+        "kind": "schedule",
+        "target": "Reference",
+        "schedule": {
+          "kind": "to_lower",
+          "delta": 0
+        },
+        "level": 0.94999999999999996,
+        "rows": true,
+        "overrides": [],
+        "adjustments": [
+          {
+            "index": 1,
+            "value": 1652.774609707536
+          },
+          {
+            "index": 6,
+            "value": 894.80038107220025
+          },
+          {
+            "index": 8,
+            "value": 2641.3267169445535
+          },
+          {
+            "index": 11,
+            "value": 239.93839959044999
+          },
+          {
+            "index": 13,
+            "value": 1984.5454865167121
+          },
+          {
+            "index": 18,
+            "value": 1231.9063387871065
+          },
+          {
+            "index": 23,
+            "value": 581.52325034362002
+          },
+          {
+            "index": 26,
+            "value": 2287.9842650583159
+          },
+          {
+            "index": 31,
+            "value": 1536.4128100388698
+          },
+          {
+            "index": 36,
+            "value": 882.57517220919544
+          },
+          {
+            "index": 38,
+            "value": 2525.6591550484227
+          },
+          {
+            "index": 41,
+            "value": 136.49407482178503
+          },
+          {
+            "index": 43,
+            "value": 1874.8251091712009
+          },
+          {
+            "index": 48,
+            "value": 1119.6314536440259
+          },
+          {
+            "index": 51,
+            "value": 2830.4627952833107
+          },
+          {
+            "index": 53,
+            "value": 464.78444144845707
+          },
+          {
+            "index": 56,
+            "value": 2178.0115189204153
+          },
+          {
+            "index": 61,
+            "value": 1424.7388455741457
+          },
+          {
+            "index": 66,
+            "value": 768.3877536029031
+          },
+          {
+            "index": 68,
+            "value": 2403.1063314312923
+          },
+          {
+            "index": 71,
+            "value": 22.06548784867482
+          },
+          {
+            "index": 73,
+            "value": 1760.900820473551
+          },
+          {
+            "index": 78,
+            "value": 1005.8777986351124
+          },
+          {
+            "index": 81,
+            "value": 2708.100481459478
+          },
+          {
+            "index": 83,
+            "value": 348.02553893534059
+          },
+          {
+            "index": 86,
+            "value": 2064.7934852907638
+          },
+          {
+            "index": 91,
+            "value": 1311.255532768344
+          },
+          {
+            "index": 96,
+            "value": 661.59836865479156
+          },
+          {
+            "index": 98,
+            "value": 2292.4787018579591
+          }
+        ]
+      },
+      "expected": {
+        "original_gap": -1770.1666666666642,
+        "new_gap": -724.29203853820218,
+        "original_unexplained_gap": -1179.5029147315713,
+        "new_unexplained_gap": -133.62828660310788,
+        "required_budget": 51030.066319005127,
+        "need_target": 51030.066319005127,
+        "total_cost": 41834.985125138533,
+        "cost_target": 41834.985125138533,
+        "cost_reference": 0,
+        "position_counts": {
+          "below": 0,
+          "inside": 34,
+          "above": 6,
+          "below_before": 29,
+          "inside_before": 5,
+          "above_before": 6,
+          "newly_above": 0
+        },
+        "group_test": {
+          "group_coefficient": -134.11664558537893,
+          "t_statistic": -2.7253493552004651,
+          "p_value": 0.0076344748176897098,
+          "degrees_of_freedom": 96,
+          "is_significant": true
+        }
+      },
+      "rows": [
+        {
+          "index": 1,
+          "source": "Compared",
+          "adjustment": 1652.774609707536,
+          "current_wage": 54050,
+          "new_wage": 55702.774609707536,
+          "fair_wage": 56009.532727108526,
+          "lower": 55702.774609707536,
+          "upper": 56316.290844509516,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 6,
+          "source": "Compared",
+          "adjustment": 894.80038107220025,
+          "current_wage": 58750,
+          "new_wage": 59644.8003810722,
+          "fair_wage": 59961.068357368211,
+          "lower": 59644.8003810722,
+          "upper": 60277.336333664221,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 8,
+          "source": "Compared",
+          "adjustment": 2641.3267169445535,
+          "current_wage": 52050,
+          "new_wage": 54691.326716944553,
+          "fair_wage": 54998.283783908788,
+          "lower": 54691.326716944553,
+          "upper": 55305.240850873022,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 11,
+          "source": "Compared",
+          "adjustment": 239.93839959044999,
+          "current_wage": 64450,
+          "new_wage": 64689.93839959045,
+          "fair_wage": 65001.73638294368,
+          "lower": 64689.93839959045,
+          "upper": 65313.53436629691,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 13,
+          "source": "Compared",
+          "adjustment": 1984.5454865167121,
+          "current_wage": 33750,
+          "new_wage": 35734.545486516712,
+          "fair_wage": 36049.35760030838,
+          "lower": 35734.545486516712,
+          "upper": 36364.169714100048,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 18,
+          "source": "Compared",
+          "adjustment": 1231.9063387871065,
+          "current_wage": 62450,
+          "new_wage": 63681.906338787107,
+          "fair_wage": 63990.487439743942,
+          "lower": 63681.906338787107,
+          "upper": 64299.068540700777,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 23,
+          "source": "Compared",
+          "adjustment": 581.52325034362002,
+          "current_wage": 44150,
+          "new_wage": 44731.52325034362,
+          "fair_wage": 45041.561256143534,
+          "lower": 44731.52325034362,
+          "upper": 45351.599261943447,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 26,
+          "source": "Compared",
+          "adjustment": 2287.9842650583159,
+          "current_wage": 32450,
+          "new_wage": 34737.984265058316,
+          "fair_wage": 35053.685347531857,
+          "lower": 34737.984265058316,
+          "upper": 35369.386430005397,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 31,
+          "source": "Compared",
+          "adjustment": 1536.4128100388698,
+          "current_wage": 61150,
+          "new_wage": 62686.41281003887,
+          "fair_wage": 62994.815186967411,
+          "lower": 62686.41281003887,
+          "upper": 63303.217563895952,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 36,
+          "source": "Compared",
+          "adjustment": 882.57517220919544,
+          "current_wage": 46850,
+          "new_wage": 47732.575172209195,
+          "fair_wage": 48044.154704896318,
+          "lower": 47732.575172209195,
+          "upper": 48355.734237583441,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 38,
+          "source": "Compared",
+          "adjustment": 2525.6591550484227,
+          "current_wage": 59150,
+          "new_wage": 61675.659155048423,
+          "fair_wage": 61983.56624376768,
+          "lower": 61675.659155048423,
+          "upper": 62291.473332486938,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 41,
+          "source": "Compared",
+          "adjustment": 136.49407482178503,
+          "current_wage": 51550,
+          "new_wage": 51686.494074821785,
+          "fair_wage": 51995.690335156003,
+          "lower": 51686.494074821785,
+          "upper": 52304.886595490221,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 43,
+          "source": "Compared",
+          "adjustment": 1874.8251091712009,
+          "current_wage": 40850,
+          "new_wage": 42724.825109171201,
+          "fair_wage": 43034.640060167272,
+          "lower": 42724.825109171201,
+          "upper": 43344.455011163343,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 48,
+          "source": "Compared",
+          "adjustment": 1119.6314536440259,
+          "current_wage": 49550,
+          "new_wage": 50669.631453644026,
+          "fair_wage": 50984.441391956272,
+          "lower": 50669.631453644026,
+          "upper": 51299.251330268518,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 51,
+          "source": "Compared",
+          "adjustment": 2830.4627952833107,
+          "current_wage": 57850,
+          "new_wage": 60680.462795283311,
+          "fair_wage": 60987.89399099115,
+          "lower": 60680.462795283311,
+          "upper": 61295.325186698989,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 53,
+          "source": "Compared",
+          "adjustment": 464.78444144845707,
+          "current_wage": 55250,
+          "new_wage": 55714.784441448457,
+          "fair_wage": 56025.109417531734,
+          "lower": 55714.784441448457,
+          "upper": 56335.434393615011,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 56,
+          "source": "Compared",
+          "adjustment": 2178.0115189204153,
+          "current_wage": 43550,
+          "new_wage": 45728.011518920415,
+          "fair_wage": 46037.233508920057,
+          "lower": 45728.011518920415,
+          "upper": 46346.455498919699,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 61,
+          "source": "Compared",
+          "adjustment": 1424.7388455741457,
+          "current_wage": 48250,
+          "new_wage": 49674.738845574146,
+          "fair_wage": 49988.769139179749,
+          "lower": 49674.738845574146,
+          "upper": 50302.799432785352,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 66,
+          "source": "Compared",
+          "adjustment": 768.3877536029031,
+          "current_wage": 53950,
+          "new_wage": 54718.387753602903,
+          "fair_wage": 55029.437164755211,
+          "lower": 54718.387753602903,
+          "upper": 55340.486575907518,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 68,
+          "source": "Compared",
+          "adjustment": 2403.1063314312923,
+          "current_wage": 70250,
+          "new_wage": 72653.106331431292,
+          "fair_wage": 72967.11440515588,
+          "lower": 72653.106331431292,
+          "upper": 73281.122478880468,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 71,
+          "source": "Compared",
+          "adjustment": 22.06548784867482,
+          "current_wage": 58650,
+          "new_wage": 58672.065487848675,
+          "fair_wage": 58980.972795014895,
+          "lower": 58672.065487848675,
+          "upper": 59289.880102181116,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 73,
+          "source": "Compared",
+          "adjustment": 1760.900820473551,
+          "current_wage": 51950,
+          "new_wage": 53710.900820473551,
+          "fair_wage": 54018.188221555472,
+          "lower": 53710.900820473551,
+          "upper": 54325.475622637394,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 78,
+          "source": "Compared",
+          "adjustment": 1005.8777986351124,
+          "current_wage": 56650,
+          "new_wage": 57655.877798635112,
+          "fair_wage": 57969.723851815164,
+          "lower": 57655.877798635112,
+          "upper": 58283.569904995216,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 81,
+          "source": "Compared",
+          "adjustment": 2708.100481459478,
+          "current_wage": 68950,
+          "new_wage": 71658.100481459478,
+          "fair_wage": 71971.442152379357,
+          "lower": 71658.100481459478,
+          "upper": 72284.783823299236,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 83,
+          "source": "Compared",
+          "adjustment": 348.02553893534059,
+          "current_wage": 62350,
+          "new_wage": 62698.025538935341,
+          "fair_wage": 63010.391877390619,
+          "lower": 62698.025538935341,
+          "upper": 63322.758215845897,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 86,
+          "source": "Compared",
+          "adjustment": 2064.7934852907638,
+          "current_wage": 50650,
+          "new_wage": 52714.793485290764,
+          "fair_wage": 53022.515968778942,
+          "lower": 52714.793485290764,
+          "upper": 53330.23845226712,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 91,
+          "source": "Compared",
+          "adjustment": 1311.255532768344,
+          "current_wage": 55350,
+          "new_wage": 56661.255532768344,
+          "fair_wage": 56974.051599038634,
+          "lower": 56661.255532768344,
+          "upper": 57286.847665308924,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 96,
+          "source": "Compared",
+          "adjustment": 661.59836865479156,
+          "current_wage": 41050,
+          "new_wage": 41711.598368654792,
+          "fair_wage": 42023.391116967541,
+          "lower": 41711.598368654792,
+          "upper": 42335.183865280291,
+          "range_position": "Inside",
+          "range_position_before": "Below"
+        },
+        {
+          "index": 98,
+          "source": "Compared",
+          "adjustment": 2292.4787018579591,
+          "current_wage": 53350,
+          "new_wage": 55642.478701857959,
+          "fair_wage": 55962.802655838903,
+          "lower": 55642.478701857959,
+          "upper": 56283.126609819847,
+          "range_position": "Inside",
           "range_position_before": "Below"
         }
       ]

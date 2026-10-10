@@ -125,6 +125,11 @@ impl OaxacaResults {
                 `total_gap`, and keeps the library's own group convention"
     )]
     pub fn optimize_budget(&self, budget: f64, target_gap: f64) -> Vec<BudgetAdjustment> {
+        // A budget or a target that is not a number pays nothing: `f64::min` returns the other
+        // argument when one is NaN, which used to fund the full need (0122-MERIDIAN C-09).
+        if !budget.is_finite() || !target_gap.is_finite() {
+            return Vec::new();
+        }
         let current_gap = self.total_gap;
         // If the gap is already smaller than or equal to the target, no adjustments needed.
         if current_gap <= target_gap {

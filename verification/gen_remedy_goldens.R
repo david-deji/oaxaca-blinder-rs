@@ -53,6 +53,11 @@ FIXTURES <- list(
   E = list(fixture = "oaxaca_blinder/tests/fixtures/employers_trust_fixture.csv", outcome = "Salary",
            group = "Gender", ref = "Male", cont = c("Age", "Experience_Years"), cats = character(0)),
   T = list(fixture = "engine/tests/fixtures/0122-remedy-tiny.csv", outcome = "wage", group = "group",
+           ref = "R", cont = c("x"), cats = character(0)),
+  # Fifteen rows, one predictor. The compared row at x = 42 sits far beyond the reference group
+  # (x 0 to 9), so its Pooled gap weight is NEGATIVE: paying it LOWERS the group's gap, and the Greedy
+  # path (largest shortfall first) pays it last, after the gap has peaked (0122-MERIDIAN C-01).
+  N = list(fixture = "engine/tests/fixtures/0122-remedy-nonmonotone.csv", outcome = "wage", group = "group",
            ref = "R", cont = c("x"), cats = character(0))
 )
 fixture_hash <- setNames(lapply(sapply(FIXTURES, function(f) f$fixture), function(f) sha(file.path(REPO_ROOT, f))),
@@ -143,7 +148,32 @@ run_remedy <- function(cfg) {
   thr_excl <- sum(isT & pos & pct < cfg$min_pct)
 
   pay_for <- function(cap) allocate(d, gapd, elig, cfg$strategy, cap)
-  best <- gap_after(d, y + pay_for(Inf), cfg)
+  gap_at <- function(cap) gap_after(d, y + pay_for(cap), cfg)
+
+  # THE BEST A REMEDY CAN REACH is the highest point of the gap along the strategy's own path, not
+  # its end: on the Pooled line a payment to a high-leverage compared row lowers the gap (C-01). The
+  # path is piecewise linear, so its highest point is at a vertex: after each row paid in full
+  # (Greedy), or at share 0 or 1 (Equitable). Every vertex is REFITTED here. With reference raises on
+  # the path mixes two groups, nothing walks it, and the figure is the gap after the full schedule;
+  # a roster of more than 200 payable rows is not scanned (the refits are the cost) and keeps the
+  # monotone grid check below.
+  tol_v <- function(v) 1e-9 * max(1, abs(v))
+  scan <- !cfg$adjust_both && sum(elig) <= 200 && sum(elig) > 0
+  caps_v <- NULL; vals_v <- NULL; peak_budget <- NA_real_
+  if (scan && cfg$strategy == "Greedy") {
+    ord <- which(elig)[order(-gapd[which(elig)], d$.t[which(elig)] == 0, d$.ordinal[which(elig)])]
+    caps_v <- cumsum(c(0, gapd[ord]))
+    vals_v <- sapply(caps_v, gap_at)
+    k_peak <- max(which(vals_v >= max(vals_v) - tol_v(max(vals_v))))
+    best <- vals_v[k_peak]
+    if (k_peak < length(caps_v)) peak_budget <- caps_v[k_peak]
+  } else if (scan) {
+    v0 <- gap_at(0); v1 <- gap_at(Inf)
+    best <- max(v0, v1)
+    if (v1 < v0 - tol_v(v0)) peak_budget <- 0
+  } else {
+    best <- gap_at(Inf)
+  }
 
   g <- NULL
   spec <- cfg$target_gap_spec
@@ -160,14 +190,25 @@ run_remedy <- function(cfg) {
     if (g <= u0 + eps) {
       state <- "already_met"; tcap <- 0; tbudget <- 0; reachable <- TRUE
     } else if (g > best + eps) {
-      state <- "unreachable"; tbudget <- need_t; reachable <- FALSE; shortfall <- g - best
+      # Out of reach: pay up to the peak of the path (its end unless a payment lowers the gap).
+      state <- "unreachable"; reachable <- FALSE; shortfall <- g - best
+      tbudget <- if (is.na(peak_budget)) need_t else peak_budget
+      tcap <- peak_budget
     } else {
-      f <- function(B) gap_after(d, y + pay_for(B), cfg) - g
-      # The gap must be monotone in the budget for a root to mean "the least that reaches g".
-      grid <- seq(0, need_t, length.out = 41)
-      vals <- sapply(grid, f)
-      stopifnot(all(diff(vals) >= -1e-9 * max(1, abs(vals))))
-      B <- if (abs(f(need_t)) < 1e-12 * max(1, abs(g))) need_t else uniroot(f, c(0, need_t), tol = 1e-12, maxiter = 1000)$root
+      f <- function(B) gap_at(B) - g
+      if (!is.null(vals_v)) {
+        # The FIRST vertex at or above the goal brackets the least budget; inside that segment the
+        # gap is linear and rising, so the root is unique.
+        k <- which(vals_v >= g - 1e-12 * max(1, abs(g)))[1]
+        lo <- caps_v[k - 1]; hi <- caps_v[k]
+        B <- if (abs(f(hi)) < 1e-12 * max(1, abs(g))) hi else uniroot(f, c(lo, hi), tol = 1e-12, maxiter = 1000)$root
+      } else {
+        # The gap must be monotone in the budget for a root to mean "the least that reaches g".
+        grid <- seq(0, need_t, length.out = 41)
+        vals <- sapply(grid, f)
+        stopifnot(all(diff(vals) >= -1e-9 * max(1, abs(vals))))
+        B <- if (abs(f(need_t)) < 1e-12 * max(1, abs(g))) need_t else uniroot(f, c(0, need_t), tol = 1e-12, maxiter = 1000)$root
+      }
       state <- "reachable"; tcap <- B; tbudget <- B; reachable <- TRUE
     }
   }
@@ -220,6 +261,14 @@ make_schedule <- function(d, cfg, ln) {
     first_k = { idx <- which(isT & short > 1e-6); idx <- idx[order(d$.ordinal[idx])][seq_len(s$k)]; pay[idx] <- short[idx] },
     scaled = { idx <- which(isT & short > 1e-6); pay[idx] <- s$factor * short[idx] },
     to_upper = { idx <- which(isT & short > 1e-6); pay[idx] <- ln$upr[idx] - y[idx] + s$delta },
+    # Compared rows paid below the interval's lower bound (by more than a dollar) are raised to it,
+    # plus `delta` (negative: still short of it by that much). The edge cases of the one-cent
+    # tolerance on the LOWER side (C-07). An empty set would make the case vacuous.
+    to_lower = {
+      idx <- which(isT & (ln$lwr - y) > 1)
+      stopifnot(length(idx) > 0)
+      pay[idx] <- ln$lwr[idx] - y[idx] + s$delta
+    },
     both_groups = {
       it <- which(isT & short > 1e-6); pay[it] <- short[it]
       ir <- which(!isT & short > 1e-6); pay[ir] <- s$reference_factor * short[ir]
@@ -272,14 +321,14 @@ run_schedule <- function(cfg) {
 
 # ---- the cases ------------------------------------------------------------------------------------
 remedy <- function(fix, target = "Reference", strategy = "Greedy", range = "Midpoint", min_pct = 0,
-                   adjust_both = FALSE, budget = 0, spec = NULL, rows = TRUE) {
+                   adjust_both = FALSE, budget = 0, spec = NULL, rows = TRUE, level = 0.95) {
   cfg <- c(FIXTURES[[fix]], list(kind = "remedy", target = target, strategy = strategy, range = range,
                                  min_pct = min_pct, adjust_both = adjust_both, budget = budget,
-                                 target_gap_spec = spec, level = 0.95, rows = rows, overrides = list()))
+                                 target_gap_spec = spec, level = level, rows = rows, overrides = list()))
   cfg
 }
-schedule <- function(fix, target = "Reference", schedule, overrides = list(), rows = TRUE) {
-  c(FIXTURES[[fix]], list(kind = "schedule", target = target, schedule = schedule, level = 0.95, rows = rows,
+schedule <- function(fix, target = "Reference", schedule, overrides = list(), rows = TRUE, level = 0.95) {
+  c(FIXTURES[[fix]], list(kind = "schedule", target = target, schedule = schedule, level = level, rows = rows,
                           overrides = overrides))
 }
 frac <- function(v) list(kind = "frac", value = v)
@@ -336,6 +385,22 @@ CASES <- list(
   K_ref_both_cap            = remedy("K", adjust_both = TRUE, budget = 60000),
   K_pooled_greedy_half      = remedy("K", target = "Pooled", spec = frac(0.5)),
   K_pooled_both_full        = remedy("K", target = "Pooled", adjust_both = TRUE),
+  # ---- the interval level reaches the bound the remedy pays to (C-04) ----
+  F_ref_lower_level80       = remedy("F", range = "LowerBound", level = 0.80),
+  F_ref_lower_level80_half  = remedy("F", range = "LowerBound", level = 0.80, spec = frac(0.5)),
+  F_pooled_upper_level80    = remedy("F", target = "Pooled", range = "UpperBound", level = 0.80, budget = 40000),
+  # ---- a Pooled roster where paying the last row LOWERS the gap (C-01) ----
+  N_pooled_greedy_full      = remedy("N", target = "Pooled"),
+  N_pooled_greedy_best_minus100 = remedy("N", target = "Pooled", spec = list(kind = "best_plus", value = -100)),
+  N_pooled_greedy_best_minus1   = remedy("N", target = "Pooled", spec = list(kind = "best_plus", value = -1)),
+  N_pooled_greedy_best      = remedy("N", target = "Pooled", spec = frac(1.0)),
+  N_pooled_greedy_half      = remedy("N", target = "Pooled", spec = frac(0.5)),
+  N_pooled_greedy_unreachable = remedy("N", target = "Pooled", spec = list(kind = "best_plus", value = 100)),
+  N_pooled_greedy_cap_before_peak = remedy("N", target = "Pooled", budget = 8000),
+  N_pooled_greedy_cap_after_peak  = remedy("N", target = "Pooled", budget = 25000),
+  N_pooled_equitable_full   = remedy("N", target = "Pooled", strategy = "Equitable"),
+  N_pooled_equitable_best_minus100 = remedy("N", target = "Pooled", strategy = "Equitable", spec = list(kind = "best_plus", value = -100)),
+  N_ref_greedy_full         = remedy("N"),
   # ---- the 10,000-row employers roster (aggregates only) ----
   E_ref_greedy_full         = remedy("E", rows = FALSE),
   E_ref_greedy_to_zero      = remedy("E", spec = list(kind = "abs", value = 0), rows = FALSE),
@@ -348,6 +413,12 @@ SCHEDULES <- list(
   F_sched_generous_x3       = schedule("F", schedule = list(kind = "scaled", factor = 3)),
   F_sched_to_upper          = schedule("F", schedule = list(kind = "to_upper", delta = 0)),
   F_sched_over_upper        = schedule("F", schedule = list(kind = "to_upper", delta = 0.02)),
+  # The one-cent tolerance, either side of each edge (C-07): 0.005 is inside it, 0.015 is outside.
+  F_sched_upper_plus005     = schedule("F", schedule = list(kind = "to_upper", delta = 0.005)),
+  F_sched_upper_plus015     = schedule("F", schedule = list(kind = "to_upper", delta = 0.015)),
+  F_sched_lower_minus005    = schedule("F", schedule = list(kind = "to_lower", delta = -0.005)),
+  F_sched_lower_minus015    = schedule("F", schedule = list(kind = "to_lower", delta = -0.015)),
+  F_sched_lower_exact       = schedule("F", schedule = list(kind = "to_lower", delta = 0)),
   F_sched_both_groups       = schedule("F", schedule = list(kind = "both_groups", reference_factor = 0.5)),
   F_sched_both_groups_pooled = schedule("F", target = "Pooled", schedule = list(kind = "both_groups", reference_factor = 0.5)),
   F_sched_pooled_partial    = schedule("F", target = "Pooled", schedule = list(kind = "first_k", k = 20)),

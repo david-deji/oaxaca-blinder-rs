@@ -464,6 +464,7 @@ pub fn pooled_group_test(
     let t_statistic = beta[k] / standard_error;
     let p_value = two_sided_p(t_statistic, dof as f64);
     Some(GroupTest {
+        line: "Pooled",
         group_coefficient: beta[k],
         t_statistic,
         p_value,

@@ -526,11 +526,15 @@ fn validate_remedy_request(req: &OptimizationRequest) -> Result<(), String> {
 /// The remedy: raises each employee below the chosen pay line up to it, never above, within the
 /// budget, and reports what that costs and does to the group's gap (0122-MERIDIAN T13).
 ///
-/// No solver and no linear program. Every dollar to a compared employee closes the compared
-/// group's mean gap by the same amount, so for the amounts the screen states (pay each person
-/// below the line up to it, optionally under a cap) the cost is fixed by the gap reached; the
-/// strategy only decides who is paid first when the budget falls short. `target_gap` is therefore
-/// a rule for the budget, derived along the strategy's own order (see `TargetRule`).
+/// No solver and no linear program. On the reference line every dollar to a compared employee
+/// closes the compared group's mean gap by the same amount, so for the amounts the screen states
+/// (pay each person below the line up to it, optionally under a cap) the cost is fixed by the gap
+/// reached; the strategy only decides who is paid first when the budget falls short. On the pooled
+/// line a dollar moves the gap by a weight of its own, and a compared row far beyond the reference
+/// group's characteristics can carry a negative one, so paying it widens the gap. `target_gap` is
+/// therefore a rule for the budget, derived along the strategy's own order (see `TargetRule`):
+/// the least budget at which that path first reaches the gap, and `best_reachable_gap` is the
+/// path's highest point.
 ///
 /// Parallelization audit verdict: **SKIP** (engine-parallel-surface D1, entry point 2).
 /// One pass over the rows and one sort — nothing to fan out. No parallel site.
@@ -939,12 +943,62 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
         GroupSource::GroupB => weights.target[p.matrix_idx],
     };
 
-    // The gap after paying every eligible shortfall in full: the best this remedy can reach.
+    // The best this remedy can reach: the largest gap on the strategy's own path, and the budget
+    // at which the path gets there (`None`: at the end, once every shortfall is paid).
+    //
+    // On the reference line a dollar to a compared employee always raises the gap, so the end of
+    // the path is its peak. On the pooled line a compared employee's weight is the residual of the
+    // group indicator on the model columns, which is NEGATIVE for a compared row whose
+    // characteristics sit far beyond the reference group's: paying that row lowers the group's
+    // gap, so the path can peak before its end and the full schedule is not the best one
+    // (0122-MERIDIAN C-01). With reference raises on the path mixes two groups; nothing walks it
+    // (a group target is refused), and the figure is the gap after the full schedule.
     let mut full_payment_shift = 0.0;
     for p in potential_adjustments.iter().filter(|p| is_payable(p)) {
         full_payment_shift += weight_of(p) * p.diff;
     }
-    let best_reachable_gap = nz(unexplained_before + full_payment_shift);
+    let (best_reachable_gap, peak_budget): (f64, Option<f64>) = if adjust_both {
+        (nz(unexplained_before + full_payment_shift), None)
+    } else {
+        match strategy {
+            // Greedy: the gap is piecewise linear in the budget with a vertex after each paid
+            // row, so its largest value is at a vertex. A tie goes to the later vertex, which keeps
+            // a monotone path peaking at its end, summed in the order it is paid.
+            AllocationStrategy::Greedy => {
+                let payable: Vec<&PotentialAdj> = potential_adjustments
+                    .iter()
+                    .filter(|p| is_payable(p))
+                    .collect();
+                let mut shift = 0.0;
+                let mut spent = 0.0;
+                let mut peak_shift = 0.0;
+                // Budget 0 is the first vertex: when every dollar lowers the gap, it is the peak.
+                let mut peak_spent = if payable.is_empty() { None } else { Some(0.0) };
+                for (k, p) in payable.iter().enumerate() {
+                    shift += weight_of(p) * p.diff;
+                    spent += p.diff;
+                    if shift >= peak_shift {
+                        peak_shift = shift;
+                        peak_spent = if k + 1 == payable.len() {
+                            None
+                        } else {
+                            Some(spent)
+                        };
+                    }
+                }
+                (nz(unexplained_before + peak_shift), peak_spent)
+            }
+            // Equitable: every shortfall is paid the same share, so the gap is linear in the
+            // share and its peak is at share 0 or share 1.
+            AllocationStrategy::Equitable => {
+                if full_payment_shift >= 0.0 {
+                    (nz(unexplained_before + full_payment_shift), None)
+                } else {
+                    (nz(unexplained_before), Some(0.0))
+                }
+            }
+        }
+    };
 
     // ---- The budget rule (0122-MERIDIAN T1, F-01 to F-04) ----
     //
@@ -996,7 +1050,9 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
                             gap += rise;
                             spent += p.diff;
                         }
-                        found.unwrap_or(need_target)
+                        // Only float noise at `goal == best` can leave the walk without a
+                        // crossing; the goal is then met where the path peaks.
+                        found.unwrap_or(peak_budget.unwrap_or(need_target))
                     }
                     // Pooled line, Equitable: everyone is paid the same share of their shortfall
                     // and the gap is linear in that share.
@@ -1012,7 +1068,10 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
     let target_cap = match target_rule {
         TargetRule::AlreadyMet => Some(0.0),
         TargetRule::Reachable(b) => Some(b),
-        TargetRule::NoTarget | TargetRule::Unreachable => None,
+        // Out of reach: pay everything that raises the gap, which is every eligible shortfall
+        // unless some payment lowers it (pooled line, C-01), when the path stops at its peak.
+        TargetRule::Unreachable => peak_budget,
+        TargetRule::NoTarget => None,
     };
     // `budget == 0` is "no cap" (documented on the request); the target rule never reuses it.
     let user_cap = if req.budget > 0.0 {
@@ -1211,7 +1270,7 @@ pub fn optimize_inner(req: OptimizationRequest) -> Result<OptimizationResult, St
             (TargetRule::Unreachable, Some(goal)) => (
                 Some(false),
                 Some(nz(goal - best_reachable_gap)),
-                Some(need_target),
+                Some(nz(peak_budget.unwrap_or(need_target))),
             ),
         };
 
@@ -1273,6 +1332,25 @@ pub fn calculate_efficient_frontier_inner(
 ) -> Result<Vec<FrontierPoint>, String> {
     // Refuse a bad level before reading any data; every point echoes the level used.
     let confidence = support::resolve_confidence(req.confidence_level)?;
+
+    // The two numbers that shape the axis are refused by name, like the budget of `optimize`
+    // (0122-MERIDIAN C-02): a NaN or infinite last budget used to come back as a curve of nulls and
+    // a negative one as a lone baseline point, with only a warning on stderr.
+    if let Some(max_budget) = req.max_budget {
+        if !max_budget.is_finite() || max_budget < 0.0 {
+            return Err(format!(
+                "INVALID_BUDGET: max_budget={max_budget}; give the last budget on the axis as 0 or \
+                 more, or leave it out for the remedy's full cost"
+            ));
+        }
+    }
+    if req.steps == Some(0) {
+        return Err(
+            "INVALID_STEPS: steps=0; give the number of points after the baseline as 1 or more, \
+             or leave it out for 50"
+                .to_string(),
+        );
+    }
 
     // 1. Load Data
     let mut df = read_csv(&req.decomposition_params.csv_data)?;

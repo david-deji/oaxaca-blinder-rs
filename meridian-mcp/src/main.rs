@@ -626,7 +626,7 @@ async fn handle_protocol(req: JsonRpcRequest) -> Option<JsonRpcResponse> {
                 },
                 {
                     "name": "simulate_remediation",
-                    "description": "Cost a remedy. It raises each compared employee below the chosen pay line up to it, never above, within the budget; it is a scenario, not a payment schedule. strategy only decides who is paid first when the money falls short: Greedy pays the largest shortfalls first, Equitable pays every employee the same share of their own shortfall. target is Reference (the reference group's own pay line) or Pooled (the pooled line with a target-group indicator, the decomposition's Pooled line); the prediction interval, extrapolated flags and few_residual_df warning come from the same fit as the fair wage. Every gap in the result has one sign: the compared group's figure minus the line, negative while the group sits below it. target_gap derives the budget: the least that brings the compared group's mean gap to the pay line (same sign and scale as original_unexplained_gap) to that figure; the result says whether it was already met or out of reach (target_gap_reachable, best_reachable_gap, shortfall_to_target). new_unexplained_gap is the gap on the line REFITTED to the schedule's wages, so raising reference employees (adjust_both_groups) moves it. closure is the share of the compared group's need paid; unfunded_amount, unfunded_count and threshold_excluded_count say who is still below the line and why. Enumerated arguments are exact and case-sensitive; an unknown value is refused with UNKNOWN_TARGET, UNKNOWN_STRATEGY or UNKNOWN_RANGE_TARGET.",
+                    "description": "Cost a remedy. It raises each compared employee below the chosen pay line up to it, never above, within the budget; it is a scenario, not a payment schedule. strategy only decides who is paid first when the money falls short: Greedy pays the largest shortfalls first, Equitable pays every employee the same share of their own shortfall. target is Reference (the reference group's own pay line) or Pooled (the pooled line with a target-group indicator, the decomposition's Pooled line); the prediction interval, extrapolated flags and few_residual_df warning come from the same fit as the fair wage. Every gap in the result has one sign: the compared group's figure minus the line, negative while the group sits below it. target_gap derives the budget: the least that brings the compared group's mean gap to the pay line (same sign and scale as original_unexplained_gap) to that figure; the result says whether it was already met or out of reach (target_gap_reachable, best_reachable_gap, shortfall_to_target). new_unexplained_gap is the gap on the line REFITTED to the schedule's wages, so raising reference employees (adjust_both_groups) moves it. best_reachable_gap is the highest the gap gets as the budget grows. required_budget is the compared group's need to the chosen line and threshold (check_defensibility always reads the midpoint at threshold 0). closure is the share of the compared group's need paid; unfunded_amount, unfunded_count and threshold_excluded_count say who is still below the line and why. Enumerated arguments are exact and case-sensitive; an unknown value is refused with UNKNOWN_TARGET, UNKNOWN_STRATEGY or UNKNOWN_RANGE_TARGET.",
                     "inputSchema": {
                         "type": "object",
                         "properties": {
@@ -637,7 +637,7 @@ async fn handle_protocol(req: JsonRpcRequest) -> Option<JsonRpcResponse> {
                             "predictors": { "type": "array", "items": { "type": "string" } },
                             "categorical_predictors": { "type": "array", "items": { "type": "string" } },
                             "budget": { "type": "number", "description": "The most the remedy may spend in total, over every person paid. 0 means no cap: every eligible shortfall is paid in full. A negative or non-finite value is refused with INVALID_BUDGET." },
-                            "target_gap": { "type": "number", "description": "The compared group's mean gap to the pay line the remedy should reach, on the sign and scale of original_unexplained_gap (dollars per compared employee, negative while below the line); it is not the raw total_gap. Leave it out for no target. A figure already met pays nothing; one out of reach pays every eligible shortfall and says so. Refused with adjust_both_groups (TARGET_GAP_WITH_REFERENCE_RAISES) and when not finite (INVALID_TARGET_GAP)." },
+                            "target_gap": { "type": "number", "description": "The compared group's mean gap to the pay line the remedy should reach, on the sign and scale of original_unexplained_gap (dollars per compared employee, negative while below the line); it is not the raw total_gap. Leave it out for no target. A figure already met pays nothing; one out of reach pays up to the budget where the gap is highest, which is every eligible shortfall unless paying someone on the Pooled line widens the gap, and says so. Refused with adjust_both_groups (TARGET_GAP_WITH_REFERENCE_RAISES) and when not finite (INVALID_TARGET_GAP)." },
                             "target": { "type": "string", "enum": ["Reference", "Pooled"], "description": "The pay line the shortfalls are measured to. Default Reference." },
                             "strategy": { "type": "string", "enum": ["Greedy", "Equitable"], "description": "Who is paid first when the budget falls short. Default Greedy." },
                             "range_target": { "type": "string", "enum": ["Midpoint", "LowerBound", "UpperBound"], "description": "Pay each person up to the midpoint of the fair range or to its lower or upper bound. Applies to reference employees too when adjust_both_groups is on. Default Midpoint." },
@@ -679,7 +679,7 @@ async fn handle_protocol(req: JsonRpcRequest) -> Option<JsonRpcResponse> {
                 },
                 {
                     "name": "check_defensibility",
-                    "description": "Score each proposed adjustment against the 95% (or confidence_level) prediction range of comparable reference-group employees: the share of adjusted wages that land inside that range. Student t on the residual degrees of freedom of the fit the fair wage is read off: the reference regression (target Reference, default) or the pooled regression with a group indicator (target Pooled, the line the remedy priced against). Each row also says whether its fair wage extends the reference group's pay line beyond the range that group occupies (extrapolated), and where it sits against its range (range_position, range_position_before). position_counts counts every analysed compared employee below, inside and above their range before and after the schedule, a row the schedule does not name counting at adjustment 0; reference employees are in no count. group_test is the exact test of the compared group after the schedule (the pooled regression with a group indicator on the schedule's wages). Gaps carry the sign of simulate_remediation: compared minus the line, negative while below. Predictor overrides are supported.",
+                    "description": "Score each proposed adjustment against the 95% (or confidence_level) prediction range of comparable reference-group employees: the share of adjusted wages that land inside that range. Student t on the residual degrees of freedom of the fit the fair wage is read off: the reference regression (target Reference, default) or the pooled regression with a group indicator (target Pooled, the line the remedy priced against). Each row also says whether its fair wage extends the reference group's pay line beyond the range that group occupies (extrapolated), and where it sits against its range (range_position, range_position_before). position_counts counts every analysed compared employee below, inside and above their range before and after the schedule, a row the schedule does not name counting at adjustment 0; reference employees are in no count. group_test is the exact test of the compared group after the schedule (the pooled regression with a group indicator on the schedule's wages); it is always on the pooled line (group_test.line), so under target Reference its group_coefficient is not new_unexplained_gap, and the two can differ in sign. Gaps carry the sign of simulate_remediation: compared minus the line, negative while below. Predictor overrides are supported.",
                     "inputSchema": {
                         "type": "object",
                         "properties": {
@@ -717,7 +717,7 @@ async fn handle_protocol(req: JsonRpcRequest) -> Option<JsonRpcResponse> {
                             "group_variable": { "type": "string" },
                             "reference_group": { "type": "string" },
                             "predictors": { "type": "array", "items": { "type": "string" } },
-                            "confidence_level": { "type": "number", "description": "A point is significant when its p-value is below 1 minus this level. A fraction, not a percentage: a level outside 0.50-0.999 or not finite is refused with INVALID_CONFIDENCE_LEVEL; default 0.95. Each point echoes the level used as confidence_level." },
+                            "confidence_level": { "type": "number", "description": "A point is significant when its p-value is below 1 minus this level. A fraction, not a percentage: a level outside 0.50-0.999 or not finite is refused with INVALID_CONFIDENCE_LEVEL; default 0.95. Each point echoes the level used as confidence_level. With range_target LowerBound or UpperBound it is also the level of the interval the remedy pays to." },
                             "categorical_predictors": { "type": "array", "items": { "type": "string" } },
                             "target": { "type": "string", "enum": ["Reference", "Pooled"], "description": "The pay line the remedy is measured to. Default Reference." },
                             "strategy": { "type": "string", "enum": ["Greedy", "Equitable"], "description": "Who is paid first when the budget falls short. Default Greedy." },
@@ -1282,5 +1282,163 @@ mod tests {
             serde_json::from_str(ok["content"][0]["text"].as_str().unwrap()).unwrap();
         assert!(parsed["target_gap_reachable"].is_boolean());
         assert!(parsed["best_reachable_gap"].is_number());
+    }
+    // ---- 0122-MERIDIAN C-03 / C-04: a setting typed into a tool reaches the engine ----
+    //
+    // The enum test above proves a value is accepted or refused; it cannot see a value that is
+    // parsed and then dropped on the way to the request. Each setting is tried ALONE against the
+    // default call, on Fixture F (40 compared rows with shortfalls on a noisy line), and the
+    // result must change.
+
+    fn fixture_f_args(tool: &str, extra: Value) -> Value {
+        let mut a = json!({
+            "csv_content": include_str!("../../engine/tests/fixtures/0122-fixture-f-noisy.csv"),
+            "outcome_variable": "Salary",
+            "group_variable": "Gender",
+            "reference_group": "Male",
+            "predictors": ["Experience", "Level"],
+        });
+        if tool == "simulate_remediation" {
+            a["budget"] = json!(25000);
+        }
+        for (k, v) in extra.as_object().unwrap() {
+            a[k.as_str()] = v.clone();
+        }
+        a
+    }
+
+    async fn call_tool(tool: &str, extra: Value) -> Value {
+        let res = handle_tool_call(Some(
+            json!({ "name": tool, "arguments": fixture_f_args(tool, extra) }),
+        ))
+        .await
+        .unwrap_or_else(|e| panic!("{tool}: {e}"));
+        serde_json::from_str(res["content"][0]["text"].as_str().unwrap()).unwrap()
+    }
+
+    /// What a frontier curve is, for comparing two of them: its last budget and every coefficient.
+    fn curve_signature(curve: &Value) -> String {
+        let pts = curve.as_array().unwrap();
+        let coefficients: Vec<String> = pts
+            .iter()
+            .map(|p| format!("{:.6}", p["group_coefficient"].as_f64().unwrap()))
+            .collect();
+        format!(
+            "{:.6} {}",
+            pts.last().unwrap()["budget"].as_f64().unwrap(),
+            coefficients.join(",")
+        )
+    }
+
+    /// What a remedy is: its cost, its figures and every amount it pays.
+    fn remedy_signature(r: &Value) -> String {
+        let paid: Vec<String> = r["adjustments"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|a| format!("{:.4}", a["adjustment"].as_f64().unwrap()))
+            .collect();
+        format!(
+            "{:.6} {:.6} {:.6} {}",
+            r["total_cost"].as_f64().unwrap(),
+            r["new_unexplained_gap"].as_f64().unwrap(),
+            r["best_reachable_gap"].as_f64().unwrap(),
+            paid.join(",")
+        )
+    }
+
+    #[tokio::test]
+    async fn every_setting_of_the_frontier_tool_reaches_the_engine() {
+        let base = call_tool("generate_efficient_frontier", json!({})).await;
+        let base_sig = curve_signature(&base);
+        let settings = [
+            ("target", json!("Pooled")),
+            ("strategy", json!("Equitable")),
+            ("range_target", json!("UpperBound")),
+            ("range_target", json!("LowerBound")),
+            ("min_gap_pct", json!(0.05)),
+            ("adjust_both_groups", json!(true)),
+        ];
+        for (field, value) in settings {
+            let curve = call_tool(
+                "generate_efficient_frontier",
+                json!({ field: value.clone() }),
+            )
+            .await;
+            assert_ne!(
+                curve_signature(&curve),
+                base_sig,
+                "{field}={value} left the curve as the default"
+            );
+            // The curve ends where the same remedy, uncapped, stops spending.
+            let remedy = call_tool(
+                "simulate_remediation",
+                json!({ field: value.clone(), "budget": 0 }),
+            )
+            .await;
+            let last = curve.as_array().unwrap().last().unwrap()["budget"]
+                .as_f64()
+                .unwrap();
+            let cost = remedy["total_cost"].as_f64().unwrap();
+            assert!(
+                (last - cost).abs() < 1e-6 * cost.max(1.0),
+                "{field}={value}: the curve ends at {last} but the remedy costs {cost}"
+            );
+        }
+        // The level sets the interval a bound is read from, not only the significance threshold.
+        let lower = call_tool(
+            "generate_efficient_frontier",
+            json!({ "range_target": "LowerBound" }),
+        )
+        .await;
+        let lower_80 = call_tool(
+            "generate_efficient_frontier",
+            json!({ "range_target": "LowerBound", "confidence_level": 0.80 }),
+        )
+        .await;
+        assert_ne!(curve_signature(&lower), curve_signature(&lower_80));
+        let remedy_80 = call_tool(
+            "simulate_remediation",
+            json!({ "range_target": "LowerBound", "confidence_level": 0.80, "budget": 0 }),
+        )
+        .await;
+        let last = lower_80.as_array().unwrap().last().unwrap()["budget"]
+            .as_f64()
+            .unwrap();
+        assert!((last - remedy_80["total_cost"].as_f64().unwrap()).abs() < 1e-6 * last);
+    }
+
+    #[tokio::test]
+    async fn every_setting_of_the_remedy_tool_reaches_the_engine() {
+        let base = remedy_signature(&call_tool("simulate_remediation", json!({})).await);
+        let settings = [
+            ("budget", json!(10000)),
+            ("target_gap", json!(-800.0)),
+            ("target", json!("Pooled")),
+            ("strategy", json!("Equitable")),
+            ("range_target", json!("UpperBound")),
+            ("min_gap_pct", json!(0.05)),
+            ("forensic_mode", json!(true)),
+            ("adjust_both_groups", json!(true)),
+        ];
+        for (field, value) in settings {
+            let r = call_tool("simulate_remediation", json!({ field: value.clone() })).await;
+            assert_ne!(
+                remedy_signature(&r),
+                base,
+                "{field}={value} left the remedy as the default"
+            );
+        }
+        let lower = call_tool(
+            "simulate_remediation",
+            json!({ "range_target": "LowerBound", "budget": 0 }),
+        )
+        .await;
+        let lower_80 = call_tool(
+            "simulate_remediation",
+            json!({ "range_target": "LowerBound", "confidence_level": 0.80, "budget": 0 }),
+        )
+        .await;
+        assert_ne!(remedy_signature(&lower), remedy_signature(&lower_80));
     }
 }

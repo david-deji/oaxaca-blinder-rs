@@ -14,12 +14,17 @@
   `new_unexplained_gap`; it equals R `lm` refitted on the adjusted wages to 1e-6 on 62 cases. On the probe roster the
   compared group's remaining gap was +2,103 and is -434.
 - **`required_budget` is the compared group's need in both entry points**, and `total_cost` stays the money spent on
-  both groups. New: `cost_target`, `cost_reference`, `need_target`, `need_reference` (optimise), `target_line`.
-- **`target_gap` is read.** It is a rule for the budget (no solver: for these amounts every dollar to a compared
-  employee moves the compared group's gap the same way, so the cost of a gap is fixed), on the sign and scale of
-  `original_unexplained_gap`. Already met pays nothing (a budget of 0 used to read as "no cap" and paid the full need);
-  out of reach pays every eligible shortfall and reports `target_gap_reachable: false`, `best_reachable_gap` and
-  `shortfall_to_target`. Under `Pooled` the budget is found along the strategy's own order. New result fields:
+  both groups. It is the same figure in both on the default basis (midpoint line, threshold 0); `optimize` honours
+  `range_target` and `min_gap_pct`, `check_defensibility` always reads the midpoint at threshold 0 (`target_line`), so
+  they differ when either is set (a 4 % threshold on the probe roster: 16,884 against 19,607). New: `cost_target`, `cost_reference`, `need_target`, `need_reference` (optimise), `target_line`.
+- **`target_gap` is read.** It is a rule for the budget (no solver: on the reference line every dollar to a compared
+  employee moves the compared group's gap by the same amount, so the cost of a gap is fixed; on the pooled line a dollar
+  moves it by a weight of its own, which is NEGATIVE for a compared employee far beyond the reference group's
+  characteristics), on the sign and scale of `original_unexplained_gap`. Already met pays nothing (a budget of 0 used to
+  read as "no cap" and paid the full need); out of reach pays every eligible shortfall, or on a pooled roster where paying
+  someone widens the gap, up to the budget where the gap is highest, and reports `target_gap_reachable: false`,
+  `best_reachable_gap` (the highest the gap gets as the budget grows) and `shortfall_to_target`. Under `Pooled` the
+  budget is found along the strategy's own order, at the first point the path reaches the target. New result fields:
   `best_reachable_gap`, `target_gap_reachable`, `shortfall_to_target`, `target_budget`, `budget_binding`,
   `unfunded_amount`, `unfunded_count`, `threshold_excluded_count`, `closure` (share of the compared group's need paid,
   0 to 1, monotone in the spend), `overshoot_mean`. Field definitions: `docs/DIAGNOSTICS.md`.
@@ -36,15 +41,21 @@
   analysed compared employee, before and after (an unnamed row counts at adjustment 0, so a partial schedule cannot
   hide the people it left out; reference employees are in no count), and `group_test`: the exact pooled-indicator test
   on the schedule's wages (closes the "not built" note of 0120 T8; equal to the frontier at equal budget and to R `lm`).
+  `group_test.line` is always `"Pooled"`: under `target: Reference` its `group_coefficient` is the group's gap on the
+  pooled line, not `new_unexplained_gap` (the reference line), and the two can differ in sign.
 - **The frontier follows the remedy.** `EfficientFrontierRequest` gains `strategy`, `target`, `range_target`,
   `min_gap_pct`, `adjust_both_groups` (absent: the only remedy it could describe before). `Equitable` is recomputed per
   step (the sweep is nested only for `Greedy`) and ties are paid in `optimize`'s order. The default budget axis ends at
-  the remedy's full cost instead of 1.1 times it.
+  the remedy's full cost instead of 1.1 times it. The frontier's `confidence_level` is also the level of the interval a
+  `LowerBound` / `UpperBound` remedy pays to (at 0.80 the lower bound is higher, so the axis ends further out). A
+  negative or non-finite `max_budget` is refused (`INVALID_BUDGET`) and `steps: 0` too (`INVALID_STEPS`); both used to
+  return a curve of nulls or a lone baseline point.
 - **MCP:** `simulate_remediation`, `check_defensibility` and `generate_efficient_frontier` refuse an unknown `target`,
   `strategy` or `range_target` by name (`UNKNOWN_TARGET`, `UNKNOWN_STRATEGY`, `UNKNOWN_RANGE_TARGET`); a misspelt
   `"equitable"` used to run Greedy. The schemas list every field and say what the amounts do.
 - **Library:** `OaxacaResults::optimize_budget` is `#[deprecated]` (two allocators with opposite group conventions; its
-  `target_gap` is the raw `total_gap`); the READMEs no longer sell it as a solver. Stale solver text removed from
+  `target_gap` is the raw `total_gap`; a non-finite `budget` or `target_gap` now pays nothing, a NaN budget used to fund
+  the full need); the READMEs no longer sell it as a solver. Stale solver text removed from
   `ARCHITECTURE.md`, `CLAUDE.md`. The engine enums `OptimizationTarget`, `AllocationStrategy` and `RangeTarget` now
   derive `Serialize`, `Clone`, `Copy` and `PartialEq`.
 - Result serialisation: an empty sum no longer serialises as `-0.0`.

@@ -197,6 +197,133 @@ fn a_cap_below_the_budget_the_target_asks_for_binds() {
     assert_eq!(r.budget_binding, Some(false), "9000 exceeds the 5000 need");
 }
 
+// ---- a pooled roster where paying someone LOWERS the gap (0122-MERIDIAN C-01) ---------------------
+//
+// `0122-remedy-nonmonotone.csv`: ten reference rows at x 0..9 on a noisy line, five compared rows,
+// one of them at x = 42, far beyond the reference group. On the pooled line that row's weight is
+// negative (-0.126), and it is the smallest shortfall, so Greedy pays it LAST: the gap climbs to
+// 723 at a spend of 23 404 and then falls to 161 when the last row is paid. The numbers in the
+// R oracle (`N_pooled_*`) were refitted with `lm`; the sweep here needs none.
+
+fn nonmonotone(edit: &dyn Fn(&mut OptimizationRequest)) -> OptimizationResult {
+    let mut req = OptimizationRequest {
+        csv_data: std::fs::read(root().join("engine/tests/fixtures/0122-remedy-nonmonotone.csv"))
+            .unwrap(),
+        outcome_variable: "wage".into(),
+        group_variable: "group".into(),
+        reference_group: "R".into(),
+        predictors: vec!["x".into()],
+        categorical_predictors: None,
+        budget: 0.0,
+        target_gap: None,
+        target: Some(OptimizationTarget::Pooled),
+        strategy: Some(AllocationStrategy::Greedy),
+        min_gap_pct: Some(0.0),
+        forensic_mode: Some(false),
+        adjust_both_groups: Some(false),
+        confidence_level: Some(0.95),
+        range_target: Some(RangeTarget::Midpoint),
+    };
+    edit(&mut req);
+    optimize_inner(req).unwrap()
+}
+
+#[test]
+fn the_best_reachable_gap_is_the_highest_the_gap_gets_not_where_it_ends() {
+    let full = nonmonotone(&|_| {});
+    let best = full.best_reachable_gap.unwrap();
+    // The roster really is non-monotone: paying the last row costs the group 560 dollars of gap.
+    assert!(
+        best > full.new_unexplained_gap + 400.0,
+        "best {best} vs the gap after paying everything {}",
+        full.new_unexplained_gap
+    );
+    // Sweep the cap: no budget does better than `best`, and some budget gets within a dollar of it.
+    let need = full.required_budget;
+    let mut highest = f64::NEG_INFINITY;
+    let mut steps = 0;
+    let mut cap = 100.0;
+    while cap < need * 1.05 {
+        let r = nonmonotone(&|r| r.budget = cap);
+        highest = highest.max(r.new_unexplained_gap);
+        assert!(
+            r.new_unexplained_gap <= best + 1e-6,
+            "cap {cap}: the gap reaches {} above best_reachable_gap {best}",
+            r.new_unexplained_gap
+        );
+        cap += 100.0;
+        steps += 1;
+    }
+    assert!(steps > 200);
+    assert!(
+        best - highest < 2.0,
+        "no swept budget gets near best: best {best}, highest {highest}"
+    );
+}
+
+#[test]
+fn a_target_between_the_end_of_the_path_and_its_peak_is_reachable_and_costs_less_than_the_need() {
+    let full = nonmonotone(&|_| {});
+    let best = full.best_reachable_gap.unwrap();
+    let end = full.new_unexplained_gap;
+    // Above where the full schedule ends, below the peak: the old rule called it unreachable.
+    for target in [end + 10.0, (best + end) / 2.0, best - 100.0, best - 1.0] {
+        let r = nonmonotone(&|r| r.target_gap = Some(target));
+        assert_eq!(r.target_gap_reachable, Some(true), "target {target}");
+        assert!(
+            (r.new_unexplained_gap - target).abs() < 1e-6,
+            "target {target}: the schedule ends at {}",
+            r.new_unexplained_gap
+        );
+        assert!(
+            r.total_cost < full.required_budget - 1000.0,
+            "target {target}: it costs {} of a {} need",
+            r.total_cost,
+            full.required_budget
+        );
+        assert!(near(r.target_budget.unwrap(), r.total_cost));
+        // It is the LEAST budget: a cent less leaves the gap below the target.
+        let less = nonmonotone(&|q| {
+            q.target_gap = Some(target);
+            q.budget = r.total_cost - 0.01;
+        });
+        assert!(less.new_unexplained_gap < target, "target {target}");
+    }
+}
+
+#[test]
+fn a_target_above_the_peak_pays_up_to_the_peak_and_stops_there() {
+    let full = nonmonotone(&|_| {});
+    let best = full.best_reachable_gap.unwrap();
+    let r = nonmonotone(&|r| r.target_gap = Some(best + 100.0));
+    assert_eq!(r.target_gap_reachable, Some(false));
+    assert!(near(r.shortfall_to_target.unwrap(), 100.0));
+    // The schedule reaches the best the remedy can, which is not the schedule that pays everything.
+    assert!(
+        (r.new_unexplained_gap - best).abs() < 1e-6,
+        "ends at {} but best is {best}",
+        r.new_unexplained_gap
+    );
+    assert!(r.total_cost < full.required_budget - 1000.0);
+    assert!(near(r.target_budget.unwrap(), r.total_cost));
+    // On a roster where every payment raises the gap, an unreachable target still pays everything.
+    let tiny_far = tiny(&|r| r.target_gap = Some(500.0)).unwrap();
+    assert!(near(tiny_far.total_cost, tiny_far.required_budget));
+}
+
+#[test]
+fn equitable_on_the_same_roster_peaks_at_full_payment() {
+    // Everyone is paid the same share, so the gap is a straight line in the share: -5571 at 0 and
+    // +161 at 1. The peak is the end, and a target in between costs the matching share.
+    let r = nonmonotone(&|r| r.strategy = Some(AllocationStrategy::Equitable));
+    assert!(near(r.best_reachable_gap.unwrap(), r.new_unexplained_gap));
+    let half = nonmonotone(&|q| {
+        q.strategy = Some(AllocationStrategy::Equitable);
+        q.target_gap = Some((r.original_unexplained_gap + r.new_unexplained_gap) / 2.0);
+    });
+    assert!(near(half.total_cost, r.total_cost / 2.0));
+}
+
 // ---- brute force ---------------------------------------------------------------------------------
 
 fn sha256_file(path: &PathBuf) -> String {
@@ -652,7 +779,59 @@ fn optimize_and_check_defensibility_report_one_set_of_figures_for_one_schedule()
         if both && budget == 0.0 {
             assert!(d.cost_reference > 0.0, "{label}");
         }
+        // The group test is always read on the pooled line, and says so on the wire (S-01). Under
+        // `Pooled` it is the same figure as the gap; under `Reference` the two are on different
+        // lines and are not.
+        let test = d.group_test.as_ref().unwrap();
+        assert_eq!(test.line, "Pooled", "{label}");
+        assert_eq!(
+            serde_json::to_value(&d).unwrap()["group_test"]["line"],
+            "Pooled",
+            "{label}: the line is on the wire"
+        );
+        let apart = (test.group_coefficient - d.new_unexplained_gap).abs();
+        match target {
+            OptimizationTarget::Pooled => assert!(apart < 1e-6, "{label}: {apart}"),
+            OptimizationTarget::Reference => {
+                assert!(apart > 0.05, "{label}: the two lines read alike ({apart})")
+            }
+        }
     }
+}
+
+#[test]
+fn required_budget_is_one_figure_only_on_the_default_basis() {
+    // C-05 / S-04. `optimize` prices the line and the threshold the request names;
+    // `check_defensibility` always prices the midpoint at threshold 0. Same figure by default,
+    // another when a threshold or a bound is set, and `target_line` says which one was read.
+    let check = |o: &OptimizationResult| {
+        check_defensibility_on(
+            VerificationRequest {
+                decomposition_params: engine_requests::decomposition_request(
+                    FixtureF::noisy().csv_bytes(),
+                    false,
+                ),
+                adjustments: as_schedule(o),
+                confidence_level: None,
+            },
+            &OptimizationTarget::Reference,
+        )
+        .unwrap()
+    };
+    let plain = run_noisy(&|_| {});
+    assert!(near(plain.required_budget, check(&plain).required_budget));
+    let threshold = run_noisy(&|r| r.min_gap_pct = Some(0.04));
+    let d = check(&threshold);
+    assert!(
+        threshold.required_budget < d.required_budget - 1000.0,
+        "a 4 % threshold leaves people out of the need: {} vs {}",
+        threshold.required_budget,
+        d.required_budget
+    );
+    assert_eq!(d.target_line, RangeTarget::Midpoint);
+    let lower = run_noisy(&|r| r.range_target = Some(RangeTarget::LowerBound));
+    assert_eq!(lower.target_line, RangeTarget::LowerBound);
+    assert!(lower.required_budget < check(&lower).required_budget - 1000.0);
 }
 
 #[test]
@@ -730,19 +909,49 @@ fn a_group_paid_below_the_line_reads_negative_and_rises_with_money() {
 
 // ---- D5: no statute is cited on a remedy surface -------------------------------------------------------
 
-#[test]
-fn no_remedy_text_cites_a_pay_equity_act_article() {
-    // This remedy is not the legislated Quebec pay equity exercise (0122 D5): no article of the
-    // Act is cited on any remedy surface, and nothing presents a scenario as a statutory schedule.
-    let files = [
-        "engine/src/types.rs",
-        "engine/src/analysis.rs",
-        "engine/src/defensibility.rs",
-        "engine/src/support.rs",
-        "meridian-mcp/src/main.rs",
+/// Every file a remedy sentence can live in: the engine, the MCP server and the library sources,
+/// and every shipped document (the changelog, the READMEs, the architecture notes, the API and
+/// diagnostics references). The research notes, the audit trail and the build scratch directories
+/// are history, not a surface.
+fn remedy_text_files() -> Vec<PathBuf> {
+    fn walk(dir: &std::path::Path, ext: &str, out: &mut Vec<PathBuf>) {
+        for entry in std::fs::read_dir(dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                walk(&path, ext, out);
+            } else if path.extension().is_some_and(|e| e == ext) {
+                out.push(path);
+            }
+        }
+    }
+    let mut files = Vec::new();
+    for dir in ["engine/src", "meridian-mcp/src", "oaxaca_blinder/src"] {
+        walk(&root().join(dir), "rs", &mut files);
+    }
+    for doc in [
+        "CHANGELOG.md",
+        "README.md",
+        "ARCHITECTURE.md",
+        "CLAUDE.md",
+        "oaxaca_blinder/README.md",
         "docs/API.md",
         "docs/DIAGNOSTICS.md",
-    ];
+        "docs/README.md",
+    ] {
+        files.push(root().join(doc));
+    }
+    for readme in ["engine/README.md", "meridian-mcp/README.md"] {
+        if root().join(readme).exists() {
+            files.push(root().join(readme));
+        }
+    }
+    files
+}
+
+/// Statute citations in `text` (already lower-cased): a named Act, its number in the consolidated
+/// statutes, `l.r.q.`, an `art.` / `article` followed by a number anywhere, and a `section` / `s.`
+/// followed by a number on a line that is talking about legislation.
+fn statute_citations(text: &str) -> Vec<String> {
     let banned = [
         "pay equity act",
         "loi sur l'équité",
@@ -750,35 +959,97 @@ fn no_remedy_text_cites_a_pay_equity_act_article() {
         "équité salariale",
         "equite salariale",
         "e-12.001",
+        "l.r.q",
+        "rlrq",
     ];
-    for f in files {
-        let text = std::fs::read_to_string(root().join(f))
-            .unwrap()
-            .to_lowercase();
-        for b in banned {
-            assert!(!text.contains(b), "{f} mentions `{b}`");
-        }
-        // "art. 70", "art 73", "article 69": a preceding letter means a word ending in "art" ("start.").
-        let bytes: Vec<char> = text.chars().collect();
-        for (i, _) in text.match_indices("art") {
-            let prev_is_letter = text[..i].chars().last().is_some_and(|c| c.is_alphabetic());
-            if prev_is_letter {
-                continue;
+    let mut found: Vec<String> = banned
+        .iter()
+        .filter(|b| text.contains(*b))
+        .map(|b| format!("`{b}`"))
+        .collect();
+    let leads_to_number = |after: &str| {
+        let after = after
+            .trim_start_matches("icles")
+            .trim_start_matches("icle")
+            .trim_start_matches("tion")
+            .trim_start_matches('.')
+            .trim_start();
+        after.chars().next().is_some_and(|c| c.is_ascii_digit())
+    };
+    for line in text.lines() {
+        let padded = format!(" {line} ");
+        let about_law = [
+            "equity", "équité", "equite", "statut", "législ", "legislat", " act ", "loi ", "l'act",
+        ]
+        .iter()
+        .any(|w| padded.contains(w));
+        let chars: Vec<char> = line.chars().collect();
+        for (word, needs_law) in [("art", false), ("section", true), ("s.", true)] {
+            for (i, _) in line.match_indices(word) {
+                let before = line[..i].chars().last();
+                // `start.` is not `art.`; `class. 3` is not `s. 3`.
+                if before.is_some_and(|c| c.is_alphanumeric()) {
+                    continue;
+                }
+                if needs_law && !about_law {
+                    continue;
+                }
+                let skip = line[..i].chars().count() + word.chars().count();
+                let rest: String = chars.iter().skip(skip).take(12).collect();
+                if leads_to_number(&rest) {
+                    found.push(format!("`{}{}`", word, rest.trim_end()));
+                }
             }
-            let rest: String = bytes
-                .iter()
-                .skip(text[..i].chars().count() + 3)
-                .take(10)
-                .collect();
-            let rest = rest
-                .trim_start_matches("icle")
-                .trim_start_matches('.')
-                .trim_start();
-            assert!(
-                !rest.chars().next().is_some_and(|c| c.is_ascii_digit()),
-                "{f} cites an article near `art{rest}`"
-            );
         }
+    }
+    found
+}
+
+#[test]
+fn no_remedy_text_cites_a_pay_equity_act_article() {
+    // This remedy is not the legislated Quebec pay equity exercise (0122 D5): no article of the
+    // Act is cited on any remedy surface, and nothing presents a scenario as a statutory schedule.
+    let files = remedy_text_files();
+    assert!(
+        files.len() > 15,
+        "the scan reads every source and shipped document"
+    );
+    for f in &files {
+        let text = std::fs::read_to_string(f).unwrap().to_lowercase();
+        let found = statute_citations(&text);
+        assert!(found.is_empty(), "{} cites {:?}", f.display(), found);
+    }
+}
+
+#[test]
+fn the_statute_scan_catches_each_way_of_citing_one() {
+    // The scan can fail: each citation form is caught, each innocent look-alike is not.
+    for cited in [
+        "see art. 70 of the act",
+        "article 73 applies",
+        "per the pay equity act",
+        "la loi sur l'équité salariale",
+        "section 73 of the pay equity legislation",
+        "s. 70 of the act",
+        "l.r.q., c. e-12.001",
+    ] {
+        assert!(
+            !statute_citations(cited).is_empty(),
+            "`{cited}` was not caught"
+        );
+    }
+    for innocent in [
+        "start. 3 rows later",
+        "the normalised difference exceeds 0.25 (imbens and rubin 2015, section 14.2)",
+        "see section 3 of this guide",
+        "classes. 4 of them",
+        "article id column",
+    ] {
+        assert!(
+            statute_citations(innocent).is_empty(),
+            "`{innocent}` was caught: {:?}",
+            statute_citations(innocent)
+        );
     }
 }
 
