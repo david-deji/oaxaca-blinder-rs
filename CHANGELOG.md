@@ -109,8 +109,10 @@ Engine and MCP server (results Meridian reads):
   value. In the case that exposed it, 36 of 39 paid rows were more than 1 dollar off.
 - **Remedy eligibility changed** for runs that used `adjust_both_groups` or `min_gap_pct`.
 - **The efficient frontier with no budget** no longer invents a budget of 1000; it returns one zero-budget point and a
-  warning. Its default budget axis ends at the remedy's full cost, not 1.1 times it, and `Equitable` is recomputed at
-  each step.
+  warning.
+- **The frontier follows the remedy.** Its default budget axis ends at the remedy's full cost, not 1.1 times it;
+  `Equitable` is recomputed at each step; ties are paid in `optimize`'s order; and `confidence_level` also sets the
+  interval a `LowerBound` or `UpperBound` remedy pays to.
 - **`check_defensibility` gaps flip sign.** `original_gap`, `new_gap`, `original_unexplained_gap` and
   `new_unexplained_gap` are the compared group's figure minus the line: negative while the compared group is
   underpaid, rising with money paid. A consumer that negated them must stop.
@@ -172,6 +174,11 @@ Engine and MCP server, a first contract for Meridian:
 - Error codes by name: `INVALID_BUDGET`, `INVALID_TARGET_GAP`, `INVALID_MIN_GAP_PCT`, `INVALID_CONFIDENCE_LEVEL`,
   `INVALID_STEPS`, `TARGET_GAP_WITH_REFERENCE_RAISES`, `UNKNOWN_TARGET`, `UNKNOWN_STRATEGY`,
   `UNKNOWN_RANGE_TARGET`, `INSUFFICIENT_RESIDUAL_DF`, `WEIGHTS_KIND_REQUIRED`, `INVALID_WEIGHT`.
+- Stable row keys: a row's key comes from its content, and a row-counter column (`No.`, an employee id running 1 to N)
+  is left out, so a re-export with an inserted row keeps every annotation on its employee.
+- A snapshot diff for weekly HRIS extracts, as a WASM session that holds the previous week compactly: about 520 MB for
+  a 130,000-row, 120-column week against about 1,370 MB for the JavaScript version it replaces. The diff itself is about
+  twice as slow.
 - Two WASM builds, sequential and threaded (Rayon on web workers), each with its SHA-256 committed. The build recipe
   is reproducible, and a browser test compares the threaded build with the native result.
 - `engine_version`, `reference_coefficients_used` and `method` are stamped into `run_metadata`.
@@ -186,7 +193,8 @@ Project:
   templates and a pull request template.
 - A release workflow (see "Release process").
 - Oracles in `verification/` that check results against R `lm` and `predict.lm`, `oaxaca` 0.1.5, `ddecompose` 1.0.0,
-  `quantreg` and `Hmisc`, with the SHA-256 of each generator and fixture checked when the tests load them.
+  `quantreg` and `Hmisc`, with the SHA-256 of each generator and fixture checked when the tests load them. Bootstrap
+  standard errors equal R's to 12 digits on shared resamples.
 
 ### Changed
 
@@ -206,6 +214,8 @@ Project:
 - Loop records moved from the repository root into `records/`. Files that were never part of a crate are gone from the
   tree: IDE and agent folders, editor backups, a saved web page named `Roboto-Regular.ttf`, an unused copy of the `cc`
   crate, and scratch files.
+- Test-only parts and fixes from the pull requests triaged in October 2026 (#70, #73, #80, #84, and parts of #87, #88,
+  #90, #91 and #95) are in.
 - CI: every action is pinned to a commit, every cargo command takes `--locked`, one `gate` check needs every gating
   job, and `scripts/check-ci-invariants.py` refuses a workflow that could silence itself.
 
@@ -234,6 +244,8 @@ Project:
   (`INSUFFICIENT_RESIDUAL_DF`); AKM convergence errors surface; nulls are no longer read as 0.0 in the AKM and quantile
   paths.
 - Numeric and `unwrap` panics in the library; header-parse panics and poisoned-lock handling in the MCP server.
+- RIF quantile decomposition fails with a message when a group has fewer than 2 rows. It returned the raw series as its
+  own RIF.
 - Documentation: the READMEs no longer show code that does not compile, name the wrong version, or describe Python
   bindings.
 
@@ -243,6 +255,7 @@ Project:
   has tightened CORS, and rate-limits the event stream.
 - Lockfile updates: `rand` 0.8.7, `rustls-webpki`, `quinn-proto` 0.11.18 and `rustls` 0.23.46. Neither `quinn-proto`
   nor `rustls` is compiled into a shipped binary or the WASM engine.
+- An unsafe pointer cast between Polars versions is gone with the Python binding.
 - `SECURITY.md` describes how to report a vulnerability.
 
 ### Known issues
