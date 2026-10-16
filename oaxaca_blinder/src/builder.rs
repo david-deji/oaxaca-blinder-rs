@@ -118,6 +118,23 @@ fn weight_values(df: &DataFrame, col: &str) -> Result<Float64Chunked, OaxacaErro
     Ok(cast.f64()?.clone())
 }
 
+/// `df` with each named integer column cast to `Float64`. A column that is already a float, is not
+/// numeric, or is absent is left as it is, so the caller's own error for it is unchanged.
+pub(crate) fn widen_integer_columns(
+    df: &DataFrame,
+    names: &[&str],
+) -> Result<DataFrame, OaxacaError> {
+    let mut out = df.clone();
+    for name in names {
+        let converted = match out.column(name) {
+            Ok(column) if column.dtype().is_integer() => column.cast(&DataType::Float64)?,
+            _ => continue,
+        };
+        out.with_column(converted)?;
+    }
+    Ok(out)
+}
+
 /// Temporary row-position column used to name a rejected weight when the frame carries no
 /// ordinal column. Never survives `clean_dataframe`.
 const WEIGHT_POS_COL: &str = "__ob_weight_pos__";
@@ -1401,6 +1418,7 @@ impl OaxacaBuilder {
         // `unit_rng(master, Bootstrap, rep*2 [+1])` streams keeps determinism.
         // 0118-MERIDIAN S2: refuse a third group value on the RAW frame, before any cleaning.
         self.check_group_values()?;
+        self.check_selection_scheme()?;
         let df_dirty = self.dataframe.clone();
         let mut df = self.clean_dataframe(&df_dirty)?;
 
@@ -1615,6 +1633,14 @@ impl OaxacaBuilder {
             }
         }
 
+        // A whole-number outcome (a CSV of salaries written `45600`) is read by polars as an
+        // integer column. Every path that reads the outcome goes through here, so the cast is
+        // made once, here, and the estimation code can keep asking for Float64.
+        let mut float_cols = vec![self.outcome.as_str()];
+        float_cols.extend(self.selection_outcome.as_deref());
+        let widened = widen_integer_columns(df, &float_cols)?;
+        let df = &widened;
+
         let Some(w_col) = &self.weights_col else {
             let clean_df = df
                 .drop_nulls(Some(&cols))
@@ -1674,10 +1700,33 @@ impl OaxacaBuilder {
         Ok(ca.into_no_null_iter().map(|v| v as usize).collect())
     }
 
+    /// A Heckman selection model has no pooled regression to price against. Refused up front, by name, rather than
+    /// failing later on a matrix of the wrong size.
+    #[allow(deprecated)]
+    fn check_selection_scheme(&self) -> Result<(), OaxacaError> {
+        if self.selection_outcome.is_none() {
+            return Ok(());
+        }
+        let with = match self.reference_coeffs {
+            ReferenceCoefficients::Pooled => "Pooled",
+            ReferenceCoefficients::Neumark => "Neumark",
+            ReferenceCoefficients::PooledNoIndicator => "PooledNoIndicator",
+            _ => return Ok(()),
+        };
+        Err(OaxacaError::UnsupportedCombination {
+            option: "heckman_selection".to_string(),
+            with: with.to_string(),
+            supported: ["GroupA", "GroupB", "Weighted", "Cotton"]
+                .map(String::from)
+                .to_vec(),
+        })
+    }
+
     /// Executes the Oaxaca-Blinder decomposition.
     pub fn run(&self) -> Result<OaxacaResults, OaxacaError> {
         // 0118-MERIDIAN S2: refuse a third group value on the RAW frame, before any cleaning.
         self.check_group_values()?;
+        self.check_selection_scheme()?;
         let df_dirty = self.dataframe.clone();
         let mut df = self.clean_dataframe(&df_dirty)?;
 

@@ -30,11 +30,11 @@ Library, relative to 0.2.2:
 | Default reference coefficients | `GroupA` (the 0.2.2 setter's documentation said `GroupB`, the code used `GroupA`; the 0.2.2 command line already defaulted to `group-b`) | `GroupB`. Call `.reference_coefficients(ReferenceCoefficients::GroupA)` to keep the old numbers. |
 | `OaxacaResults::explained()` and `unexplained()` | returned `&ComponentResult` | return `Option<&ComponentResult>`; call `.expect(..)` or match |
 | `OaxacaResults` | no `run_metadata` field | has a public `run_metadata` field; struct literals and exhaustive destructuring need `..` |
-| `OaxacaError` | 0.2.2 variants | 8 more: `InsufficientData`, `EmptyLevelInGroup`, `TooManyGroupValues`, `ReferenceGroupAbsent`, `UnknownReferenceCoefficients`, `NormalizationError`, `WeightsKindRequired`, `InvalidWeight` |
+| `OaxacaError` | 0.2.2 variants | 9 more: `InsufficientData`, `EmptyLevelInGroup`, `TooManyGroupValues`, `ReferenceGroupAbsent`, `UnknownReferenceCoefficients`, `NormalizationError`, `WeightsKindRequired`, `InvalidWeight`, `UnsupportedCombination` |
 | `OaxacaError`, `ReferenceCoefficients`, `WeightsKind`, `NormalizationConvention`, `ExclusionReason` | exhaustive | `#[non_exhaustive]`; a `match` from another crate needs a `_` arm |
 | `ReferenceCoefficients` | no `PooledNoIndicator` | has `PooledNoIndicator`, which is what `Neumark` was meant to compute |
 | A weights column | `.weights("w")` | `.weights("w").weights_kind(WeightsKind::Relative)`, or `Frequency` for whole-number counts; without a kind the run fails with `WEIGHTS_KIND_REQUIRED` |
-| Name of the intercept row | `intercept` | `oaxaca_blinder::INTERCEPT_NAME` (`__ob_intercept__`) |
+| Name of the intercept row | `intercept` | `oaxaca_blinder::INTERCEPT_NAME` (`__ob_intercept__`) in the results and the JSON. `summary()` prints it as `oaxaca_blinder::INTERCEPT_LABEL` (`(intercept)`). |
 | `.normalize(["sector"])` and `normalize_all_categoricals()` | per-level rows deviate from the simple average of the levels (equal share) | deviate from the population-share average. Call `.normalization_convention(NormalizationConvention::EqualShare)` first to keep the 0.2.2 rows. |
 | `.categorical_predictors(&[])` | compiled | does not compile (the type of the empty slice cannot be inferred); write `Vec::<&str>::new()` or leave the call out |
 | A group column with more than two values | the first other value was used silently | error `TOO_MANY_GROUP_VALUES`; recode to two values first |
@@ -56,7 +56,7 @@ Command line, relative to 0.2.2:
 | `--weights` | alone | needs `--weights-kind frequency` or `--weights-kind relative` |
 | `--bootstrap-reps` default | 500 | 100 (the library default is 100 too) |
 | `--analysis-type quantile` | Machado-Mata | RIF regression; `--simulations` (default 1000 before, 200 now) is ignored |
-| Intercept row in the tables, the `report` HTML and `--output-json` | `intercept` | `__ob_intercept__`, the same token as the library |
+| Intercept row in the tables, the `report` HTML and `--output-json` | `intercept` | `(intercept)` in the tables and the `report`; `__ob_intercept__`, the same token as the library, in `--output-json` |
 | Group labels in the console summary and the `report` | "Group A (Advantaged)" and "Group B (Reference)" | "Compared group (A)" and "Reference group (B)"; the compared group is every row outside the reference group, whoever earns more |
 | Categorical drivers | raw treatment coding | population-share normalisation; `--normalization none` restores the raw coding for `run` |
 | `--analysis-type akm` and `match` | in the default build | `cargo install oaxaca_blinder --features experimental`; the default build refuses them and says so |
@@ -261,11 +261,22 @@ Project:
 - OLS with no spare degrees of freedom is an error (`InsufficientData`) and the engine refuses a fitted group with none
   (`INSUFFICIENT_RESIDUAL_DF`); AKM convergence errors surface; nulls are no longer read as 0.0 in the AKM and quantile
   paths.
-- Many numeric and `unwrap` panics in the library (one known case remains, see "Known issues"); header-parse panics and poisoned-lock handling in the MCP server.
+- Many numeric and `unwrap` panics in the library; header-parse panics and poisoned-lock handling in the MCP server.
 - RIF quantile decomposition fails with a message when a group has fewer than 2 rows. It returned the raw series as its
   own RIF.
 - Documentation: the READMEs no longer show code that does not compile, name the wrong version, or describe Python
   bindings.
+- In the library a whole-number outcome (or selection outcome) column is converted to a decimal instead of refused with
+  `expected Float64, got i64`. A weights column of whole numbers was already accepted. The command line did this
+  already.
+- `oaxaca-cli report` and `run` take the main options (`--data`, `--outcome`, `--group`, `--reference` and the rest)
+  after the subcommand alone. Before, `report` needed them before the word `report` and again after it. Giving them
+  before still works, and so does giving them in both places; the later one wins.
+- A Heckman selection model with `Pooled`, `PooledNoIndicator` or `Neumark` returns `UNSUPPORTED_COMBINATION`, naming
+  the combination and the schemes that work, instead of panicking on a matrix dimension mismatch. 0.2.2 panicked for
+  `Pooled` too.
+- The WASM package manifests written by `scripts/build-wasm.sh` name Telos Machina, carry the engine crate's version
+  and the licence `MIT OR Apache-2.0`. They named "OpenPay Team", version 0.1.0 and no licence.
 
 ### Security
 
@@ -278,12 +289,6 @@ Project:
 
 ### Known issues
 
-- In the library an integer outcome column is refused (`expected Float64, got i64`); write the values with a decimal
-  point (`45600.0`). The command line converts the outcome and weights columns itself.
-- `oaxaca-cli report` also needs the top-level options (`--data`, `--group`, `--reference`) before the subcommand, and
-  all of them again after it.
-- A Heckman selection model with `Pooled` or `PooledNoIndicator` panics in the library and the command line (a matrix
-  dimension mismatch). `GroupA`, `GroupB`, `Weighted` and `Cotton` run. 0.2.2 panicked for `Pooled` too.
 - A quantile run's `total_gap` is the RIF model total, not the sample percentile gap (4,463 against 4,750 at the 90th
   percentile of the test file).
 - `--simulations` is accepted and ignored; its help text still names Machado-Mata.

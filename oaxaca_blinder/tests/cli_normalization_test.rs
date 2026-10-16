@@ -182,9 +182,8 @@ fn cli_report_normalises_too() {
         std::process::id()
     ));
     let mut cmd = Command::cargo_bin("oaxaca-cli").unwrap();
-    // Pre-existing clap quirk (found by this test, not fixed here): the top-level run flags are
-    // flattened next to the subcommands and stay required, so `report` is only reachable when
-    // they are given as well. Logged in issue 0120's Log.
+    // The main options are given before `report` and again after it: both placements are accepted
+    // (cli_subcommand_options_test.rs covers each alone).
     cmd.arg("--data")
         .arg(golden().fixture("norm_skewed_fixture.csv"))
         .args([

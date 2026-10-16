@@ -45,12 +45,11 @@ command prints a warning on standard error and the 95% interval prints as `NaN`.
 
 ## HTML report
 
-`report` writes a static HTML report. The options of the command line are required before the word `report` as well
-as after it (see the usage line in the help below), so give them twice:
+`report` writes a static HTML report. It reads `--data`, `--outcome`, `--group`, `--reference`, `--predictors`,
+`--categorical` and `--output`. Give the options after the word `report`, or before it:
 
 ```bash
-oaxaca-cli --data wage.csv --outcome wage --group gender --reference F \
-    report --data wage.csv --outcome wage --group gender --reference F \
+oaxaca-cli report --data wage.csv --outcome wage --group gender --reference F \
     --predictors education,experience --categorical sector --output report.html
 ```
 

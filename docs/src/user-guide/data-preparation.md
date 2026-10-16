@@ -12,12 +12,11 @@ The group column must hold exactly two values. You name one as the **reference g
 every other value is the compared group. A third value is refused (`TOO_MANY_GROUP_VALUES`), even on a row that
 would be left out for a blank elsewhere, so recode or filter first.
 
-## The outcome column must be floating point
+## Whole-number columns
 
-In the library the outcome column is read as floating point. A CSV column written as `45600` is read as an integer
-and the run is then refused with `expected Float64, got i64`. Write `45600.0`, or cast the column in your `DataFrame`
-before building. Predictor columns may be integers. The command line converts a whole-number outcome or weights column
-by itself.
+A CSV column written as `45600` is read as an integer. The library and the command line both convert a whole-number
+outcome, selection outcome or weights column to a decimal, and the numbers equal those of `45600.0`. Predictor columns
+may be integers.
 
 ## Blank cells
 

@@ -1,8 +1,8 @@
 # Heckman selection correction
 
 Pay is observed only for people who work. If who works is not random, for example if better-educated people are more
-likely to be employed, the regression on the employed is biased by selection. The Heckman two-step correction adjusts
-for it.
+likely to be employed, the regression on the employed is biased by selection. The Heckman two-step correction
+([Heckman 1979](references.md#heckman-1979)) adjusts for it.
 
 1. A **selection equation**, a probit of employment on the selection predictors, gives for each person the inverse
    Mills ratio \\( \lambda = \phi(z'\gamma) / \Phi(z'\gamma) \\).
@@ -33,8 +33,9 @@ restriction). Without one the correction is identified only through the shape of
 With a selection model, categorical normalisation is skipped on the compared group, the reference group and the
 pooled fit together, and `run_metadata.normalization` says so.
 
-A Heckman selection model cannot be combined with `Pooled` or `PooledNoIndicator`: the run panics with a matrix
-dimension mismatch. Use `GroupA`, `GroupB`, `Weighted` or `Cotton`.
+A Heckman selection model cannot be combined with `Pooled` or `PooledNoIndicator`: the run returns
+`UNSUPPORTED_COMBINATION` (see [Error codes](../reference/error-codes.md)). Use `GroupA`, `GroupB`, `Weighted` or
+`Cotton`.
 
 ## Status
 

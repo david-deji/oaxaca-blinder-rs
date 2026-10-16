@@ -27,7 +27,7 @@ builder
 
 The intercept appears in every detailed result under the reserved name `__ob_intercept__` (the constant
 `oaxaca_blinder::INTERCEPT_NAME`). It is not a driver. A column in your data may be called `intercept`, so compare
-against the constant, not the word.
+against the constant, not the word. The printed tables and the HTML report show the row as `(intercept)`.
 
 A worked example with a categorical and a weights column:
 

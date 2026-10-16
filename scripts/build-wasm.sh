@@ -143,6 +143,11 @@ ENGINE_COMMIT=$(git rev-parse HEAD)
 ENGINE_DIRTY=false
 [ -z "$(wasm_source_dirty)" ] || ENGINE_DIRTY=true
 RUSTC_DESC=$(rustc --version)
+# The package manifests below carry the engine crate's own version and the workspace licence, read from the
+# Cargo manifests so a version bump or a licence change cannot leave them behind.
+ENGINE_VERSION=$(sed -n 's/^version = "\(.*\)"$/\1/p' engine/Cargo.toml | head -n 1)
+PKG_LICENSE=$(sed -n 's/^license = "\(.*\)"$/\1/p' Cargo.toml | head -n 1)
+[ -n "$ENGINE_VERSION" ] && [ -n "$PKG_LICENSE" ] || { echo "ERROR: could not read the engine version or the workspace licence from the Cargo manifests" >&2; exit 1; }
 
 # write_manifest <artifact> <outdir> <raw sha256> — engine-manifest.json, copied beside the shipped blob.
 write_manifest() {
@@ -166,14 +171,15 @@ wasm-bindgen target/seq.raw.wasm --out-dir engine/pkg --out-name pay_equity_engi
     --remove-name-section --remove-producers-section
 # --target web emits no package.json either; write the one the app has always shipped, so a fresh checkout
 # can publish (it used to exist only as a stale file in the gitignored engine/pkg/).
-cat > engine/pkg/package.json <<'PKGJSON'
+cat > engine/pkg/package.json <<PKGJSON
 {
   "name": "pay-equity-engine",
   "type": "module",
   "collaborators": [
-    "OpenPay Team <contact@openpay.ai>"
+    "Telos Machina"
   ],
-  "version": "0.1.0",
+  "license": "$PKG_LICENSE",
+  "version": "$ENGINE_VERSION",
   "files": [
     "pay_equity_engine_bg.wasm",
     "pay_equity_engine.js",
@@ -186,7 +192,7 @@ cat > engine/pkg/package.json <<'PKGJSON'
   ]
 }
 PKGJSON
-truncate -s -1 engine/pkg/package.json   # byte-identical to the file the app already ships (no trailing newline)
+truncate -s -1 engine/pkg/package.json   # no trailing newline, as the app has always shipped it
 write_manifest sequential engine/pkg "$SEQ_HASH"
 
 # ---------------------------------------------------------------------------
@@ -218,11 +224,15 @@ fi
 # build, so the rayon workerHelpers `import('../../..')` (the pkg root) fails to resolve under
 # Vite/rollup. Write one whose "main" points at the glue and whose "sideEffects" keeps the
 # workerHelpers side-effect code from being tree-shaken.
-cat > engine/pkg-threaded/package.json <<'PKGJSON'
+cat > engine/pkg-threaded/package.json <<PKGJSON
 {
   "name": "pay-equity-engine-threaded",
   "type": "module",
-  "version": "0.1.0",
+  "collaborators": [
+    "Telos Machina"
+  ],
+  "license": "$PKG_LICENSE",
+  "version": "$ENGINE_VERSION",
   "files": [
     "pay_equity_engine_bg.wasm",
     "pay_equity_engine.js",

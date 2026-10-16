@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
 use oaxaca_blinder::{NormalizationConvention, OaxacaBuilder, ReferenceCoefficients, WeightsKind};
 use polars::prelude::*;
 
@@ -19,8 +19,11 @@ struct Cli {
 enum Commands {
     /// Run an analysis and print results to the console or export to JSON/Markdown
     #[clap(name = "run", hide = true)]
-    Run(Box<RunArgs>),
+    Run,
     /// Generate a static HTML report from an analysis
+    ///
+    /// The report reads --data, --outcome, --group, --reference, --predictors, --categorical and --output. The main
+    /// options go before or after the word `report`, whichever you prefer.
     Report(ReportArgs),
 }
 
@@ -132,129 +135,105 @@ fn apply_weights(builder: &mut OaxacaBuilder, args: &RunArgs) {
 #[derive(Parser, Debug)]
 struct RunArgs {
     /// Path to the input CSV data file
-    #[arg(short, long)]
-    data: PathBuf,
+    #[arg(global = true, short, long)]
+    data: Option<PathBuf>,
 
     /// The name of the column that contains the outcome variable. Not needed with --formula, which names it
-    #[arg(long, required_unless_present = "formula")]
+    #[arg(global = true, long)]
     outcome: Option<String>,
 
     /// The name of the column that divides the data into two distinct groups
-    #[arg(long)]
-    group: String,
+    #[arg(global = true, long)]
+    group: Option<String>,
 
     /// The specific value within the group column that identifies the reference group
-    #[arg(long)]
-    reference: String,
+    #[arg(global = true, long)]
+    reference: Option<String>,
 
     /// A comma-separated string of column names to be used as numerical predictor variables
-    #[arg(long, value_delimiter = ',')]
+    #[arg(global = true, long, value_delimiter = ',')]
     predictors: Vec<String>,
 
     /// A comma-separated string of column names to be treated as categorical variables
-    #[arg(long, value_delimiter = ',')]
+    #[arg(global = true, long, value_delimiter = ',')]
     categorical: Option<Vec<String>>,
 
     /// The type of analysis to perform
-    #[arg(long, default_value = "mean", value_enum)]
+    #[arg(global = true, long, default_value = "mean", value_enum)]
     analysis_type: AnalysisType,
 
     /// Specifies the reference coefficients for the two-fold decomposition (for mean analysis)
-    #[arg(long, default_value = "group-b", value_enum)]
+    #[arg(global = true, long, default_value = "group-b", value_enum)]
     ref_coeffs: ReferenceType,
 
     /// How categorical predictors' per-level contributions are expressed
-    #[arg(long, default_value = "population-share", value_enum)]
+    #[arg(global = true, long, default_value = "population-share", value_enum)]
     normalization: NormalizationArg,
 
     /// A comma-separated string of quantiles to analyze (for quantile analysis)
-    #[arg(long, value_delimiter = ',')]
+    #[arg(global = true, long, value_delimiter = ',')]
     quantiles: Option<Vec<f64>>,
 
     /// The number of bootstrap replications for calculating standard errors. At least 41 are
     /// needed for a percentile confidence interval. The library default is the same.
-    #[arg(long, default_value_t = 100)]
+    #[arg(global = true, long, default_value_t = 100)]
     bootstrap_reps: usize,
 
     /// Ignored. The quantile analysis is RIF regression; the option is kept so that older command lines still run
-    #[arg(long, default_value_t = 200)]
+    #[arg(global = true, long, default_value_t = 200)]
     simulations: usize,
 
     /// R-style formula for the model (e.g., "wage ~ education + experience + C(sector)")
-    #[arg(long)]
+    #[arg(global = true, long)]
     formula: Option<String>,
 
     /// Column name for sample weights (for WLS). Needs --weights-kind.
-    #[arg(long, requires = "weights_kind")]
+    #[arg(global = true, long, requires = "weights_kind")]
     weights: Option<String>,
 
     /// What the weights column means: `frequency` (whole-number counts) or `relative`
-    #[arg(long, value_enum, requires = "weights")]
+    #[arg(global = true, long, value_enum, requires = "weights")]
     weights_kind: Option<WeightsKindArg>,
 
     /// Outcome variable for the selection equation (Heckman correction)
-    #[arg(long)]
+    #[arg(global = true, long)]
     selection_outcome: Option<String>,
 
     /// Predictors for the selection equation (Heckman correction)
-    #[arg(long, value_delimiter = ',')]
+    #[arg(global = true, long, value_delimiter = ',')]
     selection_predictors: Option<Vec<String>>,
 
     /// Path to export results as JSON
-    #[arg(long)]
+    #[arg(global = true, long)]
     output_json: Option<PathBuf>,
 
     /// Path to export results as Markdown
-    #[arg(long)]
+    #[arg(global = true, long)]
     output_markdown: Option<PathBuf>,
 
     /// Worker ID column for AKM analysis (Abowd-Kramarz-Margolis model). Experimental.
     #[cfg(feature = "experimental")]
-    #[arg(long)]
+    #[arg(global = true, long)]
     worker_id: Option<String>,
 
     /// Firm ID column for AKM analysis (Abowd-Kramarz-Margolis model). Experimental.
     #[cfg(feature = "experimental")]
-    #[arg(long)]
+    #[arg(global = true, long)]
     firm_id: Option<String>,
 
     /// Number of neighbors for matching. Experimental.
     #[cfg(feature = "experimental")]
-    #[arg(long, default_value_t = 1)]
+    #[arg(global = true, long, default_value_t = 1)]
     k_neighbors: usize,
 
     /// Matching method [choices: euclidean, mahalanobis, psm]. Experimental.
     #[cfg(feature = "experimental")]
-    #[arg(long, default_value = "euclidean")]
+    #[arg(global = true, long, default_value = "euclidean")]
     matching_method: String,
 }
 
 #[derive(Parser, Debug)]
 struct ReportArgs {
-    /// Path to the input CSV data file
-    #[arg(short, long)]
-    data: PathBuf,
-
-    /// The name of the column that contains the outcome variable
-    #[arg(long)]
-    outcome: String,
-
-    /// The name of the column that divides the data into two distinct groups
-    #[arg(long)]
-    group: String,
-
-    /// The specific value within the group column that identifies the reference group
-    #[arg(long)]
-    reference: String,
-
-    /// A comma-separated string of column names to be used as numerical predictor variables
-    #[arg(long, value_delimiter = ',')]
-    predictors: Vec<String>,
-
-    /// A comma-separated string of column names to be treated as categorical variables
-    #[arg(long, value_delimiter = ',')]
-    categorical: Option<Vec<String>>,
-
     /// Path to save the output HTML file
     #[arg(short, long)]
     output: PathBuf,
@@ -301,6 +280,44 @@ fn warn_if_bootstrap_too_small(reps: usize) {
 }
 
 impl RunArgs {
+    /// Clap cannot mark a global option as required, so `--data`, `--group` and `--reference` are optional to
+    /// it (which is what lets them come before or after `report`) and are checked here, with clap's own message.
+    fn check_main_options(&self) -> Result<(), clap::Error> {
+        let missing: Vec<&str> = [
+            ("--data <DATA>", self.data.is_none()),
+            ("--group <GROUP>", self.group.is_none()),
+            ("--reference <REFERENCE>", self.reference.is_none()),
+        ]
+        .into_iter()
+        .filter_map(|(name, absent)| absent.then_some(name))
+        .collect();
+        if missing.is_empty() {
+            return Ok(());
+        }
+        Err(Cli::command().bin_name("oaxaca-cli").error(
+            clap::error::ErrorKind::MissingRequiredArgument,
+            format!(
+                "the following required arguments were not provided:\n  {}",
+                missing.join("\n  ")
+            ),
+        ))
+    }
+
+    /// The input file. Present once `check_main_options` has passed.
+    fn data(&self) -> &std::path::Path {
+        self.data.as_deref().unwrap_or(std::path::Path::new(""))
+    }
+
+    /// The group column. Present once `check_main_options` has passed.
+    fn group(&self) -> &str {
+        self.group.as_deref().unwrap_or_default()
+    }
+
+    /// The reference group value. Present once `check_main_options` has passed.
+    fn reference(&self) -> &str {
+        self.reference.as_deref().unwrap_or_default()
+    }
+
     /// The outcome column: `--outcome`, or the left side of `--formula`.
     fn outcome_name(&self) -> Result<&str, Box<dyn Error>> {
         self.outcome
@@ -315,7 +332,7 @@ fn run_analysis(args: RunArgs) -> Result<(), Box<dyn std::error::Error>> {
     if let Some(weights) = &args.weights {
         float_columns.push(weights);
     }
-    let df = read_csv(&args.data, &float_columns)?;
+    let df = read_csv(args.data(), &float_columns)?;
     warn_if_bootstrap_too_small(args.bootstrap_reps);
 
     match args.analysis_type {
@@ -338,7 +355,7 @@ fn run_mean_analysis(args: &RunArgs, df: DataFrame) -> Result<(), Box<dyn std::e
     let reference_coeffs = args.ref_coeffs.to_library();
 
     let mut builder = if let Some(formula) = &args.formula {
-        OaxacaBuilder::from_formula(df, formula, &args.group, &args.reference)?
+        OaxacaBuilder::from_formula(df, formula, args.group(), args.reference())?
     } else {
         let predictors: Vec<&str> = args.predictors.iter().map(AsRef::as_ref).collect();
         let categorical_predictors: Vec<&str> = args
@@ -346,7 +363,7 @@ fn run_mean_analysis(args: &RunArgs, df: DataFrame) -> Result<(), Box<dyn std::e
             .as_ref()
             .map(|v| v.iter().map(AsRef::as_ref).collect())
             .unwrap_or_default();
-        let mut b = OaxacaBuilder::new(df, args.outcome_name()?, &args.group, &args.reference);
+        let mut b = OaxacaBuilder::new(df, args.outcome_name()?, args.group(), args.reference());
         b.predictors(predictors.iter().copied())
             .categorical_predictors(categorical_predictors.iter().copied());
         b
@@ -408,7 +425,7 @@ fn run_quantile_analysis(args: &RunArgs, df: DataFrame) -> Result<(), Box<dyn Er
 
     for &q in &quantiles {
         // Arc/COW-cheap clone (stage-2 Finding 1); each τ gets a fresh builder.
-        let mut builder = OaxacaBuilder::new(df.clone(), outcome, &args.group, &args.reference);
+        let mut builder = OaxacaBuilder::new(df.clone(), outcome, args.group(), args.reference());
         builder
             .predictors(predictors.iter().copied())
             .categorical_predictors(categorical_predictors.iter().copied())
@@ -487,7 +504,7 @@ fn run_matching_analysis(args: &RunArgs, df: DataFrame) -> Result<(), Box<dyn Er
     let predictors: Vec<&str> = args.predictors.iter().map(AsRef::as_ref).collect();
     let engine = MatchingEngine::new(
         df,
-        &args.group,
+        args.group(),
         args.outcome_name()?,
         predictors.iter().copied(),
     );
@@ -530,8 +547,25 @@ struct ReportTemplate {
     unexplained: Vec<ComponentResult>,
 }
 
-fn run_report(args: ReportArgs) -> Result<(), Box<dyn Error>> {
-    let df = read_csv(&args.data, &[args.outcome.as_str()])?;
+/// The rows with the intercept token replaced by its printed label. The results themselves keep the token.
+fn labelled(rows: &[ComponentResult]) -> Vec<ComponentResult> {
+    rows.iter()
+        .map(|row| {
+            let mut row = row.clone();
+            if row.name == oaxaca_blinder::INTERCEPT_NAME {
+                row.name = oaxaca_blinder::INTERCEPT_LABEL.to_string();
+            }
+            row
+        })
+        .collect()
+}
+
+fn run_report(args: RunArgs, report: ReportArgs) -> Result<(), Box<dyn Error>> {
+    let outcome = args
+        .outcome
+        .as_deref()
+        .ok_or("Give the outcome column with --outcome")?;
+    let df = read_csv(args.data(), &[outcome])?;
     let predictors: Vec<&str> = args.predictors.iter().map(AsRef::as_ref).collect();
     let categorical_predictors: Vec<&str> = args
         .categorical
@@ -540,15 +574,15 @@ fn run_report(args: ReportArgs) -> Result<(), Box<dyn Error>> {
         .unwrap_or_default();
     // Same rule as `run`: categorical predictors are normalised (population-share), so the
     // report's per-level rows do not depend on which level sorts first.
-    let results = OaxacaBuilder::new(df, &args.outcome, &args.group, &args.reference)
+    let results = OaxacaBuilder::new(df, outcome, args.group(), args.reference())
         .predictors(predictors.iter().copied())
         .categorical_predictors(categorical_predictors.iter().copied())
         .normalize_all_categoricals()
         .run()?;
 
     let two_fold = results.two_fold().aggregate().clone();
-    let explained = results.two_fold().detailed_explained().clone();
-    let unexplained = results.two_fold().detailed_unexplained().clone();
+    let explained = labelled(results.two_fold().detailed_explained());
+    let unexplained = labelled(results.two_fold().detailed_unexplained());
 
     let template = ReportTemplate {
         n_a: *results.n_a(),
@@ -560,20 +594,22 @@ fn run_report(args: ReportArgs) -> Result<(), Box<dyn Error>> {
     };
 
     let html = template.render()?;
-    std::fs::write(&args.output, html)?;
+    std::fs::write(&report.output, html)?;
     println!(
         "Report successfully generated at: {}",
-        args.output.display()
+        report.output.display()
     );
     Ok(())
 }
 
 fn main() {
     let cli = Cli::parse();
+    if let Err(e) = cli.run_args.check_main_options() {
+        e.exit();
+    }
     let result = match cli.command {
-        Some(Commands::Run(args)) => run_analysis(*args),
-        Some(Commands::Report(args)) => run_report(args),
-        None => run_analysis(cli.run_args),
+        Some(Commands::Run) | None => run_analysis(cli.run_args),
+        Some(Commands::Report(report)) => run_report(cli.run_args, report),
     };
     if let Err(e) = result {
         eprintln!("Error: {}", e);

@@ -77,7 +77,8 @@ reference scheme). Code that builds the struct with a literal, or destructures i
 `..`. Read it through `results.run_metadata`.
 
 The intercept row of the detailed tables is named `oaxaca_blinder::INTERCEPT_NAME` (`"__ob_intercept__"`), not
-`"intercept"`. Filter on the constant.
+`"intercept"`. Filter on the constant. The printed tables (`summary()`, the command line, the `report`) show the row
+as `(intercept)` (`oaxaca_blinder::INTERCEPT_LABEL`); the results and the JSON keep the token.
 
 ### Data that is now refused
 
@@ -140,7 +141,8 @@ with `weights(..)`. See [Weights](user-guide/weights.md).
 
 - `--bootstrap-reps` defaults to 100. Below 41 the command prints a warning and the 95% interval is `NaN`.
 - `--simulations` (default 1000 before, 200 now) is ignored; the quantile analysis is RIF regression.
-- The intercept row is named `__ob_intercept__` in the tables, the `report` and `--output-json`.
+- The intercept row is printed as `(intercept)` in the tables and the `report`, and is named `__ob_intercept__` in
+  `--output-json`.
 - The console summary and the `report` label the groups "Compared group (A)" and "Reference group (B)".
 - `--weights` needs `--weights-kind frequency|relative`.
 - `--normalization` is new. The default is population share; `none` returns the raw coding of 0.2.

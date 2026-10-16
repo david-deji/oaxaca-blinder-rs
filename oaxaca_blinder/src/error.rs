@@ -68,6 +68,17 @@ pub enum OaxacaError {
         value: f64,
         reason: String,
     },
+    /// Two options that do not work together. A Heckman selection model supports `GroupA`, `GroupB`, `Weighted`
+    /// and `Cotton` as the reference coefficients; `Pooled` and `PooledNoIndicator` have no selection-corrected
+    /// pooled regression to price against.
+    UnsupportedCombination {
+        /// The option that was asked for, for example `heckman_selection`.
+        option: String,
+        /// The value of the other option that it cannot be combined with, for example `Pooled`.
+        with: String,
+        /// The values of that other option that do work.
+        supported: Vec<String>,
+    },
 }
 
 impl From<PolarsError> for OaxacaError {
@@ -160,6 +171,17 @@ impl fmt::Display for OaxacaError {
                 f,
                 "INVALID_WEIGHT: column={}, row={}, value={}: {}",
                 column, row, value, reason
+            ),
+            OaxacaError::UnsupportedCombination {
+                option,
+                with,
+                supported,
+            } => write!(
+                f,
+                "UNSUPPORTED_COMBINATION: option={}, with={}; use one of: {}",
+                option,
+                with,
+                supported.join(", ")
             ),
         }
     }

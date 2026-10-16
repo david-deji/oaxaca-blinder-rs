@@ -15,6 +15,10 @@ struct RepositoryReadme;
 /// against this, never against the string `intercept`, which a real HR column can be called.
 pub const INTERCEPT_NAME: &str = "__ob_intercept__";
 
+/// What the printed tables (`OaxacaResults::summary`, the command line, the HTML report) call the intercept row
+/// instead of [`INTERCEPT_NAME`]. Data (the results' own names, JSON output) always carries `INTERCEPT_NAME`.
+pub const INTERCEPT_LABEL: &str = "(intercept)";
+
 mod builder;
 mod decomposition;
 mod display;

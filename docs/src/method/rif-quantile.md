@@ -1,7 +1,7 @@
 # RIF quantile decomposition
 
 The mean decomposition cannot see where in the pay distribution a gap sits. A quantile decomposition can. This
-library uses the recentered influence function (RIF) of Firpo, Fortin and Lemieux.
+library uses the recentered influence function (RIF) of [Firpo, Fortin and Lemieux (2009)](references.md#firpo-fortin-lemieux-2009).
 
 ## Method
 

@@ -52,8 +52,7 @@ compares the output with the text above.
 ## A first decomposition: command line
 
 [`sample/wage.csv`](sample/wage.csv) holds the same 32 rows and a `headcount` column. Download it into the folder you
-run from. The command line reads whole-number outcome and weights columns (`45600`) as decimals; the library needs a
-decimal outcome (`45600.0`).
+run from. A whole-number outcome or weights column (`45600`) is read as a decimal.
 
 ```bash
 oaxaca-cli --data wage.csv --outcome wage --group gender --reference F \

@@ -1,7 +1,7 @@
 $ oaxaca-cli --help
 Oaxaca-Blinder decomposition on Polars DataFrames, with categorical drivers and bootstrapped standard errors.
 
-Usage: oaxaca-cli [OPTIONS] --data <DATA> --group <GROUP> --reference <REFERENCE> [COMMAND]
+Usage: oaxaca-cli [OPTIONS] [COMMAND]
 
 Commands:
   report  Generate a static HTML report from an analysis
@@ -101,7 +101,7 @@ Options:
 $ oaxaca-cli run --help
 Run an analysis and print results to the console or export to JSON/Markdown
 
-Usage: oaxaca-cli --data <DATA> --group <GROUP> --reference <REFERENCE> run [OPTIONS] --data <DATA> --group <GROUP> --reference <REFERENCE>
+Usage: oaxaca-cli run [OPTIONS]
 
 Options:
   -d, --data <DATA>
@@ -194,15 +194,98 @@ Options:
 $ oaxaca-cli report --help
 Generate a static HTML report from an analysis
 
-Usage: oaxaca-cli --data <DATA> --group <GROUP> --reference <REFERENCE> report [OPTIONS] --data <DATA> --outcome <OUTCOME> --group <GROUP> --reference <REFERENCE> --output <OUTPUT>
+The report reads --data, --outcome, --group, --reference, --predictors, --categorical and --output. The main options go before or after the word `report`, whichever you prefer.
+
+Usage: oaxaca-cli report [OPTIONS] --output <OUTPUT>
 
 Options:
-  -d, --data <DATA>                Path to the input CSV data file
-      --outcome <OUTCOME>          The name of the column that contains the outcome variable
-      --group <GROUP>              The name of the column that divides the data into two distinct groups
-      --reference <REFERENCE>      The specific value within the group column that identifies the reference group
-      --predictors <PREDICTORS>    A comma-separated string of column names to be used as numerical predictor variables
-      --categorical <CATEGORICAL>  A comma-separated string of column names to be treated as categorical variables
-  -o, --output <OUTPUT>            Path to save the output HTML file
-  -h, --help                       Print help
+  -o, --output <OUTPUT>
+          Path to save the output HTML file
+
+  -d, --data <DATA>
+          Path to the input CSV data file
+
+      --outcome <OUTCOME>
+          The name of the column that contains the outcome variable. Not needed with --formula, which names it
+
+      --group <GROUP>
+          The name of the column that divides the data into two distinct groups
+
+      --reference <REFERENCE>
+          The specific value within the group column that identifies the reference group
+
+      --predictors <PREDICTORS>
+          A comma-separated string of column names to be used as numerical predictor variables
+
+      --categorical <CATEGORICAL>
+          A comma-separated string of column names to be treated as categorical variables
+
+      --analysis-type <ANALYSIS_TYPE>
+          The type of analysis to perform
+          
+          [default: mean]
+          [possible values: mean, quantile]
+
+      --ref-coeffs <REF_COEFFS>
+          Specifies the reference coefficients for the two-fold decomposition (for mean analysis)
+
+          Possible values:
+          - group-a:             beta* = the compared (non-reference) group's coefficients
+          - group-b:             beta* = the reference group's coefficients
+          - pooled:              pooled regression WITH a group indicator (Jann 2008 `pooled`)
+          - pooled-no-indicator: pooled regression WITHOUT a group indicator (Neumark 1988; Stata `omega`)
+          - weighted:            sample-share-weighted average of the two groups' coefficients (Cotton 1988)
+          
+          [default: group-b]
+
+      --normalization <NORMALIZATION>
+          How categorical predictors' per-level contributions are expressed
+
+          Possible values:
+          - population-share: Each level is a deviation from the pooled-sample share-weighted average of all levels, the dropped level included. The default
+          - equal-share:      Each level is a deviation from the simple average of all levels (Stata `categorical()`, R `oaxaca`, `ddecompose` `normalize_factors = TRUE`)
+          - none:             Raw treatment coding: every level against the alphabetically first one. Per-level numbers then depend on which level that is; aggregates are the same in all three
+          
+          [default: population-share]
+
+      --quantiles <QUANTILES>
+          A comma-separated string of quantiles to analyze (for quantile analysis)
+
+      --bootstrap-reps <BOOTSTRAP_REPS>
+          The number of bootstrap replications for calculating standard errors. At least 41 are needed for a percentile confidence interval. The library default is the same
+          
+          [default: 100]
+
+      --simulations <SIMULATIONS>
+          Ignored. The quantile analysis is RIF regression; the option is kept so that older command lines still run
+          
+          [default: 200]
+
+      --formula <FORMULA>
+          R-style formula for the model (e.g., "wage ~ education + experience + C(sector)")
+
+      --weights <WEIGHTS>
+          Column name for sample weights (for WLS). Needs --weights-kind
+
+      --weights-kind <WEIGHTS_KIND>
+          What the weights column means: `frequency` (whole-number counts) or `relative`
+
+          Possible values:
+          - frequency: Whole-number replication counts (a headcount). `2` is the row twice, in the point estimates and in the bootstrap (a replicate draws sum(w) employees, so standard errors and p-values match the repeated rows); a fractional value is refused, naming the row
+          - relative:  Relative importance (FTE, design weights), rescaled to sum to the row count. The weighted quantile is `Hmisc::wtd.quantile(type = "quantile", normwt = TRUE)`. Uniform weights change nothing
+
+      --selection-outcome <SELECTION_OUTCOME>
+          Outcome variable for the selection equation (Heckman correction)
+
+      --selection-predictors <SELECTION_PREDICTORS>
+          Predictors for the selection equation (Heckman correction)
+
+      --output-json <OUTPUT_JSON>
+          Path to export results as JSON
+
+      --output-markdown <OUTPUT_MARKDOWN>
+          Path to export results as Markdown
+
+  -h, --help
+          Print help (see a summary with '-h')
 
