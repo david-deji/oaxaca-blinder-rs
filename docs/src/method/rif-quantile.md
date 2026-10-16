@@ -7,11 +7,11 @@ library uses the recentered influence function (RIF) of Firpo, Fortin and Lemieu
 
 For a chosen percentile \\( \tau \\), the RIF of the outcome \\( y \\) is
 
-\\[ \mathrm{RIF}(y; q\_\tau) = q\_\tau + \frac{\tau - \mathbf{1}\{y \le q\_\tau\}}{f\_Y(q\_\tau)} , \\]
+\\[ \mathrm{RIF}(y; q\_\tau) = q\_\tau + \frac{\tau - \mathbf{1}\\{y \le q\_\tau\\}}{f\_Y(q\_\tau)} , \\]
 
 where \\( q\_\tau \\) is the sample percentile and \\( f\_Y \\) the density of the outcome at it. The density is
 a Gaussian kernel estimate, evaluated exactly at \\( q\_\tau \\), with the bandwidth
-\\( h = 0.9 \min(s, \mathrm{IQR}/1.34)\, n^{-1/5} \\) (Silverman's rule of thumb; \\( s \\) is the standard deviation
+\\( h = 0.9 \min(s, \mathrm{IQR}/1.34) n^{-1/5} \\) (Silverman's rule of thumb; \\( s \\) is the standard deviation
 and IQR the interquartile range of the group's outcome). The mean of the RIF
 is the percentile itself. Regressing the RIF on the predictors in each group and applying the
 [Oaxaca-Blinder decomposition](oaxaca-blinder.md) to those regressions gives an explained and an unexplained part of
