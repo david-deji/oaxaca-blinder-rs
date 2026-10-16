@@ -43,6 +43,45 @@ match err {
 }
 ```
 
+### Results
+
+`OaxacaResults::explained()` and `unexplained()` return an `Option`, because a run can have no such component:
+
+```rust,ignore
+// 0.2.2
+let share = results.explained().estimate;
+// 0.3
+let share = results.explained().expect("a mean decomposition has an explained part").estimate;
+```
+
+`OaxacaResults` has a public field `run_metadata` (seed, requested and discarded bootstrap replicates, normalisation,
+reference scheme). Code that builds the struct with a literal, or destructures it without `..`, needs the field or
+`..`. Read it through `results.run_metadata`.
+
+The intercept row of the detailed tables is named `oaxaca_blinder::INTERCEPT_NAME` (`"__ob_intercept__"`), not
+`"intercept"`. Filter on the constant.
+
+### Data that is now refused
+
+| Input | 0.2.2 | 0.3 |
+|---|---|---|
+| A group column with a third value | the first other value was used and the rest ignored | `TOO_MANY_GROUP_VALUES`; recode the column to two values |
+| A regression with as many columns as rows | no check | `InsufficientData` |
+| A null outcome in the AKM or quantile path | read as 0.0 | an error; drop or fill the null |
+
+The new variants are listed in [Error codes](reference/error-codes.md).
+
+### Reference schemes
+
+`ReferenceCoefficients::PooledNoIndicator` is the pooled regression without a group indicator (Neumark's estimator,
+Stata `omega`). `ReferenceCoefficients::Neumark` is deprecated and still computes `Pooled`, so its numbers do not
+change; switch to `PooledNoIndicator` only if Neumark's estimator is what you meant, and expect a different number.
+
+### Builders
+
+`OaxacaBuilder` no longer implements `Clone` or `Debug`. Build a new builder for each run, as the command line and
+the engine do.
+
 ### Experimental methods
 
 AKM, DFL, JMP and matching moved behind the cargo feature `experimental`, off by default:
@@ -51,7 +90,23 @@ AKM, DFL, JMP and matching moved behind the cargo feature `experimental`, off by
 oaxaca_blinder = { version = "0.3", features = ["experimental"] }
 ```
 
-See [Experimental methods](user-guide/experimental.md).
+See [Experimental methods](user-guide/experimental.md). Two signatures changed in the same modules:
+
+```rust,ignore
+// AkmBuilder: methods take &mut self, run takes &self
+// 0.2.2
+let result = AkmBuilder::new(df, "wage", "worker", "firm").controls(&["tenure"]).run()?;
+// 0.3: a single expression still works; a builder kept in a variable is mutable
+let mut builder = AkmBuilder::new(df, "wage", "worker", "firm");
+builder.controls(["tenure"]);
+let result = builder.run()?;
+
+// MatchingEngine: the distance is a flag, and the DistanceMetric trait is gone
+// 0.2.2
+let weights = engine.match_nearest_neighbor(1, &EuclideanDistance)?;
+// 0.3
+let weights = engine.match_nearest_neighbor(1, false)?;   // true for Mahalanobis
+```
 
 ### Weights
 

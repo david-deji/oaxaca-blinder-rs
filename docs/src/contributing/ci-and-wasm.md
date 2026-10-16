@@ -6,9 +6,10 @@
 
 | Job | What it checks |
 |---|---|
-| `quality` | formatting, clippy and the whole test suite, with all features and with default features; the loop scripts |
+| `quality` | formatting, clippy and the whole test suite, with all features and with default features; the loop scripts; the release scripts |
 | `security` | `cargo audit`, and the dated list of accepted advisories in `.cargo/audit.toml` |
 | `msrv` | the library compiles on Rust 1.88, the minimum supported version |
+| `portability` | the command line and the MCP server type-check on macOS and Windows, the systems the release builds for |
 | `memory-ceiling` | peak memory of a 50,000-row run stays under the stated ceiling |
 | `docs` | the docs site builds, the API docs build without warnings, the doctests pass |
 | `wasm-seq`, `wasm-threaded` | the engine's raw WASM bytes equal the committed hashes |
@@ -53,3 +54,29 @@ anything.
   moved and by how much.
 - **Dependencies.** Adding one needs a reason in the pull request. `Cargo.lock` is committed and CI builds with
   `--locked`.
+
+## Releasing
+
+A release is a tag push, and only a maintainer pushes one. `.github/workflows/release.yml` runs on a tag that looks
+like `v0.3.0` and nothing else. Its jobs run in this order, and a failure stops everything after it:
+
+1. `check-tag`: the tag is `v` plus the version in `oaxaca_blinder/Cargo.toml`; the tagged commit is on `main` and its
+   `gate` check passed; `CHANGELOG.md` has a section for the version.
+2. `verify` and `binaries`, in parallel: formatting, clippy, the tests and a dry-run publish; and `oaxaca-cli` and
+   `meridian-mcp` built in release mode for Linux (x86-64), macOS (Apple silicon) and Windows (x86-64), each archived
+   with both licence files and a SHA-256 file.
+3. `publish-crates`: `cargo publish --workspace --locked`. This cannot be undone: crates.io never reuses a version.
+   Only `oaxaca_blinder` publishes; the engine and the MCP server are `publish = false`.
+4. `github-release` and `book`: the release page gets the changelog section as its text, the archives and two SBOMs;
+   the documentation is built and pushed to the `gh-pages` branch under `v0.3/` and `latest/`.
+
+Before the first tag, two things outside the repository must be set: the repository secret `CARGO_REGISTRY_TOKEN`, and
+GitHub Pages serving the `gh-pages` branch (the workflow creates the branch on the first release).
+
+To prepare a release: move the entries under `[Unreleased]` in `CHANGELOG.md` to a new `## [X.Y.Z] - date` heading,
+set the version in the manifests, re-record the engine's WASM hashes if the engine's version changed (the version is
+stamped into every result), and merge through `gate`. `python3 scripts/release-notes.py vX.Y.Z` prints what the
+release page will say, and `python3 scripts/test-release-scripts.py` checks the scripts the workflow calls.
+
+The workflow guard (`scripts/check-ci-invariants.py`) holds the release graph: every job waits for `check-tag`,
+`publish-crates` waits for the checks and the builds, and the registry token is readable by `publish-crates` only.

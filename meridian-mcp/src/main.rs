@@ -598,7 +598,7 @@ async fn handle_protocol(req: JsonRpcRequest) -> Option<JsonRpcResponse> {
             },
             "serverInfo": {
                 "name": "meridian-mcp",
-                "version": "0.2.0"
+                "version": env!("CARGO_PKG_VERSION")
             }
         })),
         "notifications/initialized" => {

@@ -1,305 +1,319 @@
 # Changelog
 
+All notable changes to this project are recorded here. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Before 1.0 a minor version can break the programming
+interface and can move a published number; every such change is listed under "Migrating" and "Statistical changes".
+
 ## [Unreleased]
 
-### Added (0121-MERIDIAN, documentation)
-- **A documentation site**, an mdBook in `docs/`: start page, user guide, method pages, command-line and MCP
-  reference, error codes, how to reproduce results in R and Stata, FAQ, and contributor pages. The `docs` CI job builds
-  it. The command-line page and the MCP tool schemas are generated from the shipped binaries and compared with them by
-  tests.
-- **Three examples that compile**, `first_decomposition`, `weights_and_categoricals` and `quantile_rif`, whose output is
-  shown in the docs and compared with a real run by a test.
-- Both READMEs rewritten. Their code is compiled as doctests; the crate documentation on docs.rs is the crate README.
+## [0.3.0] - 2026-10-16
 
-### Fixed (0121-MERIDIAN, MCP server)
-- **`meridian-mcp` answers requests that carry the standard `jsonrpc` key.** The field was declared `_jsonrpc` without
-  a rename, so the server replied "Parse error" to every request from a compliant client, on standard input and on
-  HTTP. `_jsonrpc` is still accepted.
+This is the first release since 0.2.2. It breaks the library and the command line in the ways listed under
+"Migrating from 0.2", moves some reported numbers (see "Statistical changes"), and turns the workspace into a project
+others can build on: a documentation site, a licence, a stated minimum Rust version and a release process.
 
-### Changed (0121-MERIDIAN, repository and metadata)
-- **Licence: `MIT OR Apache-2.0`** on every crate, with `LICENSE-MIT` and `LICENSE-APACHE` in the repository and in
-  the published `oaxaca_blinder` package. The crate was `MIT` only.
-- **Minimum supported Rust version 1.88** (`rust-version`), compiled in CI by the `msrv` job.
-- **`pay-equity-engine` and `meridian-mcp` are `publish = false`.** Only `oaxaca_blinder` goes to crates.io.
+| Crate | Version | Where it ships |
+|---|---|---|
+| `oaxaca_blinder` (library and `oaxaca-cli`) | 0.3.0 | crates.io |
+| `pay-equity-engine` (remedy, defensibility and frontier layer; WASM) | 0.3.0 | not on crates.io; built from this repository |
+| `meridian-mcp` (MCP server) | 0.3.0 | not on crates.io; prebuilt binaries on the GitHub release |
+
+There is no 1.0 promise. The full migration guide, with before and after code, is in the documentation site
+(`migrating-0.2-to-0.3`).
+
+### Migrating from 0.2
+
+Library, relative to 0.2.2:
+
+| Change | Before | After |
+|---|---|---|
+| Default reference coefficients | `GroupA` | `GroupB`. Call `.reference_coefficients(ReferenceCoefficients::GroupA)` to keep the old numbers. |
+| `OaxacaResults::explained()` and `unexplained()` | returned `&ComponentResult` | return `Option<&ComponentResult>`; call `.expect(..)` or match |
+| `OaxacaResults` | no `run_metadata` field | has a public `run_metadata` field; struct literals and exhaustive destructuring need `..` |
+| `OaxacaError` | 0.2.2 variants | 8 more: `InsufficientData`, `EmptyLevelInGroup`, `TooManyGroupValues`, `ReferenceGroupAbsent`, `UnknownReferenceCoefficients`, `NormalizationError`, `WeightsKindRequired`, `InvalidWeight` |
+| `OaxacaError`, `ReferenceCoefficients`, `WeightsKind`, `NormalizationConvention`, `ExclusionReason` | exhaustive | `#[non_exhaustive]`; a `match` from another crate needs a `_` arm |
+| `ReferenceCoefficients` | no `PooledNoIndicator` | has `PooledNoIndicator`, which is what `Neumark` was meant to compute |
+| A weights column | `.weights("w")` | `.weights("w").weights_kind(WeightsKind::Relative)`, or `Frequency` for whole-number counts; without a kind the run fails with `WEIGHTS_KIND_REQUIRED` |
+| Name of the intercept row | `intercept` | `oaxaca_blinder::INTERCEPT_NAME` (`__ob_intercept__`) |
+| A group column with more than two values | the first other value was used silently | error `TOO_MANY_GROUP_VALUES`; recode to two values first |
+| OLS with as many columns as rows, and a null outcome in the AKM and quantile paths | no check; a null was read as 0.0 | `InsufficientData` for the first, an error for the second; drop or fill nulls first |
+| `AkmBuilder` | methods took `self` | methods take `&mut self` and `run(&self)`; single-expression chains still compile |
+| `MatchingEngine::match_nearest_neighbor(k, &metric)` and the `DistanceMetric` trait | metric object | `match_nearest_neighbor(k, use_mahalanobis: bool)`; the trait is gone |
+| `OaxacaBuilder` | `Clone` and `Debug` | neither; build a new builder for each run |
+| AKM, DFL, JMP and matching | always available | behind the cargo feature `experimental`, off by default |
+| Cargo features `python` and `pyo3` | present | removed; there is no Python binding |
+| `ReferenceCoefficients::Neumark`, `QuantileDecompositionBuilder`, `OaxacaResults::optimize_budget` | supported | `#[deprecated]` |
+
+Column-name arguments (`predictors`, `categorical_predictors`, `normalize`, `heckman_selection`, `controls`) accept
+anything that is `AsRef<str>`, so `&["education"]` from 0.2.2 compiles unchanged.
+
+Command line, relative to 0.2.2:
+
+| Change | Before | After |
+|---|---|---|
+| `--weights` | alone | needs `--weights-kind frequency` or `--weights-kind relative` |
+| `--bootstrap-reps` default | 500 | 100 (the library default is 100 too) |
+| `--analysis-type quantile` | Machado-Mata | RIF regression; `--simulations` is ignored |
+| Categorical drivers | raw treatment coding | population-share normalisation; `--normalization none` restores the raw coding for `run` |
+| `--analysis-type akm` and `match` | in the default build | `cargo install oaxaca_blinder --features experimental` |
+| `--ref-coeffs` | no `pooled-no-indicator` | `pooled-no-indicator` is a new value; the default stays `group-b` |
+
+Engine and MCP have no earlier release to break. Anyone who ran a development build should read the engine and MCP
+items under "Statistical changes".
+
+### Statistical changes a published result would show
+
+Numbers below were measured on one synthetic 400-row file (wage, education, experience, a three-level sector, gender,
+weights), once built against 0.2.2 and once against this release, with 300 bootstrap replicates unless stated.
+The decomposition itself (the gap, the explained and unexplained parts for a fixed reference scheme) did not move.
+A statistical result that a published figure depends on should be rerun on 0.3.0.
+
+Library and command line:
+
+- **Default reference coefficients are `GroupB`, not `GroupA`.** Same data, same call: explained 0.281824 becomes
+  0.269266 and unexplained 4.000989 becomes 4.013546; the gap, 4.282813, is the same.
+- **A percentile confidence interval is refused below 41 bootstrap replicates.** The default is 100, as in 0.2.2, so a
+  caller who never sets the replicate count sees no change. A caller who sets fewer than 41 gets `NaN` ends.
+- **Bootstrap standard errors, p-values and intervals differ from a 0.2.2 run in every digit.** The random generator is
+  now seeded (ChaCha8, default seed `DEFAULT_SEED`), so a run repeats exactly, on any number of threads. Point
+  estimates did not move: `GroupA`, `GroupB`, `Pooled`, `Weighted` and weighted least squares agree with 0.2.2 to six
+  decimals. Example: the `GroupB` unexplained standard error went from 0.120900 to 0.120759.
+- **Quantile (RIF) point estimates moved.** The sample quantile follows R's type 7 instead of a ceiling rule, and
+  weights now reach the RIF, its bandwidth and its kernel. Gap at tau 0.1: 5.600 to 5.301; at 0.5: 3.841 to 3.823;
+  at 0.9: 3.747 to 3.733; explained at 0.5: -0.0040 to 0.0002.
+- **The command line's quantile analysis is a different estimator** (RIF, not Machado-Mata), so it is not comparable
+  with 0.2.2 output.
+- **Weighted least squares standard errors** use the row count, not the sum of weights, as `n`. Point estimates are
+  identical.
+- **Frequency weights bootstrap the expanded sample.** A replicate used to draw one row per row and carry the weight.
+  On the skewed test file the standard errors were 1.32 times (explained) and 1.45 times (unexplained) those of the
+  repeated rows, and one p-value read 0.084 where the repeated rows gave 0.000.
+- **Per-level rows of categorical drivers are normalised** (command line by default, library opt-in with
+  `normalize_all_categoricals()`). Aggregates are unchanged; the rows of every categorical change, and the
+  alphabetically first level now appears. Renaming a level used to flip the sign of a driver.
+- **The three-fold decomposition under normalisation** used to sum to 79 percent of the gap and moved with the base
+  level. It is now computed from the raw coding and equals R `oaxaca` `threefold` to 1e-10.
+- **Logit probabilities are clamped to [1e-10, 1 - 1e-10] and the probit Hessian is solved, not inverted.** Matching,
+  DFL and Heckman results move only for extreme fitted values; the size was not measured.
+- **`optimize_budget` with a NaN, infinite or negative budget pays nothing.** A NaN budget used to fund the full need.
+
+Engine and MCP server (results Meridian reads):
+
+- **Prediction intervals and the frontier p-value use Student t**, not Normal. The half-width grows by about 2 percent at
+  58 residual degrees of freedom and 14 percent at 10. Remedy dollars move under `LowerBound` and `UpperBound`;
+  `Midpoint` payments do not. `is_defensible` allows one cent below the floor, not one dollar, and `confidence_level` is
+  honoured.
+- **The optimiser's `Pooled` target prices against the decomposition's `Pooled` line** (the pooled regression with a
+  group indicator, read at indicator 0). Every Pooled-target dollar changes. The Reference target is byte-identical.
+- **A remedy row no longer takes the next employee's dollars** when a cell is blank or the group column holds a third
+  value. In the case that exposed it, 36 of 39 paid rows were more than 1 dollar off.
+- **Remedy eligibility changed** for runs that used `adjust_both_groups` or `min_gap_pct`.
+- **The efficient frontier with no budget** no longer invents a budget of 1000; it returns one zero-budget point and a
+  warning.
+- **The frontier follows the remedy.** Its default budget axis ends at the remedy's full cost, not 1.1 times it;
+  `Equitable` is recomputed at each step; ties are paid in `optimize`'s order; and `confidence_level` also sets the
+  interval a `LowerBound` or `UpperBound` remedy pays to.
+- **`check_defensibility` gaps flip sign.** `original_gap`, `new_gap`, `original_unexplained_gap` and
+  `new_unexplained_gap` are the compared group's figure minus the line: negative while the compared group is
+  underpaid, rising with money paid. A consumer that negated them must stop.
+- **`adjust_both_groups` no longer credits reference raises to the compared group.** On a probe roster the compared
+  group's remaining gap was +2,103 and is -434. `new_unexplained_gap` is the gap on the line refitted to the schedule's
+  wages; it equals R `lm` on the adjusted wages to 1e-6 on 62 cases.
+- **`required_budget` is the compared group's need in both entry points** and `total_cost` is the money spent on both
+  groups. With `range_target` or `min_gap_pct` set the two entry points differ (a 4 percent threshold on the probe
+  roster: 16,884 against 19,607).
+- **`target_gap` sets the budget.** Already met pays 0 (a budget of 0 used to read as no cap and paid the full need);
+  out of reach pays every eligible shortfall.
+- **A negative or non-finite `budget` is refused** (`INVALID_BUDGET`); it used to fund the full need.
+- **Under `LowerBound` and `UpperBound`** the unexplained gaps are read on the midpoint line, and reference employees
+  raised with `adjust_both_groups` go to the same point of their own range (they went to the midpoint).
+- **A misspelt `strategy`, `target` or `range_target` at the MCP server is refused by name.** A misspelt
+  `"equitable"` used to run `Greedy`.
+- **An empty sum serialises as `0.0`**, not `-0.0`.
+
+Not a number change, but a published result will show it: a group with no residual degrees of freedom is refused
+(`INSUFFICIENT_RESIDUAL_DF`; it was a zero-width interval or `t = 0, p = 1`); a missing `reference_coefficients` is an
+error at the engine and the MCP server (it was a silent `Pooled`); and result `warnings[]` can now appear on rosters
+that were silent (`outside_range`, `normalised_difference`, `few_residual_df`, `tie_share`, `ecdf_offset`).
+
+### Added
+
+Library:
+- Seeded bootstrap: `seed`, `seed_opt`, `seed_from_entropy`, `DEFAULT_SEED`, and a `RunMetadata` record on every
+  result (requested and discarded replicates, seed, normalisation, reference scheme). The bootstrap runs in
+  index-ordered chunks, so memory is flat in the number of replicates.
+- `DEFAULT_BOOTSTRAP_REPS` (100), the one default shared by the library and the command line.
+- Row accounting: `get_data_matrices_with_rows`, `analysed_rows`, `RowAccounting`, `ExcludedRow`, `ExclusionReason`
+  say which rows were analysed and why others were left out.
+- Weights: `WeightsKind` (`Frequency` or `Relative`), `weights_kind()` and `weighted_quantile`. Weighted RIF.
+- Normalisation: `normalize_all_categoricals`, `normalization_convention(PopulationShare | EqualShare)`,
+  `NormalizationRecord`, `canonical_name`, `parse_name`, `INTERCEPT_NAME`.
+- `ReferenceCoefficients::PooledNoIndicator` (Neumark 1988; Stata `omega`; R `oaxaca` weight -1).
+- `rif_outcome_frame`, `qr_coefficients` and `OaxacaResults::format_summary`.
+- DFL accepts categorical predictors. Cargo features `mem-profile` and `wasm-threads`.
+- Cargo feature `experimental`, which gates AKM, DFL, JMP and matching (see "Changed").
+- Doctested examples: `first_decomposition`, `weights_and_categoricals` and `quantile_rif`.
+
+Command line:
+- `--normalization population-share|equal-share|none`, `--weights-kind frequency|relative`, and
+  `--ref-coeffs pooled-no-indicator`. `--output-json` works on the quantile path.
+
+Engine and MCP server, a first contract for Meridian:
+- The MCP tools `forensic_decomposition`, `simulate_remediation`, `verify_adjustments`, `check_defensibility` and
+  `generate_efficient_frontier`, over standard input and output or HTTP with server-sent events.
+- Result fields: `support`, `warnings[]`, `adjustments[].extrapolated`, `interval`, `source`, `range_position`,
+  `range_position_before`, `quantile_report`, `position_counts`, `group_test`, frontier `group_coefficient` and
+  `degrees_of_freedom`, and for a target gap `best_reachable_gap`, `target_gap_reachable`, `shortfall_to_target`,
+  `target_budget`, `budget_binding`, `unfunded_amount`, `unfunded_count`, `threshold_excluded_count`, `closure` and
+  `overshoot_mean`. `required_budget` comes with `cost_target`, `cost_reference`, `need_target`, `need_reference` and
+  `target_line`.
+- `reference_coefficients` is required and exact on `forensic_decomposition` and `verify_adjustments`:
+  `GroupA`, `GroupB`, `Pooled`, `PooledNoIndicator` or `Weighted`; anything else is
+  `UNKNOWN_REFERENCE_COEFFICIENTS`. `check_defensibility` and the frontier take `confidence_level`,
+  `target` (`Reference` or `Pooled`), `strategy`, `range_target`, `min_gap_pct` and `adjust_both_groups`.
+- Error codes by name: `INVALID_BUDGET`, `INVALID_TARGET_GAP`, `INVALID_MIN_GAP_PCT`, `INVALID_CONFIDENCE_LEVEL`,
+  `INVALID_STEPS`, `TARGET_GAP_WITH_REFERENCE_RAISES`, `UNKNOWN_TARGET`, `UNKNOWN_STRATEGY`,
+  `UNKNOWN_RANGE_TARGET`, `INSUFFICIENT_RESIDUAL_DF`, `WEIGHTS_KIND_REQUIRED`, `INVALID_WEIGHT`.
+- Stable row keys: a row's key comes from its content, and a row-counter column (`No.`, an employee id running 1 to N)
+  is left out, so a re-export with an inserted row keeps every annotation on its employee.
+- A snapshot diff for weekly HRIS extracts, as a WASM session that holds the previous week compactly: about 520 MB for
+  a 130,000-row, 120-column week against about 1,370 MB for the JavaScript version it replaces. The diff itself is about
+  twice as slow.
+- Two WASM builds, sequential and threaded (Rayon on web workers), each with its SHA-256 committed. The build recipe
+  is reproducible, and a browser test compares the threaded build with the native result.
+- `engine_version`, `reference_coefficients_used` and `method` are stamped into `run_metadata`.
+
+Project:
+- A documentation site (mdBook): start page, user guide, method pages, command-line and MCP reference, error codes,
+  how to reproduce results in R and Stata, FAQ and contributor pages. The command-line page and the MCP tool schemas
+  are generated from the shipped programs and compared with them in CI.
+- Both READMEs rewritten; their code is compiled as doctests, and the crate documentation on docs.rs is the crate
+  README.
+- `LICENSE-MIT`, `LICENSE-APACHE`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, `CITATION.cff`, issue
+  templates and a pull request template.
+- A release workflow (see "Release process").
+- Oracles in `verification/` that check results against R `lm` and `predict.lm`, `oaxaca` 0.1.5, `ddecompose` 1.0.0,
+  `quantreg` and `Hmisc`, with the SHA-256 of each generator and fixture checked when the tests load them. Bootstrap
+  standard errors equal R's to 12 digits on shared resamples.
+
+### Changed
+
+- **Licence: `MIT OR Apache-2.0`** on every crate. 0.2.2 was `MIT` only.
+- **Minimum supported Rust version 1.88** (`rust-version`), compiled by the `msrv` CI job.
+- **Bootstrap replicates: one default of 100** in the library and the command line. A development build of 0.3 used 20
+  in the library and 50 in the command line; 0.2.2 used 100 and 500.
+- AKM, DFL, JMP and matching sit behind the cargo feature `experimental`. They have no external check, and their
+  results can change in any release.
+- Detailed rows name the intercept `__ob_intercept__`.
+- Column-name arguments accept any iterable of string-like values. `lib.rs` is split into modules. Performance work:
+  a Cholesky solve in logit, a linear solve in probit, and fewer DataFrame clones and KD-tree allocations in the VIF,
+  quantile and matching code.
 - Package metadata for `oaxaca_blinder`: repository, homepage, documentation, keywords, categories, and an `include`
-  list so the package carries the sources, template, README and licences, not the test fixtures.
-- Removed the unused `oaxaca_blinder/src/python.rs` and `oaxaca_blinder/pyproject.toml`. The Python binding has not
-  been compiled since it was switched off.
-- Loop records moved from the repository root into `records/`; added `SECURITY.md`, `CODE_OF_CONDUCT.md`,
-  `CONTRIBUTING.md` (moved from `docs/`) and `CITATION.cff`.
+  list so the package carries the sources, the report template, the README and both licences.
+- `pay-equity-engine` and `meridian-mcp` are `publish = false`. Their versions track this release.
+- Loop records moved from the repository root into `records/`. Files that were never part of a crate are gone from the
+  tree: IDE and agent folders, editor backups, a saved web page named `Roboto-Regular.ttf`, an unused copy of the `cc`
+  crate, and scratch files.
+- Test-only parts and fixes from the pull requests triaged in October 2026 (#70, #73, #80, #84, and parts of #87, #88,
+  #90, #91 and #95) are in.
+- CI: every action is pinned to a commit, every cargo command takes `--locked`, one `gate` check needs every gating
+  job, and `scripts/check-ci-invariants.py` refuses a workflow that could silence itself.
 
-### Changed, BREAKING (0121-MERIDIAN, library API, 2026-10-16)
-- **Column-name arguments take anything that is `AsRef<str>`** on `OaxacaBuilder::{predictors,
-  categorical_predictors, normalize, heckman_selection}`, `QuantileDecompositionBuilder::{predictors,
-  categorical_predictors}`, `AkmBuilder::controls` and `MatchingEngine::new`. They were `Into<String>`, which refused
-  the `&["education"]` call that 0.2.2 accepted. A slice, an array, a `Vec<String>`, a `&Vec<String>` and an iterator of
-  `&str` all work.
-- **Bootstrap replicates: one default of 100.** `OaxacaBuilder::new` and `from_formula` start at 100 replicates
-  (0.3.0 development had 20; 0.2.2 had 100). `oaxaca-cli --bootstrap-reps` defaults to 100 (it was 50 in development
-  and 500 in 0.2.2), so the library and the command line agree. The constant is `DEFAULT_BOOTSTRAP_REPS`. A percentile
-  interval needs at least 41. The engine always sets its replicate count, so no engine number moves.
-- **Default reference coefficients stay `GroupB`** (0.2.2 defaulted to `GroupA`); the rustdoc on `new`,
-  `from_formula` and `reference_coefficients` now says so, and a test pins it.
-- **`OaxacaError`, `ReferenceCoefficients`, `WeightsKind`, `NormalizationConvention` and `ExclusionReason` are
-  `#[non_exhaustive]`.** A `match` on one of them from another crate needs a wildcard arm. Variants can now be added
-  in a minor release.
-- **AKM, DFL, JMP and matching are behind the new cargo feature `experimental`, off by default.** They have no external
-  oracle and their results may change in any release. `akm::*`, `dfl::*`, `jmp::*`, `matching::*`, `AkmBuilder`,
-  `AkmResult`, `run_dfl`, `decompose_changes` and `MatchingEngine` need `features = ["experimental"]`;
-  `oaxaca-cli --analysis-type akm|match` and its `--worker-id`, `--firm-id`, `--k-neighbors` and `--matching-method`
-  flags need `--features experimental` at install.
+### Deprecated
 
-### Changed, BREAKING (0122-MERIDIAN, the remedy says what it does, 2026-10-09)
-- **`check_defensibility` reports every gap with `optimize`'s sign.** `original_gap`, `new_gap`,
-  `original_unexplained_gap` and `new_unexplained_gap` are the compared group's figure minus the line (or the reference
-  group's): negative while the compared group is underpaid, rising with money paid. They used to be the opposite sign on
-  all four (the 0118 carry). A consumer that negated them must stop.
-- **`adjust_both_groups` no longer credits reference raises to the compared group** (REM-3). `new_gap` is
-  `original_gap + cost_target / n_compared - cost_reference / n_reference`, and `new_unexplained_gap` is the gap on the
-  line REFITTED to the schedule's wages (the reference line moves when reference employees are raised; under `Pooled`
-  the group coefficient moves with every dollar). One shared function prices both entry points, so a schedule has one
-  `new_unexplained_gap`; it equals R `lm` refitted on the adjusted wages to 1e-6 on 62 cases. On the probe roster the
-  compared group's remaining gap was +2,103 and is -434.
-- **`required_budget` is the compared group's need in both entry points**, and `total_cost` stays the money spent on
-  both groups. It is the same figure in both on the default basis (midpoint line, threshold 0); `optimize` honours
-  `range_target` and `min_gap_pct`, `check_defensibility` always reads the midpoint at threshold 0 (`target_line`), so
-  they differ when either is set (a 4 % threshold on the probe roster: 16,884 against 19,607). New: `cost_target`, `cost_reference`, `need_target`, `need_reference` (optimise), `target_line`.
-- **`target_gap` is read.** It is a rule for the budget (no solver: on the reference line every dollar to a compared
-  employee moves the compared group's gap by the same amount, so the cost of a gap is fixed; on the pooled line a dollar
-  moves it by a weight of its own, which is NEGATIVE for a compared employee far beyond the reference group's
-  characteristics), on the sign and scale of `original_unexplained_gap`. Already met pays nothing (a budget of 0 used to
-  read as "no cap" and paid the full need); out of reach pays every eligible shortfall, or on a pooled roster where paying
-  someone widens the gap, up to the budget where the gap is highest, and reports `target_gap_reachable: false`,
-  `best_reachable_gap` (the highest the gap gets as the budget grows) and `shortfall_to_target`. Under `Pooled` the
-  budget is found along the strategy's own order, at the first point the path reaches the target. New result fields:
-  `best_reachable_gap`, `target_gap_reachable`, `shortfall_to_target`, `target_budget`, `budget_binding`,
-  `unfunded_amount`, `unfunded_count`, `threshold_excluded_count`, `closure` (share of the compared group's need paid,
-  0 to 1, monotone in the spend), `overshoot_mean`. Field definitions: `docs/DIAGNOSTICS.md`.
-- **Refused by name:** a negative or non-finite `budget` (`INVALID_BUDGET`; it used to fund the full need), a non-finite
-  `target_gap` (`INVALID_TARGET_GAP`), a negative or non-finite `min_gap_pct` (`INVALID_MIN_GAP_PCT`), and `target_gap`
-  with `adjust_both_groups` (`TARGET_GAP_WITH_REFERENCE_RAISES`). `budget == 0` is still "no cap" and is documented as
-  such on the request, the MCP schema and `docs/API.md`. `min_gap_pct` is documented as shortfall / current pay.
-- **Under `range_target` `LowerBound` / `UpperBound`** `original_unexplained_gap` and `new_unexplained_gap` are on the
-  midpoint line (the headline's), no longer measured from the bound, and reference employees raised with
-  `adjust_both_groups` are raised to the same point of THEIR range (they went to the midpoint whatever the target said).
-- **Where each employee stands.** Each adjustment carries `source` (`Compared` / `Reference`), `range_position` and
-  `range_position_before` (`Below` / `Inside` / `Above` against its own prediction range; `Below` is exactly
-  "not `is_defensible`", one cent of slack on each edge). `check_defensibility` adds `position_counts` over EVERY
-  analysed compared employee, before and after (an unnamed row counts at adjustment 0, so a partial schedule cannot
-  hide the people it left out; reference employees are in no count), and `group_test`: the exact pooled-indicator test
-  on the schedule's wages (closes the "not built" note of 0120 T8; equal to the frontier at equal budget and to R `lm`).
-  `group_test.line` is always `"Pooled"`: under `target: Reference` its `group_coefficient` is the group's gap on the
-  pooled line, not `new_unexplained_gap` (the reference line), and the two can differ in sign.
-- **The frontier follows the remedy.** `EfficientFrontierRequest` gains `strategy`, `target`, `range_target`,
-  `min_gap_pct`, `adjust_both_groups` (absent: the only remedy it could describe before). `Equitable` is recomputed per
-  step (the sweep is nested only for `Greedy`) and ties are paid in `optimize`'s order. The default budget axis ends at
-  the remedy's full cost instead of 1.1 times it. The frontier's `confidence_level` is also the level of the interval a
-  `LowerBound` / `UpperBound` remedy pays to (at 0.80 the lower bound is higher, so the axis ends further out). A
-  negative or non-finite `max_budget` is refused (`INVALID_BUDGET`) and `steps: 0` too (`INVALID_STEPS`); both used to
-  return a curve of nulls or a lone baseline point.
-- **MCP:** `simulate_remediation`, `check_defensibility` and `generate_efficient_frontier` refuse an unknown `target`,
-  `strategy` or `range_target` by name (`UNKNOWN_TARGET`, `UNKNOWN_STRATEGY`, `UNKNOWN_RANGE_TARGET`); a misspelt
-  `"equitable"` used to run Greedy. The schemas list every field and say what the amounts do.
-- **Library:** `OaxacaResults::optimize_budget` is `#[deprecated]` (two allocators with opposite group conventions; its
-  `target_gap` is the raw `total_gap`; a non-finite `budget` or `target_gap` now pays nothing, a NaN budget used to fund
-  the full need); the READMEs no longer sell it as a solver. Stale solver text removed from
-  `ARCHITECTURE.md`, `CLAUDE.md`. The engine enums `OptimizationTarget`, `AllocationStrategy` and `RangeTarget` now
-  derive `Serialize`, `Clone`, `Copy` and `PartialEq`.
-- Result serialisation: an empty sum no longer serialises as `-0.0`.
-- Oracles: `verification/gen_remedy_goldens.R` (R `lm`, `predict.lm`, a REFIT of the line on every schedule, `uniroot` on
-  that refit for the budget) and `verification/gen_remedy_bruteforce.py` (every allocation on a 250 dollar grid), with
-  sha256 of generator and fixtures checked on load. `null_free_regression_test` stays on the pre-0118 golden except one
-  regenerated line (`optimize/noisy/forensic_both`, REM-3) and named comparisons for the keys, the defensibility sign and
-  the range-target gap.
+- `QuantileDecompositionBuilder` (Machado-Mata). The shipped quantile path is RIF regression.
+- `ReferenceCoefficients::Neumark`, which keeps computing `Pooled`. Use `PooledNoIndicator` for Neumark's estimator.
+- `OaxacaResults::optimize_budget`, which allocates on the decomposition's residuals. The engine's `optimize` is the
+  remedy Meridian runs.
 
-### Changed, BREAKING (0120-MERIDIAN T8, optimiser Pooled target, 2026-10-09)
-- **The optimiser's `Pooled` target is the decomposition's `Pooled` line.** `OptimizationTarget::Pooled` used to stack
-  both groups with no group column, which is `PooledNoIndicator` (Neumark), so the remedy was priced against one line
-  while the headline beside it was measured against another. It now fits the pooled regression WITH a target-group
-  indicator, drops the indicator, and reads every fair wage at indicator 0. At the midpoint `original_unexplained_gap`
-  equals the indicator's coefficient, which is the decomposition's `Pooled` unexplained gap (R `lm` and `oaxaca` weight
-  -2, 1e-9; `optimize` against `decompose` on the same file, 1e-9). `model_coefficients` and each row's `contributions`
-  are the pooled terms of the model's own columns, without the indicator. **Every Pooled-target dollar changes**: fair
-  wages, payments, `total_cost`, `required_budget`, `new_gap` and both unexplained gaps. The Reference target is
-  byte-identical.
-- **The interval for that target comes from the same fit.** Bounds are `predict.lm(pooled_fit, newdata = row at
-  indicator 0, interval = "prediction")`: sigma squared, `(Z'Z)^-1` and the residual df (`n_reference + n_target - k -
-  1`) are the pooled regression's, so `interval.degrees_of_freedom` and `critical_value` report that fit. The
-  "approximation until T8" note is removed from `IntervalBasis` and `docs/DIAGNOSTICS.md`.
-- **`extrapolated` and `few_residual_df` judge the pooled fit under this target.** A row is extrapolated when its
-  leverage at indicator 0 exceeds the largest leverage among the reference rows of the pooled design (ordinal sets
-  equal R's `hatvalues` row by row). `few_residual_df` carries subject `pooled` and the pooled df; a pooled fit with no
-  residual df is refused as `INSUFFICIENT_RESIDUAL_DF: group=pooled`, and a baseline group too small to carry its own
-  line is no longer a reason to refuse under Pooled (it still is under Reference).
-- Oracle `verification/gen_pooled_target_goldens.R` writes `oaxaca_blinder/tests/fixtures/pooled_target_goldens_r.json`
-  (sha256 of the script and of seven fixtures checked on load). `null_free_regression_test` no longer compares
-  `optimize/noisy/pooled_target` with the pre-0118 text (it pinned the no-indicator fit); that case is held to a pooled
-  `lm` fitted from the fixture's own cells, and every Reference-target case still equals the golden at 1e-9.
-- **`check_defensibility` takes the same `target`** (0120-MERIDIAN review N8, "E2-c" of the Track A plan). WASM and
-  MCP requests may carry `target: "Reference" | "Pooled"`; absent means Reference, byte-identical to before (an explicit
-  Reference equals the default byte for byte). Under Pooled the check reads fair wages, bounds, `extrapolated` and
-  `few_residual_df` (subject `pooled`) off the pooled fit, so the remedy's rows and the check's rows mark the same
-  people. Held to the same R golden as the optimiser: bounds at 0.90 / 0.95 / 0.99 against `predict.lm` (1e-9),
-  critical value and df, extrapolated ordinals against `hatvalues`, and equal to the remedy's set. New type
-  `DefensibilityRequest` (a flattened `VerificationRequest` plus `target`); `verify_adjustments` is unchanged.
-  `check_defensibility_inner` is `check_defensibility_on(req, &Reference)`.
-- Still not built: E2-e / E2-f (coefficients and group shares for a redo-by-hand table). The exact `group_test` on the
-  defensibility run was built by 0122-MERIDIAN.
+### Removed
 
-### Changed, BREAKING (0120-MERIDIAN S1-S4, Track E core, 2026-10-09)
-- **Per-level driver rows no longer depend on which level sorts first.** The engine (WASM `decompose` and
-  `verify_adjustments`, MCP) and the CLI (`run`, `report`) normalise every categorical predictor on every run:
-  each level, the alphabetically first one included, is a deviation from the pooled-sample share-weighted average of
-  the levels (population-share, founder decision D1). All k levels are emitted; the intercept absorbs the average.
-  The decomposition aggregates and the remedy's level are unchanged by S1-S4 alone; the numbers that do move are
-  listed under S6-S9 below (Student t intervals and the range-target payments built on them). The library keeps `normalize()`
-  opt-in (raw by default); `normalize_all_categoricals()` and `normalization_convention(PopulationShare |
-  EqualShare)` are new, `EqualShare` being what Stata `categorical()`, R `oaxaca` and `ddecompose` print.
-  `oaxaca-cli --normalization population-share|equal-share|none`. Surface table: `docs/NORMALIZATION.md`.
-- **One restriction per run.** The share vector is keyed by variable and level name and built once per pass from the
-  pooled analysed rows (sum of weights when a weights column is set); it is applied to beta_A, beta_B, the pooled fit
-  and the weighted mix alike. A bootstrap replicate builds its own from its pooled resample. The unused `_x_mean`
-  parameter of `normalize_categorical_coefficients` and the `category_counts` plumbing are gone. With a Heckman
-  selection model normalisation is skipped on A, B and pooled together and the run says so.
-- **Three-fold is computed from the treatment-coded vectors**, in the point estimate and in every replicate. Under
-  normalisation it used to sum to 79% of the gap and move with the base level; it now equals R `oaxaca`
-  `threefold$overall` (E, C, I) to 1e-10.
-- **`reference_coefficients` is required and exact** at WASM `decompose` / `verify_adjustments` and the MCP tools
-  `forensic_decomposition` / `verify_adjustments`: `GroupA`, `GroupB`, `Pooled`, `PooledNoIndicator`, `Weighted`.
-  Absent, `"pooled"`, `"Neumark"` or anything else is an error (`UNKNOWN_REFERENCE_COEFFICIENTS`); the silent
-  fallback to `Pooled` is removed. The MCP schema requires the field and describes each counterfactual.
-  The frontier and defensibility entry points still ignore the field.
-- **New `ReferenceCoefficients::PooledNoIndicator`** (Neumark 1988, Stata `omega`, R `oaxaca` weight -1).
-  `ReferenceCoefficients::Neumark` is `#[deprecated]` and keeps computing `Pooled` (pooled WITH a group indicator, whose
-  coefficient is the unexplained gap; Jann 2008 `pooled`), so its number is unchanged. `GroupA` / `GroupB` doc
-  comments now say which group is which (A = the compared, non-reference group).
-- **The intercept has one name.** `oaxaca_blinder::INTERCEPT_NAME` (`"__ob_intercept__"`) replaces ten string
-  literals; `pay_equity_engine::intercept_token()` (and the WASM function of the same name) returns it. The
-  unreachable `"Base Rate (Intercept)"` branch in `optimize_inner` and `check_defensibility_inner` is removed.
-  `model_coefficients` and per-employee `contributions` are documented as RAW treatment-coded model terms, never
-  drivers.
-- **`run_metadata` gains** `normalization` (convention, share basis, applied, the point sample's shares),
-  `reference_coefficients_used`, `engine_version`, `method` (`oaxaca-blinder-mean` | `rif-quantile`) and
-  `bootstrap_discard_levels` (`variable=level` entries for levels that cost replicates). All are omitted when unset, so a
-  raw library run serializes to the bytes it always did. `reference_coefficients_used`, `engine_version` and `method` are stamped by the engine layer only.
-- New library method `OaxacaBuilder::rif_outcome_frame(tau)` and example `emit_rif_fixture` export the per-group RIF
-  outcome so an external package can check the quantile path's normalisation.
-- Crate versions: `oaxaca_blinder` 0.3.0, `pay-equity-engine` 0.2.0.
+- The Python binding (the `python` and `pyo3` features) and the verification scripts that imported it. It has not been
+  compiled since it was switched off.
+- The `DistanceMetric` trait.
+- `Clone` and `Debug` on `OaxacaBuilder`.
+- The `optimization_engine` crate from the workspace.
 
-### Changed, BREAKING (0120-MERIDIAN S6-S9, Track E diagnostics, 2026-10-09)
-- **A weights column needs a kind.** `OaxacaBuilder::weights_kind(WeightsKind::Frequency | Relative)` and CLI
-  `--weights-kind frequency|relative`, each required with `--weights` (a run without it fails with
-  `WEIGHTS_KIND_REQUIRED`). `frequency`: whole-number counts, `w = 2` is the row twice; a fractional, negative or
-  non-finite value fails with `INVALID_WEIGHT: column=, row=, value=` (the original 0-based data-row ordinal).
-  `relative`: FTE / design weights, rescaled so each regression's weights sum to its row count; the RIF percentile
-  is `Hmisc::wtd.quantile(type = "quantile", normwt = TRUE)`; uniform weights change nothing.
-  `oaxaca_blinder::weighted_quantile(values, weights, tau, kind)` is public. An integer-typed weights column (a
-  headcount read from CSV) is accepted. Under `frequency` the RIF density bandwidth now reads `sum(w)` instead of
-  Kish's effective n, so a run with `w = 2` equals the run on the row twice, density included.
-- **Frequency weights bootstrap the expanded sample.** A replicate used to draw one row per ROW and carry the weight,
-  so `w = 2` matched the repeated rows for point estimates only: on `norm_skewed_fixture.csv` the standard errors came
-  out 1.32x (explained) and 1.45x (unexplained) those of the repeated rows and Department_Admin's unexplained p-value
-  was 0.084 against 0.000. Under `weights_kind = frequency` a replicate now draws `sum(w)` employees per group
-  (multinomial, probability `w_i / sum(w)`) and the draw counts become that replicate's weights, on the mean and the
-  percentile path. `relative` weights and unweighted runs keep the row-level draw (byte baselines unchanged).
-- **Prediction intervals and the frontier p-value are Student t**, on the baseline regression's residual degrees of
-  freedom (`predict.lm(interval = "prediction")`, `pt`), not Normal. **Remedy dollars move under `range_target`
-  `LowerBound` / `UpperBound`**: the payment is the interval bound, so `adjustments[].adjustment`, `new_wage`,
-  `total_cost`, `required_budget`, `new_gap`, `original_unexplained_gap` and `new_unexplained_gap` are t-based. The
-  half-width grows by t/z, about +2% at 58 residual df and +14% at 10, so a saved scenario re-run on this engine
-  returns different dollars. `Midpoint` payments do not touch the interval and are unchanged. The bound is checked
-  against `predict.lm` in `intervals_test` (`v7_range_target_payments_equal_the_predict_lm_bound_minus_the_wage`).
-  `is_defensible` allows one cent below the
-  interval floor, not one dollar. `confidence_level` is now read by `check_defensibility` and
-  `calculate_efficient_frontier` (default 0.95, clamped to [0.50, 0.999]; for the frontier it sets
-  `is_significant`). MCP `check_defensibility` and `generate_efficient_frontier` accept it.
-- **A fitted group with no residual degrees of freedom is refused** on every entry point:
-  `INSUFFICIENT_RESIDUAL_DF: group=reference|target, rows=, model_columns=, residual_df=` (it was a zero-width
-  interval, an anonymous estimator error, or the frontier's `t = 0, p = 1` sentinel).
-- `optimize` no longer fits a regression to the compared group to obtain `original_gap`; it is the difference of
-  the analysed group means (what `total_gap` is). Numbers are unchanged.
+### Fixed
 
-### Added (0120-MERIDIAN S6-S8)
-- Result fields (documented in `engine/src/types.rs`, mapped in `docs/DIAGNOSTICS.md`), all additive: `support`
-  and `warnings` on decompose, verify, optimize and defensibility results; `adjustments[].extrapolated` and
-  `interval` on optimize and defensibility; `quantile_report` on a percentile decompose (omitted otherwise);
-  `group_coefficient` and `degrees_of_freedom` on every frontier point.
-- `warnings[]` is `{code, subject, value, threshold}` with codes `outside_range` (> 5% of compared rows beyond the
-  baseline range), `normalised_difference` (|Imbens-Rubin| > 0.25), `few_residual_df` (< 10), `tie_share` (> 5%)
-  and `ecdf_offset` (|F_n(q) - tau| > max(0.01, 1/n): a tie-free group of n rows is off by up to 1/n by discreteness
-  alone, so a 23-person roster with 23 different salaries is silent; `tie_share` is the step-grid signal). The
-  engine carries no wording.
-- `verification/gen_diag_goldens.R` -> `diag_goldens_r.json` (base R `lm` / `predict.lm` / `quantile`, `ddecompose`,
-  `Hmisc`), fixtures `diag_*.csv`; sha256 of the generator and every fixture are recorded and checked.
+- Remedy dollars land on the employee they were computed for when a cell is blank or a third group value appears.
+- `meridian-mcp` answers requests that carry the standard `jsonrpc` key. The field was declared `_jsonrpc` without a
+  rename, so a compliant client got "Parse error" on every request, on standard input and on HTTP. `_jsonrpc` is
+  still accepted. The server reports its crate version in `serverInfo`.
+- OLS with no spare degrees of freedom is an error (`InsufficientData`) and the engine refuses a fitted group with none
+  (`INSUFFICIENT_RESIDUAL_DF`); AKM convergence errors surface; nulls are no longer read as 0.0 in the AKM and quantile
+  paths.
+- Numeric and `unwrap` panics in the library; header-parse panics and poisoned-lock handling in the MCP server.
+- RIF quantile decomposition fails with a message when a group has fewer than 2 rows. It returned the raw series as its
+  own RIF.
+- Documentation: the READMEs no longer show code that does not compile, name the wrong version, or describe Python
+  bindings.
 
-### Added (0120-MERIDIAN oracles)
-- `verification/gen_norm_goldens.R` + `regen_norm_goldens.sh`: base-R `lm()` weighted-effect-coding refit (population
-  share), `ddecompose(normalize_factors = TRUE)` and R `oaxaca` (equal share) goldens in `norm_goldens_r.json`,
-  with the sha256 of the generator and of every fixture; the Rust tests refuse a stale golden. Fixtures:
-  `norm_skewed_fixture.csv` (levels 60/30/9/1 percent, mixes differing by 20+ points between the groups, an 8-person
-  department, integer weights, blank Tenure cells), `norm_balanced_fixture.csv` (every factor balanced in the pooled
-  sample, unbalanced inside each group), `norm_skewed_rif.csv` (the engine's RIF columns).
-- `trust_goldens_r.json` gains the block `quantile_detail_normalized`; every existing block is byte-identical (the
-  generator was rerun and diffed). `0118-null-free-golden.txt` is NOT regenerated: its comparator is field-scoped.
+### Security
 
-### Added (0119-MERIDIAN S7 + S6, 2026-10-09)
-- `scripts/build-wasm.sh --verify` builds both raw blobs and compares them with `git show HEAD:engine/*.sha256`;
-  it never writes a baseline, never publishes, and exits 1 on a mismatch (result in `target/wasm-verify.json`).
-  `--record` is now the only mode that writes `engine/*.sha256`; the default build no longer rewrites them.
-- Publishing writes `engine-manifest.json` beside each shipped blob: raw sha256, shipped `_bg.wasm` sha256,
-  engine commit, dirty flag. wasm-bindgen output is not deterministic (two runs over one raw blob differ in
-  123 bytes of the `_bg.wasm`; the glue JS is identical), so the shipped blob can only be checked against its
-  manifest, never against a committed hash. The app's freshness gate compares content instead of mtimes.
-- The publish list no longer copies a stale `pay_equity_engine_bg.js` from an old bundler build, and the
-  sequential `package.json` is written by the script instead of existing only in the gitignored `engine/pkg/`.
-- `scripts/ground.sh` (deterministic probes, exit 0 always, `errors[]` plus a stderr banner) and
-  `scripts/verify-live.sh <epic>` (refuses a dirty tree, writes `ground/receipts/<epic>-live.json`) for the dev loop;
-  `scripts/test-loop-scripts.py` tests both, including `gh` and `cargo` removed from PATH.
+- `meridian-mcp` in HTTP mode refuses to start without `MCP_API_KEY`, checks the key on every request in constant time,
+  has tightened CORS, and rate-limits the event stream.
+- Lockfile updates: `rand` 0.8.7, `rustls-webpki`, `quinn-proto` 0.11.18 and `rustls` 0.23.46. Neither `quinn-proto`
+  nor `rustls` is compiled into a shipped binary or the WASM engine.
+- An unsafe pointer cast between Polars versions is gone with the Python binding.
+- `SECURITY.md` describes how to report a vulnerability.
 
-### Changed (0119-MERIDIAN S2 + S3, 2026-10-09)
-- CI jobs can no longer silence each other. `wasm-verify` is split into `wasm-seq`, `wasm-threaded`, `wasm-repro`
-  and `native-baseline`; `browser-parity` runs after `wasm-threaded` and `native-baseline` even when a hash
-  compare failed (only a cancelled build skips it). A final `gate` job needs every gating job and fails unless
-  each is `success`; skipped and cancelled count as failures. `scripts/check-ci-invariants.py` (run by `gate`)
-  fails on `continue-on-error`, a job-level `if` on a gating job, a missing `timeout-minutes`, a `gate` whose
-  `needs` drifted, an unpinned action, `npm install`, a download piped into a shell, or `paths`/`paths-ignore`.
-- Workflows: top-level `permissions: contents: read` (release.yml raises it for its one job), every action pinned
-  to a full commit SHA with the tag in a comment, `npm ci` instead of `npm install`, the release job installs a
-  pinned, sha256-verified syft instead of piping an install script from a branch into a shell, and
-  `.github/dependabot.yml` keeps the pins current.
-- The CI artifact `wasm-raw` is now `wasm-raw-seq` and `wasm-raw-threaded`; the double-build blobs are `wasm-repro`.
-- Browser parity compares numbers: the native/wasm comparator treats an absent key as equal only when the other
-  side is literally `null` and only at `$.unexplained_standard_error` and `$.unresolved_row_keys` (the
-  `serde_wasm_bindgen` drop of `None`); number-vs-absent stays a mismatch; every numeric leaf compares at 1e-6.
-  It returns the numeric leaf count; the spec asserts a floor (18) and 18 named required paths. The comparator and
-  the baseline stamp have `node --test` unit tests that run in CI before Playwright.
-- The native baseline freshness check compares a hash written by the generator step (engine source files plus
-  the baseline's sha256) instead of file mtimes. Generate with `node verification/browser-parity/gen-native-baseline.mjs`
-  (`npm test` does it).
+### Known issues
 
-### Changed (0119-MERIDIAN S1, 2026-10-09)
-- The WASM build recipe lives once in `scripts/wasm-recipe.sh`, sourced by `scripts/build-wasm.sh` and by CI.
-  The sequential pass maps the optional `rust-src` location back to `/rustc/<commit>`, so the raw blob no
-  longer depends on whether that component is installed. Cause found: CI (no `rust-src`) embedded
-  `/rustc/1159e78c.../library/...` std paths, the author's machine (with `rust-src`) embedded
-  `/rustup/toolchains/1.90.0-.../lib/rustlib/src/rust/library/...`; 33 paths and the `.llvm.<hash>` symbol
-  suffixes differed, so the sequential hash never matched.
-- Every cargo build, run, test and clippy in CI takes `--locked`. `build-wasm.sh` has a preflight that fails
-  on a missing toolchain, component, target or wasm-bindgen version and prints host triple and toolchain dirs.
-- Raw sequential and threaded blobs, their sha256 and the toolchain description are uploaded as the `wasm-raw`
-  artifact before any baseline compare, and the compares no longer stop each other.
-- Baselines re-recorded from the proven recipe (2026-10-09). Old: sequential `32b41510563c...`, threaded
-  `59988ec0d431...` (engine `cf7a2af`). New: sequential `e70dcee6bb56...`, threaded `a80a9d807963...`; both
-  changed because the S4 dependency bumps changed the bytes, the sequential one also because of the recipe.
+- An integer outcome column is refused (`expected Float64, got i64`); write the values with a decimal point
+  (`45600.0`). Predictors and an integer weights column are accepted.
+- `oaxaca-cli report` and `oaxaca-cli run` also need the top-level options (`--data`, `--outcome`, `--group`,
+  `--reference`); give them once before the subcommand and once after it.
+- A quantile run's `total_gap` is the RIF model total, not the sample percentile gap (4,463 against 4,750 at the 90th
+  percentile of the test file).
+- `--simulations` is accepted and ignored; its help text still names Machado-Mata.
+- The Heckman correction has no R or Stata run to compare with, only simulated data with a known answer.
+
+### Release process
+
+Publishing a version is a tag push (`v0.3.0`). The release workflow checks that the tag equals the `oaxaca_blinder`
+version and that `gate` passed on the tagged commit, re-runs formatting, clippy, the tests and a dry-run publish,
+builds `oaxaca-cli` and `meridian-mcp` for Linux, macOS (Apple silicon) and Windows, publishes `oaxaca_blinder` to
+crates.io, attaches the binaries and two SBOMs to the GitHub release (its text is this section), and deploys the
+documentation under `v0.3/` and `latest/` so older versions stay readable.
+
+### About the tags
+
+Tag `v0.2.0` is on a commit whose `Cargo.toml` still says 0.1.0; the bump to 0.2.0 came a day later and crates.io
+0.2.0 was published from it. Tag `v0.2.1` is on a later commit that carries version 0.2.2, pushed by mistake; 0.2.1
+itself was never tagged or published. No tag has been moved, because moving one breaks anyone who pinned it. Use the
+versions on crates.io (0.1.0, 0.2.0, 0.2.2, then 0.3.0) as the record.
 
 ## [0.2.2] - 2025-12-18
 
 ### Added
-- Added `allow(dead_code)` to various structs (`OaxacaBuilder`, `ProbitResult`, `LogitResult`, `OlsResult`) to reduce noise in API usage.
-- Added `diagnostics` module (VIF calculation) with `polars` integration.
-- Added `report` command to CLI for generating HTML summaries.
+- AKM model, and a matching module with Euclidean and Mahalanobis distances and logistic propensity scores.
+- Trait-based estimators.
+- A `diagnostics` module (variance inflation factors) with Polars integration.
+- A `report` command in the command line, for static HTML summaries.
+- Class-based Python bindings.
 
 ### Fixed
-- Fixed lint warnings for `unused_mut`, deprecated functions, and unused imports across the codebase.
-- Resolved `clippy::useless_vec` warnings in tests.
-- Fixed dependency configurations.
+- The probit Hessian inversion.
+- A panic in the command line.
+- `match_nearest_neighbor` index mapping.
+- Findings from a review of the optimisation engine; lint warnings; dependency configuration and updates.
+
+### Changed
+- `allow(dead_code)` on several result types, to reduce warning noise in API use.
+
+## [0.2.1]
+
+Never published to crates.io and never released. Version 0.2.1 was set in the manifest on 2025-11-28 and the work
+went out as 0.2.2. Tag `v0.2.1` exists by mistake; see "About the tags" under 0.3.0.
+
+## [0.2.0] - 2025-11-27
+
+### Added
+- Sample weights: weighted least squares, weighted means, weighted bootstrap.
+- Heckman two-step selection correction (probit selection equation, inverse Mills ratio).
+- R-style formula interface (`OaxacaBuilder::from_formula`), with `C()` and `factor()` for categorical variables.
+- Python bindings (`pyo3`, `maturin`).
+- RIF quantile decomposition, Juhn-Murphy-Pierce and DiNardo-Fortin-Lemieux decompositions, variance inflation
+  factors, a budget allocation helper, JSON, LaTeX and Markdown export, and a stand-alone command line.
+- Results checked against R's `oaxaca` package.
