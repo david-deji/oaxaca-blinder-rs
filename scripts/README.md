@@ -11,6 +11,7 @@ Tooling that CI and the maintainers run. None of it ships in a crate.
 | `gate-step-audit.py` | Reads a finished run through the jobs API and fails when a successful job has a skipped step. | CI (`gate`) |
 | `validate-audit-ignores.py` | Checks every ignore in `.cargo/audit.toml`: dated, unexpired, matched to a locked crate, classified. Also holds minimum locked versions for advisories cargo-audit cannot see. | CI (`security`) |
 | `test-audit-validator.py` | One mutated `audit.toml` or `Cargo.lock` per failure class; each must fail. | CI (`security`) |
+| `check-book-links.py <dir>` | Resolves every relative link and image in the built docs site (`mdbook build docs --dest-dir target/book`) against the build. mdBook itself only checks that the pages in `SUMMARY.md` exist. | CI (`docs`) |
 | `ground.sh` | Deterministic probes of the repository's state (suites, receipts, drift). Always exits 0; a probe that could not run is reported inside the JSON. Writes `records/ground/YYYY-MM-DD-probes.json`. | maintainers' dev loop |
 | `verify-live.sh <epic>` | Runs the checks that need the Meridian app checkout and writes `records/ground/receipts/<epic>-live.json`. Refuses a dirty tree. | maintainers' dev loop |
 | `test-loop-scripts.py` | Tests of `ground.sh` and `verify-live.sh`. | CI (`quality`) |

@@ -910,9 +910,8 @@ fn a_group_paid_below_the_line_reads_negative_and_rises_with_money() {
 // ---- D5: no statute is cited on a remedy surface -------------------------------------------------------
 
 /// Every file a remedy sentence can live in: the engine, the MCP server and the library sources,
-/// and every shipped document (the changelog, the READMEs, the architecture notes, the API and
-/// diagnostics references). The research notes, the audit trail and the build scratch directories
-/// are history, not a surface.
+/// and every shipped document (the changelog, the READMEs and every page of the docs site). The
+/// research notes, the audit trail and the build scratch directories are history, not a surface.
 fn remedy_text_files() -> Vec<PathBuf> {
     fn walk(dir: &std::path::Path, ext: &str, out: &mut Vec<PathBuf>) {
         for entry in std::fs::read_dir(dir).unwrap() {
@@ -931,15 +930,13 @@ fn remedy_text_files() -> Vec<PathBuf> {
     for doc in [
         "CHANGELOG.md",
         "README.md",
-        "ARCHITECTURE.md",
         "CLAUDE.md",
         "oaxaca_blinder/README.md",
-        "docs/API.md",
-        "docs/DIAGNOSTICS.md",
-        "docs/README.md",
     ] {
         files.push(root().join(doc));
     }
+    // Every page of the docs site (the book's source).
+    walk(&root().join("docs/src"), "md", &mut files);
     for readme in ["engine/README.md", "meridian-mcp/README.md"] {
         if root().join(readme).exists() {
             files.push(root().join(readme));

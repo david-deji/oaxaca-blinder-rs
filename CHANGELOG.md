@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+### Added (0121-MERIDIAN, documentation)
+- **A documentation site**, an mdBook in `docs/`: start page, user guide, method pages, command-line and MCP
+  reference, error codes, how to reproduce results in R and Stata, FAQ, and contributor pages. The `docs` CI job builds
+  it. The command-line page and the MCP tool schemas are generated from the shipped binaries and compared with them by
+  tests.
+- **Three examples that compile**, `first_decomposition`, `weights_and_categoricals` and `quantile_rif`, whose output is
+  shown in the docs and compared with a real run by a test.
+- Both READMEs rewritten. Their code is compiled as doctests; the crate documentation on docs.rs is the crate README.
+
+### Fixed (0121-MERIDIAN, MCP server)
+- **`meridian-mcp` answers requests that carry the standard `jsonrpc` key.** The field was declared `_jsonrpc` without
+  a rename, so the server replied "Parse error" to every request from a compliant client, on standard input and on
+  HTTP. `_jsonrpc` is still accepted.
+
 ### Changed (0121-MERIDIAN, repository and metadata)
 - **Licence: `MIT OR Apache-2.0`** on every crate, with `LICENSE-MIT` and `LICENSE-APACHE` in the repository and in
   the published `oaxaca_blinder` package. The crate was `MIT` only.

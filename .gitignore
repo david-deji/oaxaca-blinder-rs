@@ -1,5 +1,7 @@
 # Ignore Rust build artifacts and dependencies
 /oaxaca_blinder/target/
+# Output of `mdbook build docs` without --dest-dir (CI and the contributor guide build into target/book).
+/docs/book/
 /target/
 # Workspace-member lockfiles are ignored; the authoritative root /Cargo.lock IS
 # committed — this is a binary-shipping workspace (oaxaca-cli, meridian-mcp) with a

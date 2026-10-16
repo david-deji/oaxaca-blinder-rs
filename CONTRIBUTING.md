@@ -37,7 +37,8 @@ python3 scripts/check-ci-invariants.py
 python3 scripts/test-ci-invariants.py
 ```
 
-The development guide (`docs/DEVELOPMENT.md`) explains the layout of the workspace and how to run one test.
+The development guide (`docs/src/contributing/development.md`, published on the docs site) explains the layout of the
+workspace, how to run one test and how to rebuild the documentation.
 
 ## What CI enforces
 

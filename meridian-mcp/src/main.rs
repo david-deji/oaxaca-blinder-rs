@@ -57,6 +57,9 @@ struct Args {
 
 #[derive(Deserialize, Debug, Clone)]
 struct JsonRpcRequest {
+    // The wire name is `jsonrpc`. The field was named `_jsonrpc` without a rename, so the server
+    // refused every request from a compliant client; `_jsonrpc` stays accepted as an alias.
+    #[serde(rename = "jsonrpc", alias = "_jsonrpc")]
     _jsonrpc: String,
     method: String,
     params: Option<Value>,
