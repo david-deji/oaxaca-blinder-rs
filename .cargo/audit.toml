@@ -28,8 +28,6 @@ ignore = [
     "RUSTSEC-2026-0177", # until 2027-01-08 ; lock-only ; pyo3 0.21.2 (missing Sync bound on PyCFunction::new_closure). Empty cargo tree: pyo3 is not compiled into any shipped artifact.
     "RUSTSEC-2026-0194", # until 2027-01-08 ; lock-only ; quick-xml 0.36.2 (quadratic attribute check). Empty cargo tree: no XML parsing is compiled in.
     "RUSTSEC-2026-0195", # until 2027-01-08 ; lock-only ; quick-xml 0.36.2 (unbounded namespace allocation in NsReader). Empty cargo tree: no XML parsing is compiled in.
-    "RUSTSEC-2026-0185", # until 2027-01-08 ; lock-only ; quinn-proto 0.11.14 (QUIC reassembly memory exhaustion). Empty cargo tree: no network stack is compiled in.
-    "RUSTSEC-2026-0285", # until 2027-01-08 ; lock-only ; rustls 0.23.35 (TLS 1.3 handshake state). Empty cargo tree: no TLS stack is compiled in.
     # --- compiled in, no fix we can take: polars 0.44 pins these ---
     "RUSTSEC-2025-0003", # until 2027-01-15 ; risk-accepted ; fast-float 0.2.0 in polars-arrow's CSV float parser (segfault on bad input, no patched release). Input is the consultant's own file, parsed in their own browser; worst case is a crashed tab.
     "RUSTSEC-2024-0379", # until 2027-01-15 ; risk-accepted ; fast-float 0.2.0 soundness issues in the same CSV float parser, no patched release. Same exposure: the consultant's own file in their own browser; worst case a crashed tab.
