@@ -1,0 +1,16 @@
+[book]
+title = "oaxaca_blinder"
+description = "Oaxaca-Blinder decomposition for pay-gap analysis: library, command line and MCP server."
+authors = ["Telos Machina"]
+language = "en"
+src = "src"
+
+[build]
+create-missing = false
+
+[output.html]
+git-repository-url = "https://github.com/david-deji/oaxaca-blinder-rs"
+edit-url-template = "https://github.com/david-deji/oaxaca-blinder-rs/edit/main/docs/src/{path}"
+# Formulas are written as \\( ... \\) and \\[ ... \\]. MathJax is loaded by the reader's browser, so no
+# preprocessor binary is needed to build the book.
+mathjax-support = true

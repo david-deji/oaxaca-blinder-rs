@@ -455,6 +455,53 @@ jobs:
           CI: "1"
         run: npx playwright test
 
+  # The documentation site and the code it shows (0121-MERIDIAN L3). mdBook does not fail on a missing
+  # `{{#include}}` file, only logs it, so the build log is read: any ERROR or WARN line fails the job. The
+  # generated pages (command-line help, MCP tool schemas, example output) are compared with the real programs
+  # by tests in `quality`; this job builds the book, checks its internal links, builds the API docs with
+  # warnings as errors, and compiles and runs the README and crate-doc examples.
+  docs:
+    name: Docs (mdBook, API docs, doctests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@4aab473fa1157d90c6dc14f879ca54797e16fea0 # 1.90.0 branch
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2.8.0
+        with:
+          shared-key: "rust-stable"
+
+      # Prebuilt binary, exact version. The same version builds the book locally (docs/src/contributing/development.md).
+      - name: Install mdBook (pinned prebuilt)
+        uses: taiki-e/install-action@fa23953489c080190314742a9b907f8e97c6767c # v2.87.10
+        with:
+          tool: mdbook@0.4.52
+
+      - name: Build the book (any ERROR or WARN in the log fails)
+        run: |
+          set -o pipefail
+          mdbook build docs --dest-dir "$PWD/target/book" 2>&1 | tee mdbook.log
+          if grep -qE 'ERROR|WARN' mdbook.log; then
+            echo "mdbook logged an error or a warning"; exit 1
+          fi
+
+      - name: Check the book's internal links
+        run: python3 scripts/check-book-links.py target/book
+
+      - name: API docs build without warnings
+        env:
+          RUSTDOCFLAGS: "-D warnings"
+        run: cargo doc --locked -p oaxaca_blinder --no-deps --all-features
+
+      - name: Doctests (crate docs are the crate README; the repository README is a doctest too)
+        run: cargo test --locked -p oaxaca_blinder --doc
+
   gate:
     name: gate
     # The one required check (S5). Runs even when a need failed or was skipped, and fails then.
@@ -469,6 +516,7 @@ jobs:
       - wasm-repro
       - native-baseline
       - browser-parity
+      - docs
     runs-on: ubuntu-latest
     timeout-minutes: 10
     # actions: read lets the second step list this run's jobs and steps through the API.

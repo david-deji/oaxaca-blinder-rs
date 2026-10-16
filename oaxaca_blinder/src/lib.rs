@@ -1,72 +1,17 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
-//! A Rust implementation of the Oaxaca-Blinder decomposition method.
-//!
-//! This library provides tools to decompose the mean difference in an outcome
-//! variable between two groups into an "explained" part (due to differences
-//! in observable characteristics) and an "unexplained" part (due to differences
-//! in the returns to those characteristics).
-//!
-//! Currently, the library supports numerical predictors and calculates standard
-//! errors using bootstrapping.
-//!
-//! # Example
-//!
-//! ```ignore
-//! use polars::prelude::*;
-//! use oaxaca_blinder::OaxacaBuilder;
-//!
-//! fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     let df = df!(
-//!         "wage" => &[10.0, 12.0, 11.0, 13.0, 15.0, 20.0, 22.0, 21.0, 23.0, 25.0],
-//!         "education" => &[12.0, 16.0, 14.0, 16.0, 18.0, 12.0, 16.0, 14.0, 16.0, 18.0],
-//!         "gender" => &["F", "F", "F", "F", "F", "M", "M", "M", "M", "M"]
-//!     )?;
-//!
-//!     let results = OaxacaBuilder::new(df, "wage", "gender", "F")
-//!         .predictors(&["education"])
-//!         .run()?;
-//!
-//!     results.summary();
-//!     Ok(())
-//! }
-//! ```
-//!
-//! ### Quantile Regression Decomposition
-//!
-//! The shipped quantile-decomposition path (CLI, WASM, MCP) is RIF-regression
-//! (Firpo-Fortin-Lemieux 2009) via [`OaxacaBuilder::decompose_quantile`] — call it once
-//! per target quantile:
-//!
-//! ```ignore
-//! use polars::prelude::*;
-//! use oaxaca_blinder::OaxacaBuilder;
-//!
-//! fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     let df = df!(
-//!         "wage" => &[10.0, 12.0, 11.0, 13.0, 15.0, 20.0, 22.0, 21.0, 23.0, 25.0, 9.0, 18.0],
-//!         "education" => &[12.0, 16.0, 14.0, 16.0, 18.0, 12.0, 16.0, 14.0, 16.0, 18.0, 10.0, 20.0],
-//!         "gender" => &["F", "F", "F", "F", "F", "F", "M", "M", "M", "M", "M", "M"]
-//!     )?;
-//!
-//!     let mut builder = OaxacaBuilder::new(df, "wage", "gender", "F");
-//!     builder.predictors(["education"]);
-//!
-//!     for &q in &[0.25, 0.5, 0.75] {
-//!         let results = builder.decompose_quantile(q)?;
-//!         results.summary();
-//!     }
-//!     Ok(())
-//! }
-//! ```
-//!
-//! [`crate::quantile_decomposition`] (Machado-Mata simulation) is a statistically distinct
-//! alternative kept for direct-API consumers, but it is off the shipped surface and has no
-//! external-oracle verification — see that module's doc for details.
+// The crate documentation is the crate README, so the first example is compiled as a doctest and cannot
+// drift from the code. The repository README is compiled the same way, as a doctest of a private item.
+#![doc = include_str!("../README.md")]
+
+#[cfg(doctest)]
+#[doc = include_str!("../../README.md")]
+#[allow(dead_code)]
+struct RepositoryReadme;
 
 /// The reserved name of the constant column every design matrix starts with, and therefore the
 /// `name` of the intercept's entry in every per-variable vector the engine returns
 /// (`detailed_explained`, `detailed_unexplained`, `model_coefficients`, per-employee
-/// `contributions`). The one definition of the token (0120-MERIDIAN S3): a consumer compares
+/// `contributions`). The one definition of the token: a consumer compares
 /// against this, never against the string `intercept`, which a real HR column can be called.
 pub const INTERCEPT_NAME: &str = "__ob_intercept__";
 

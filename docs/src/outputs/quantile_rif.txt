@@ -1,0 +1,6 @@
+Percentile 0.5: model total 10050
+  explained        1784
+  unexplained      8266
+Percentile 0.9: model total 4463
+  explained        2060
+  unexplained      2403

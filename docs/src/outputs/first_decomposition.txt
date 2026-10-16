@@ -1,0 +1,3 @@
+Gap (M minus F): 7975
+explained        2106  (95% CI -1303 to 5347)
+unexplained      5869  (95% CI 3056 to 8084)

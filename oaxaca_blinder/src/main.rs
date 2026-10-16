@@ -66,7 +66,7 @@ impl ReferenceType {
 #[derive(Clone, Copy, Debug, clap::ValueEnum)]
 enum NormalizationArg {
     /// Each level is a deviation from the pooled-sample share-weighted average of all levels,
-    /// the dropped level included (0120-MERIDIAN D1). The default.
+    /// the dropped level included. The default.
     PopulationShare,
     /// Each level is a deviation from the simple average of all levels (Stata `categorical()`,
     /// R `oaxaca`, `ddecompose` `normalize_factors = TRUE`).
@@ -95,7 +95,7 @@ impl NormalizationArg {
     }
 }
 
-/// What a weights column means (0120-MERIDIAN S9 / T17).
+/// What a weights column means.
 #[derive(Clone, Copy, Debug, clap::ValueEnum)]
 enum WeightsKindArg {
     /// Whole-number replication counts (a headcount). `2` is the row twice, in the point estimates
