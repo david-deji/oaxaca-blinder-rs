@@ -293,7 +293,7 @@ def main() -> int:
 
     # 0. dirty tree: tracked changes anywhere, or untracked files outside records/ground/ (this script's own output)
     porcelain = [l for l in git(["status", "--porcelain", "--untracked-files=all"]).splitlines() if l]
-    dirty = [l for l in porcelain if not l[3:].startswith("ground/")]
+    dirty = [l for l in porcelain if not l[3:].startswith("records/ground/")]
     if dirty:
         print("verify-live: refusing to run on a dirty tree (a receipt must describe a commit). Commit or stash:", file=sys.stderr)
         for l in dirty[:15]:
