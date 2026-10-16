@@ -1,3 +1,5 @@
+#![cfg(feature = "experimental")]
+
 use oaxaca_blinder::AkmBuilder;
 use polars::prelude::*;
 use rand::Rng;

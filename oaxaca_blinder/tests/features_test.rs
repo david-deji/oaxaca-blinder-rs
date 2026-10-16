@@ -1,4 +1,6 @@
-use oaxaca_blinder::{decompose_changes, run_dfl, OaxacaBuilder, ReferenceCoefficients};
+#[cfg(feature = "experimental")]
+use oaxaca_blinder::{decompose_changes, run_dfl};
+use oaxaca_blinder::{OaxacaBuilder, ReferenceCoefficients};
 use polars::prelude::*;
 
 fn create_dummy_data() -> DataFrame {
@@ -64,6 +66,7 @@ fn test_reference_groups() {
     );
 }
 
+#[cfg(feature = "experimental")]
 #[test]
 fn test_jmp_decomposition() {
     // Create T1 data
@@ -99,6 +102,7 @@ fn test_jmp_decomposition() {
     assert!((jmp_results.total_change - (-5.0)).abs() < 1e-4);
 }
 
+#[cfg(feature = "experimental")]
 #[test]
 fn test_dfl_reweighting() {
     let df = create_dummy_data();

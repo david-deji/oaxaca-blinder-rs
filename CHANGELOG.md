@@ -14,6 +14,27 @@
 - Loop records moved from the repository root into `records/`; added `SECURITY.md`, `CODE_OF_CONDUCT.md`,
   `CONTRIBUTING.md` (moved from `docs/`) and `CITATION.cff`.
 
+### Changed, BREAKING (0121-MERIDIAN, library API, 2026-10-16)
+- **Column-name arguments take anything that is `AsRef<str>`** on `OaxacaBuilder::{predictors,
+  categorical_predictors, normalize, heckman_selection}`, `QuantileDecompositionBuilder::{predictors,
+  categorical_predictors}`, `AkmBuilder::controls` and `MatchingEngine::new`. They were `Into<String>`, which refused
+  the `&["education"]` call that 0.2.2 accepted. A slice, an array, a `Vec<String>`, a `&Vec<String>` and an iterator of
+  `&str` all work.
+- **Bootstrap replicates: one default of 100.** `OaxacaBuilder::new` and `from_formula` start at 100 replicates
+  (0.3.0 development had 20; 0.2.2 had 100). `oaxaca-cli --bootstrap-reps` defaults to 100 (it was 50 in development
+  and 500 in 0.2.2), so the library and the command line agree. The constant is `DEFAULT_BOOTSTRAP_REPS`. A percentile
+  interval needs at least 41. The engine always sets its replicate count, so no engine number moves.
+- **Default reference coefficients stay `GroupB`** (0.2.2 defaulted to `GroupA`); the rustdoc on `new`,
+  `from_formula` and `reference_coefficients` now says so, and a test pins it.
+- **`OaxacaError`, `ReferenceCoefficients`, `WeightsKind`, `NormalizationConvention` and `ExclusionReason` are
+  `#[non_exhaustive]`.** A `match` on one of them from another crate needs a wildcard arm. Variants can now be added
+  in a minor release.
+- **AKM, DFL, JMP and matching are behind the new cargo feature `experimental`, off by default.** They have no external
+  oracle and their results may change in any release. `akm::*`, `dfl::*`, `jmp::*`, `matching::*`, `AkmBuilder`,
+  `AkmResult`, `run_dfl`, `decompose_changes` and `MatchingEngine` need `features = ["experimental"]`;
+  `oaxaca-cli --analysis-type akm|match` and its `--worker-id`, `--firm-id`, `--k-neighbors` and `--matching-method`
+  flags need `--features experimental` at install.
+
 ### Changed, BREAKING (0122-MERIDIAN, the remedy says what it does, 2026-10-09)
 - **`check_defensibility` reports every gap with `optimize`'s sign.** `original_gap`, `new_gap`,
   `original_unexplained_gap` and `new_unexplained_gap` are the compared group's figure minus the line (or the reference

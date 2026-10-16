@@ -104,3 +104,61 @@ fn test_invalid_argument() {
         .failure()
         .stderr(predicate::str::contains("Error:"));
 }
+
+/// 0121-MERIDIAN F2: the command line and the library share one bootstrap default, 100.
+#[test]
+fn test_default_bootstrap_reps_is_100_and_matches_the_library() {
+    let out = std::env::temp_dir().join(format!(
+        "oaxaca_cli_default_reps_{}.json",
+        std::process::id()
+    ));
+    let mut cmd = Command::cargo_bin("oaxaca-cli").unwrap();
+    cmd.args(["--data", "tests/data/wage.csv"])
+        .args(["--outcome", "wage", "--group", "gender", "--reference", "F"])
+        .args(["--predictors", "education"])
+        .arg("--output-json")
+        .arg(&out);
+    cmd.assert().success();
+
+    let json: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&out).unwrap()).unwrap();
+    let _ = std::fs::remove_file(&out);
+    let requested = json["run_metadata"]["bootstrap_reps_requested"]
+        .as_u64()
+        .expect("run_metadata.bootstrap_reps_requested");
+    assert_eq!(requested, 100, "CLI default must be 100");
+    assert_eq!(requested as usize, oaxaca_blinder::DEFAULT_BOOTSTRAP_REPS);
+}
+
+#[test]
+fn test_help_states_the_bootstrap_default() {
+    let mut cmd = Command::cargo_bin("oaxaca-cli").unwrap();
+    cmd.args(["run", "--help"]);
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("[default: 100]"));
+}
+
+/// 0121-MERIDIAN L6: AKM and matching are not on the default command line.
+#[cfg(not(feature = "experimental"))]
+#[test]
+fn test_experimental_analysis_types_are_absent_by_default() {
+    let mut cmd = Command::cargo_bin("oaxaca-cli").unwrap();
+    cmd.args(["--data", "tests/data/wage.csv"])
+        .args(["--outcome", "wage", "--group", "gender", "--reference", "F"])
+        .args(["--analysis-type", "akm"]);
+    cmd.assert()
+        .failure()
+        .stderr(predicate::str::contains("invalid value 'akm'"));
+}
+
+#[cfg(feature = "experimental")]
+#[test]
+fn test_experimental_analysis_types_are_listed_with_the_feature() {
+    let mut cmd = Command::cargo_bin("oaxaca-cli").unwrap();
+    cmd.args(["run", "--help"]);
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("akm"))
+        .stdout(predicate::str::contains("--matching-method"));
+}

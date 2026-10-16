@@ -1,3 +1,6 @@
+//! Experimental: Abowd-Kramarz-Margolis worker and firm effects. No external oracle; results may
+//! change in any release. Needs the `experimental` feature.
+
 use nalgebra::{DMatrix, DVector};
 use polars::prelude::*;
 use std::collections::{HashMap, HashSet};
@@ -70,9 +73,12 @@ impl AkmBuilder {
     pub fn controls<I, S>(&mut self, controls: I) -> &mut Self
     where
         I: IntoIterator<Item = S>,
-        S: Into<String>,
+        S: AsRef<str>,
     {
-        self.controls = controls.into_iter().map(|s| s.into()).collect();
+        self.controls = controls
+            .into_iter()
+            .map(|s| s.as_ref().to_string())
+            .collect();
         self
     }
 

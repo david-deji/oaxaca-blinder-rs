@@ -1,3 +1,5 @@
+#![cfg(feature = "experimental")]
+
 use oaxaca_blinder::MatchingEngine;
 use polars::prelude::*;
 

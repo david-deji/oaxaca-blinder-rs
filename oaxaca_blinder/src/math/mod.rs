@@ -1,5 +1,7 @@
 pub mod diagnostics;
+#[cfg(feature = "experimental")]
 pub mod kde;
+#[cfg(feature = "experimental")]
 pub mod logit;
 pub mod normalization;
 pub mod ols;

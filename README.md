@@ -38,12 +38,12 @@ Beyond standard decomposition, it supports **Quantile Decomposition (RIF & Macha
 | **Bootstrapped Standard Errors** | ✅ |
 | **Budget simulation (deprecated library method; the product path is the engine's `optimize`)** | ✅ |
 | **Wage Scale Design (Grade/Step)** | ✅ |
-| **JMP Decomposition (Time Series)** | ✅ |
-| **DFL Reweighting (Counterfactuals)** | ✅ |
+| **JMP Decomposition (Time Series)** | Experimental (cargo feature `experimental`) |
+| **DFL Reweighting (Counterfactuals)** | Experimental (cargo feature `experimental`) |
 | **Sample Weights** | ✅  |
 | **Heckman Correction (Selection Bias)** | ✅ |
-| **AKM (Worker-Firm Fixed Effects)** | ✅ |
-| **Matching (Euclidean, Mahalanobis, PSM)** | ✅ |
+| **AKM (Worker-Firm Fixed Effects)** | Experimental (cargo feature `experimental`) |
+| **Matching (Euclidean, Mahalanobis, PSM)** | Experimental (cargo feature `experimental`) |
 
 </details>
 

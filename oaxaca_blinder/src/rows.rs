@@ -31,6 +31,7 @@ use serde::Serialize;
 /// engine's `RowKeySource`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum ExclusionReason {
     /// Blank outcome (the wage).
     Outcome,

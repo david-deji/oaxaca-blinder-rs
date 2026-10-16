@@ -1,3 +1,6 @@
+//! Experimental: Juhn-Murphy-Pierce decomposition of changes over time. No external oracle;
+//! results may change in any release. Needs the `experimental` feature.
+
 use crate::{OaxacaBuilder, OaxacaError};
 use serde::Serialize;
 

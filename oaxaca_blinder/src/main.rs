@@ -28,7 +28,11 @@ enum Commands {
 enum AnalysisType {
     Mean,
     Quantile,
+    /// Experimental: Abowd-Kramarz-Margolis worker and firm effects. Needs --worker-id and --firm-id.
+    #[cfg(feature = "experimental")]
     Akm,
+    /// Experimental: nearest-neighbour or propensity-score matching weights.
+    #[cfg(feature = "experimental")]
     Match,
 }
 
@@ -165,8 +169,9 @@ struct RunArgs {
     #[arg(long, value_delimiter = ',')]
     quantiles: Option<Vec<f64>>,
 
-    /// The number of bootstrap replications for calculating standard errors
-    #[arg(long, default_value_t = 50)]
+    /// The number of bootstrap replications for calculating standard errors. At least 41 are
+    /// needed for a percentile confidence interval. The library default is the same.
+    #[arg(long, default_value_t = 100)]
     bootstrap_reps: usize,
 
     /// The number of simulations for the Machado-Mata algorithm (for quantile analysis)
@@ -201,19 +206,23 @@ struct RunArgs {
     #[arg(long)]
     output_markdown: Option<PathBuf>,
 
-    /// Worker ID column for AKM analysis (Abowd-Kramarz-Margolis model)
+    /// Worker ID column for AKM analysis (Abowd-Kramarz-Margolis model). Experimental.
+    #[cfg(feature = "experimental")]
     #[arg(long)]
     worker_id: Option<String>,
 
-    /// Firm ID column for AKM analysis (Abowd-Kramarz-Margolis model)
+    /// Firm ID column for AKM analysis (Abowd-Kramarz-Margolis model). Experimental.
+    #[cfg(feature = "experimental")]
     #[arg(long)]
     firm_id: Option<String>,
 
-    /// Number of neighbors for matching
+    /// Number of neighbors for matching. Experimental.
+    #[cfg(feature = "experimental")]
     #[arg(long, default_value_t = 1)]
     k_neighbors: usize,
 
-    /// Matching method [choices: euclidean, mahalanobis, psm]
+    /// Matching method [choices: euclidean, mahalanobis, psm]. Experimental.
+    #[cfg(feature = "experimental")]
     #[arg(long, default_value = "euclidean")]
     matching_method: String,
 }
@@ -258,7 +267,9 @@ fn run_analysis(args: RunArgs) -> Result<(), Box<dyn std::error::Error>> {
     match args.analysis_type {
         AnalysisType::Mean => run_mean_analysis(&args, df),
         AnalysisType::Quantile => run_quantile_analysis(&args, df),
+        #[cfg(feature = "experimental")]
         AnalysisType::Akm => run_akm_analysis(&args, df),
+        #[cfg(feature = "experimental")]
         AnalysisType::Match => run_matching_analysis(&args, df),
     }
 }
@@ -378,6 +389,7 @@ fn run_quantile_analysis(args: &RunArgs, df: DataFrame) -> Result<(), Box<dyn Er
     Ok(())
 }
 
+#[cfg(feature = "experimental")]
 fn run_akm_analysis(args: &RunArgs, df: DataFrame) -> Result<(), Box<dyn Error>> {
     use oaxaca_blinder::AkmBuilder;
     let worker_col = args
@@ -409,6 +421,7 @@ fn run_akm_analysis(args: &RunArgs, df: DataFrame) -> Result<(), Box<dyn Error>>
     Ok(())
 }
 
+#[cfg(feature = "experimental")]
 fn run_matching_analysis(args: &RunArgs, df: DataFrame) -> Result<(), Box<dyn Error>> {
     use oaxaca_blinder::MatchingEngine;
     let predictors: Vec<&str> = args.predictors.iter().map(AsRef::as_ref).collect();

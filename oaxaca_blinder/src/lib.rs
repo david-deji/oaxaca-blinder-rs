@@ -1,3 +1,4 @@
+#![cfg_attr(docsrs, feature(doc_cfg))]
 //! A Rust implementation of the Oaxaca-Blinder decomposition method.
 //!
 //! This library provides tools to decompose the mean difference in an outcome
@@ -80,11 +81,21 @@ mod rng;
 mod rows;
 mod types;
 
+// Experimental methods (0121-MERIDIAN L6): no external oracle, results may change in any
+// release. Off by default; enable the `experimental` feature to use them.
+#[cfg(feature = "experimental")]
+#[cfg_attr(docsrs, doc(cfg(feature = "experimental")))]
 pub mod akm;
+#[cfg(feature = "experimental")]
+#[cfg_attr(docsrs, doc(cfg(feature = "experimental")))]
 pub mod dfl;
 pub mod formula;
 pub mod heckman;
+#[cfg(feature = "experimental")]
+#[cfg_attr(docsrs, doc(cfg(feature = "experimental")))]
 pub mod jmp;
+#[cfg(feature = "experimental")]
+#[cfg_attr(docsrs, doc(cfg(feature = "experimental")))]
 pub mod matching;
 pub mod quantile_decomposition;
 
@@ -106,13 +117,21 @@ static MEM_PROFILE_ALLOCATOR: mem_profile::TrackingAllocator = mem_profile::Trac
 // #[cfg(feature = "python")]
 // pub mod python;
 
+#[cfg(feature = "experimental")]
+#[cfg_attr(docsrs, doc(cfg(feature = "experimental")))]
 pub use akm::{AkmBuilder, AkmResult};
-pub use builder::OaxacaBuilder;
+pub use builder::{OaxacaBuilder, DEFAULT_BOOTSTRAP_REPS};
 pub use decomposition::{BudgetAdjustment, ReferenceCoefficients};
+#[cfg(feature = "experimental")]
+#[cfg_attr(docsrs, doc(cfg(feature = "experimental")))]
 pub use dfl::run_dfl;
 pub use error::OaxacaError;
 pub use heckman::heckman_two_step;
+#[cfg(feature = "experimental")]
+#[cfg_attr(docsrs, doc(cfg(feature = "experimental")))]
 pub use jmp::decompose_changes;
+#[cfg(feature = "experimental")]
+#[cfg_attr(docsrs, doc(cfg(feature = "experimental")))]
 pub use matching::engine::MatchingEngine;
 pub use math::normalization::{
     FactorShares, LevelShare, NormalizationConvention, NormalizationRecord, ShareMap,
