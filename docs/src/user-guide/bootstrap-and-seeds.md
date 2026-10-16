@@ -1,7 +1,10 @@
 # Bootstrap and seeds
 
 Standard errors, p-values and confidence intervals come from a bootstrap: the analysis is repeated on resamples of
-the rows and the spread of the results is the uncertainty.
+the rows and the spread of the results is the uncertainty. The standard error is the standard deviation of the
+replicates, the interval is their 2.5th and 97.5th percentiles, and the p-value is twice the smaller share of
+replicates on either side of zero. The definitions are in
+[Bootstrap inference](../method/oaxaca-blinder.md#bootstrap-inference).
 
 ## Replicates
 

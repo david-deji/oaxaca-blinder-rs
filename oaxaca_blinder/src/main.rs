@@ -1,4 +1,4 @@
-use clap::{CommandFactory, Parser, Subcommand};
+use clap::{Parser, Subcommand};
 use oaxaca_blinder::{NormalizationConvention, OaxacaBuilder, ReferenceCoefficients, WeightsKind};
 use polars::prelude::*;
 
@@ -18,7 +18,7 @@ struct Cli {
 #[derive(Subcommand, Debug)]
 enum Commands {
     /// Run an analysis and print results to the console or export to JSON/Markdown
-    #[clap(name = "run")]
+    #[clap(name = "run", hide = true)]
     Run(Box<RunArgs>),
     /// Generate a static HTML report from an analysis
     Report(ReportArgs),
@@ -29,10 +29,12 @@ enum AnalysisType {
     Mean,
     Quantile,
     /// Experimental: Abowd-Kramarz-Margolis worker and firm effects. Needs --worker-id and --firm-id.
-    #[cfg(feature = "experimental")]
+    /// Hidden, and refused with a hint, in a build without the `experimental` feature.
+    #[cfg_attr(not(feature = "experimental"), value(hide = true))]
     Akm,
     /// Experimental: nearest-neighbour or propensity-score matching weights.
-    #[cfg(feature = "experimental")]
+    /// Hidden, and refused with a hint, in a build without the `experimental` feature.
+    #[cfg_attr(not(feature = "experimental"), value(hide = true))]
     Match,
 }
 
@@ -133,9 +135,9 @@ struct RunArgs {
     #[arg(short, long)]
     data: PathBuf,
 
-    /// The name of the column that contains the outcome variable
-    #[arg(long)]
-    outcome: String,
+    /// The name of the column that contains the outcome variable. Not needed with --formula, which names it
+    #[arg(long, required_unless_present = "formula")]
+    outcome: Option<String>,
 
     /// The name of the column that divides the data into two distinct groups
     #[arg(long)]
@@ -174,7 +176,7 @@ struct RunArgs {
     #[arg(long, default_value_t = 100)]
     bootstrap_reps: usize,
 
-    /// The number of simulations for the Machado-Mata algorithm (for quantile analysis)
+    /// Ignored. The quantile analysis is RIF regression; the option is kept so that older command lines still run
     #[arg(long, default_value_t = 200)]
     simulations: usize,
 
@@ -258,11 +260,63 @@ struct ReportArgs {
     output: PathBuf,
 }
 
-fn run_analysis(args: RunArgs) -> Result<(), Box<dyn std::error::Error>> {
-    let df = LazyCsvReader::new(&args.data)
+/// The smallest number of bootstrap replicates that gives a percentile confidence interval.
+const MIN_PERCENTILE_CI_REPS: usize = 41;
+
+/// Reads a CSV file. The columns named in `float_columns` (the outcome and the weights) are converted from whole
+/// numbers to decimals, so a salary written `45600` is accepted. Every other column is left as read.
+fn read_csv(path: &std::path::Path, float_columns: &[&str]) -> Result<DataFrame, Box<dyn Error>> {
+    let mut df = LazyCsvReader::new(path)
         .with_has_header(true)
         .finish()?
         .collect()?;
+    for name in float_columns {
+        let converted = match df.column(name) {
+            Ok(column) if column.dtype().is_integer() => column.cast(&DataType::Float64)?,
+            _ => continue,
+        };
+        df.with_column(converted)?;
+    }
+    Ok(df)
+}
+
+/// The outcome column named in an R-style formula: the text left of `~`.
+fn formula_outcome(formula: &str) -> Option<&str> {
+    formula
+        .split('~')
+        .next()
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+}
+
+/// Warns on standard error when the bootstrap is too small for a percentile interval.
+fn warn_if_bootstrap_too_small(reps: usize) {
+    if reps < MIN_PERCENTILE_CI_REPS {
+        eprintln!(
+            "Warning: {reps} bootstrap replicates were requested. A 95% interval needs at least \
+             {MIN_PERCENTILE_CI_REPS}, so the intervals below print as NaN. Use --bootstrap-reps \
+             {MIN_PERCENTILE_CI_REPS} or more."
+        );
+    }
+}
+
+impl RunArgs {
+    /// The outcome column: `--outcome`, or the left side of `--formula`.
+    fn outcome_name(&self) -> Result<&str, Box<dyn Error>> {
+        self.outcome
+            .as_deref()
+            .or_else(|| self.formula.as_deref().and_then(formula_outcome))
+            .ok_or_else(|| "Give the outcome column with --outcome".into())
+    }
+}
+
+fn run_analysis(args: RunArgs) -> Result<(), Box<dyn std::error::Error>> {
+    let mut float_columns: Vec<&str> = vec![args.outcome_name()?];
+    if let Some(weights) = &args.weights {
+        float_columns.push(weights);
+    }
+    let df = read_csv(&args.data, &float_columns)?;
+    warn_if_bootstrap_too_small(args.bootstrap_reps);
 
     match args.analysis_type {
         AnalysisType::Mean => run_mean_analysis(&args, df),
@@ -271,6 +325,12 @@ fn run_analysis(args: RunArgs) -> Result<(), Box<dyn std::error::Error>> {
         AnalysisType::Akm => run_akm_analysis(&args, df),
         #[cfg(feature = "experimental")]
         AnalysisType::Match => run_matching_analysis(&args, df),
+        #[cfg(not(feature = "experimental"))]
+        AnalysisType::Akm | AnalysisType::Match => Err(
+            "akm and match are experimental and are not in this build. Install the command line with \
+             `cargo install oaxaca_blinder --features experimental`"
+                .into(),
+        ),
     }
 }
 
@@ -286,7 +346,7 @@ fn run_mean_analysis(args: &RunArgs, df: DataFrame) -> Result<(), Box<dyn std::e
             .as_ref()
             .map(|v| v.iter().map(AsRef::as_ref).collect())
             .unwrap_or_default();
-        let mut b = OaxacaBuilder::new(df, &args.outcome, &args.group, &args.reference);
+        let mut b = OaxacaBuilder::new(df, args.outcome_name()?, &args.group, &args.reference);
         b.predictors(predictors.iter().copied())
             .categorical_predictors(categorical_predictors.iter().copied());
         b
@@ -344,11 +404,11 @@ fn run_quantile_analysis(args: &RunArgs, df: DataFrame) -> Result<(), Box<dyn Er
         .map(|v| v.iter().map(AsRef::as_ref).collect())
         .unwrap_or_default();
     let reference_coeffs = args.ref_coeffs.to_library();
+    let outcome = args.outcome_name()?;
 
     for &q in &quantiles {
         // Arc/COW-cheap clone (stage-2 Finding 1); each τ gets a fresh builder.
-        let mut builder =
-            OaxacaBuilder::new(df.clone(), &args.outcome, &args.group, &args.reference);
+        let mut builder = OaxacaBuilder::new(df.clone(), outcome, &args.group, &args.reference);
         builder
             .predictors(predictors.iter().copied())
             .categorical_predictors(categorical_predictors.iter().copied())
@@ -402,7 +462,7 @@ fn run_akm_analysis(args: &RunArgs, df: DataFrame) -> Result<(), Box<dyn Error>>
         .ok_or("Firm ID is required for AKM analysis")?;
     let predictors: Vec<&str> = args.predictors.iter().map(AsRef::as_ref).collect();
 
-    let mut builder = AkmBuilder::new(df, &args.outcome, worker_col, firm_col);
+    let mut builder = AkmBuilder::new(df, args.outcome_name()?, worker_col, firm_col);
     builder.controls(predictors.iter().copied());
     let results = builder
         .run()
@@ -425,7 +485,12 @@ fn run_akm_analysis(args: &RunArgs, df: DataFrame) -> Result<(), Box<dyn Error>>
 fn run_matching_analysis(args: &RunArgs, df: DataFrame) -> Result<(), Box<dyn Error>> {
     use oaxaca_blinder::MatchingEngine;
     let predictors: Vec<&str> = args.predictors.iter().map(AsRef::as_ref).collect();
-    let engine = MatchingEngine::new(df, &args.group, &args.outcome, predictors.iter().copied());
+    let engine = MatchingEngine::new(
+        df,
+        &args.group,
+        args.outcome_name()?,
+        predictors.iter().copied(),
+    );
 
     let weights = if args.matching_method == "psm" {
         engine
@@ -466,10 +531,7 @@ struct ReportTemplate {
 }
 
 fn run_report(args: ReportArgs) -> Result<(), Box<dyn Error>> {
-    let df = LazyCsvReader::new(&args.data)
-        .with_has_header(true)
-        .finish()?
-        .collect()?;
+    let df = read_csv(&args.data, &[args.outcome.as_str()])?;
     let predictors: Vec<&str> = args.predictors.iter().map(AsRef::as_ref).collect();
     let categorical_predictors: Vec<&str> = args
         .categorical
@@ -515,8 +577,6 @@ fn main() {
     };
     if let Err(e) = result {
         eprintln!("Error: {}", e);
-        let mut cmd = Cli::command();
-        let _ = cmd.print_help();
         std::process::exit(1);
     }
 }

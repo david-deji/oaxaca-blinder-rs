@@ -139,7 +139,8 @@ fn test_help_states_the_bootstrap_default() {
         .stdout(predicate::str::contains("[default: 100]"));
 }
 
-/// 0121-MERIDIAN L6: AKM and matching are not on the default command line.
+/// AKM and matching are not on the default command line: they are not offered in the help, and asking for one
+/// is refused with the way to get it.
 #[cfg(not(feature = "experimental"))]
 #[test]
 fn test_experimental_analysis_types_are_absent_by_default() {
@@ -149,7 +150,14 @@ fn test_experimental_analysis_types_are_absent_by_default() {
         .args(["--analysis-type", "akm"]);
     cmd.assert()
         .failure()
-        .stderr(predicate::str::contains("invalid value 'akm'"));
+        .stderr(predicate::str::contains("--features experimental"))
+        .stderr(predicate::str::contains("Usage").not());
+
+    let mut help = Command::cargo_bin("oaxaca-cli").unwrap();
+    help.arg("--help");
+    help.assert().success().stdout(predicate::str::contains(
+        "[possible values: mean, quantile]",
+    ));
 }
 
 #[cfg(feature = "experimental")]

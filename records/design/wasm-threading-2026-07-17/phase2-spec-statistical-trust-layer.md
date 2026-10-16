@@ -5,7 +5,7 @@
 
 # Domain Spec — Statistical Trust Layer (Golden Files, Property Tests, QR Validation)
 
-Charter items covered: In-Scope 9 (statistical trust layer), In-Scope 13 (Employers_data.csv fixture). Bound invariant: INV-08 (engine math is f64; Decimal only at boundaries — this suite operates entirely inside the f64 engine surface). This suite is **threading-independent — it runs native (`cargo test`) and validates the METHODS.** The MODE parity suite (native vs wasm-seq vs wasm-threaded, INV-02/SC-03) is specced separately in `phase2-spec-verification-benchmark.md`; the two are kept distinct throughout.
+Charter items covered: In-Scope 9 (statistical trust layer), In-Scope 13 (<raw data file> fixture). Bound invariant: INV-08 (engine math is f64; Decimal only at boundaries — this suite operates entirely inside the f64 engine surface). This suite is **threading-independent — it runs native (`cargo test`) and validates the METHODS.** The MODE parity suite (native vs wasm-seq vs wasm-threaded, INV-02/SC-03) is specced separately in `phase2-spec-verification-benchmark.md`; the two are kept distinct throughout.
 
 ---
 
@@ -15,7 +15,7 @@ The engine currently has one method-golden test — `oaxaca_blinder/tests/parity
 
 This spec adds a second, independent R-based golden pipeline (R `oaxaca` 0.1.5 + `quantreg`, pinned, fixed seed, shared resample-index matrix), a `proptest` property suite for the decomposition identities, and heteroskedastic location-scale QR designs with analytically-known tau-varying slopes plus `quantreg::rq()` goldens. The existing statsmodels asset is **extended (kept as a second oracle), not replaced** — two independent references (statsmodels + R oaxaca) agreeing to 1e-6 is strictly stronger than one.
 
-PII handling (mandatory): `Employers_data.csv` carries `Employee_ID` and `Name` (direct identifiers). The committed trust fixture strips both columns before any golden is generated; goldens contain only aggregate decomposition statistics. See §4.5.
+PII handling (mandatory): `<raw data file>` carries `Employee_ID` and `Name` (direct identifiers). The committed trust fixture strips both columns before any golden is generated; goldens contain only aggregate decomposition statistics. See §4.5.
 
 ---
 
@@ -147,8 +147,8 @@ Rust tests (cargo test, native) ──┬─ parity_test.rs                    (
 - Label-swap and scale-equivariance cases derive a second design from the first (swap the group vector / multiply `y` by `c`) so the identity is exact, not statistical.
 
 ### 4.5 PII handling (mandatory, explicit)
-- `Employers_data.csv` columns: `Employee_ID, Name, Age, Gender, Department, Job_Title, Experience_Years, Education_Level, Location, Salary`. `Employee_ID` and `Name` are **direct identifiers** and are dropped before anything is written.
-- The R script reads `/home/deji/Downloads/Employers_data.csv` (uncommitted, local only), selects `Age, Gender, Department, Job_Title, Experience_Years, Education_Level, Location, Salary`, and writes `oaxaca_blinder/tests/fixtures/employers_trust_fixture.csv` with `Employee_ID`/`Name` absent. `Job_Title` is retained in the fixture for provenance but excluded from the model (R-TL-2).
+- `<raw data file>` columns: `Employee_ID, Name, Age, Gender, Department, Job_Title, Experience_Years, Education_Level, Location, Salary`. `Employee_ID` and `Name` are **direct identifiers** and are dropped before anything is written.
+- The R script reads `<raw data file>` (uncommitted, local only), selects `Age, Gender, Department, Job_Title, Experience_Years, Education_Level, Location, Salary`, and writes `oaxaca_blinder/tests/fixtures/employers_trust_fixture.csv` with `Employee_ID`/`Name` absent. `Job_Title` is retained in the fixture for provenance but excluded from the model (R-TL-2).
 - Goldens (`trust_goldens_r.json`) contain only aggregate statistics (means, gaps, components, SEs, QR coefficients) — no row-level data, no identifiers.
 - The committed fixture is quasi-identifier-bearing (age/department/location); it is a synthetic-shaped HR dataset already in `~/Downloads` and is committed only in PII-stripped form. State in the fixture header comment: "Direct identifiers (Employee_ID, Name) stripped at generation; aggregate goldens only." No re-identification join key is committed.
 
@@ -178,7 +178,7 @@ Rust tests (cargo test, native) ──┬─ parity_test.rs                    (
 
 > NEEDS RESEARCH: What concrete R routine generates a Machado-Mata / quantile-decomposition golden for the RIF-QR path (candidate: Chernozhukov-Fernández-Val-Melly `Counterfactual` package)? Confirm the package, function signature, and whether it accepts a shared resample-index matrix. (single-agent: identify one working R routine + minimal call.)
 
-> NEEDS RESEARCH: Confirm the exact `Education_Level` category set and any ordinal ordering present in `/home/deji/Downloads/Employers_data.csv`, to fix the R-TL-2a encoding lookup deterministically. (single-agent: read the distinct `Education_Level` values from the CSV.)
+> NEEDS RESEARCH: Confirm the exact `Education_Level` category set and any ordinal ordering present in `<raw data file>`, to fix the R-TL-2a encoding lookup deterministically. (single-agent: read the distinct `Education_Level` values from the CSV.)
 
 ---
 

@@ -2,7 +2,7 @@
 > Bureau: hr-apps (Meridian)
 > Date: 2026-07-17
 > Author: Spec Writer (verification-benchmark) — Phase 4 FINAL (buildable)
-> Charter items: In-Scope 8 (verification + benchmark), In-Scope 13 (Employers_data.csv ×5→50k)
+> Charter items: In-Scope 8 (verification + benchmark), In-Scope 13 (<raw data file> ×5→50k)
 > Bound invariants: INV-02 (bit-identical across modes — this suite's gate), INV-03 (sequential fallback never crashes), INV-04 (reproducible-build survives), INV-05 (50k peak fits shared-memory max with headroom)
 > Success criteria: SC-03 (parity test plan), SC-07 (verification suite with runnable commands)
 
@@ -20,7 +20,7 @@ Four CI jobs plus one enabling infra piece:
 4. **benchmark-speedup** (scheduled/manual, non-blocking) — median-of-10 `median_seq / median_threaded > 1.5×` on a 4-core runner.
 5. **COI test server + Playwright headless Chromium** (enabling infra) — a custom ~30-line COOP(same-origin)/COEP(require-corp) static server, because `wasm-pack test` cannot serve those headers for atomics builds (W7). Non-threaded unit tests may stay on `wasm-pack test`.
 
-Fixture: `/home/deji/Downloads/Employers_data.csv` (10k rows) ×5 perturbation-replication → ~50k, `Gender` + categoricals unchanged, `Name`/`Employee_ID` stripped, generated at test time from the PII-stripped 10k fixture the trust spec commits (never the raw CSV). Build order: this validation suite is **last** (determinism → memory profile → threading → validation) — it consumes the threaded toolchain, the seeded RNG, and the engine memory metric; it does not respec them.
+Fixture: `<raw data file>` (10k rows) ×5 perturbation-replication → ~50k, `Gender` + categoricals unchanged, `Name`/`Employee_ID` stripped, generated at test time from the PII-stripped 10k fixture the trust spec commits (never the raw CSV). Build order: this validation suite is **last** (determinism → memory profile → threading → validation) — it consumes the threaded toolchain, the seeded RNG, and the engine memory metric; it does not respec them.
 
 ---
 
@@ -85,7 +85,7 @@ Stable key ordering (BTreeMap or explicit field order), floats formatted `%.17g`
 
 ### D-7 — 50k fixture generator + PII (L4-clean, no POLARS_MAX_THREADS)
 
-- Source: the PII-stripped 10k Employers fixture the trust spec commits (`oaxaca_blinder/tests/fixtures/employers_trust_fixture.csv`) — never the raw `/home/deji/Downloads/Employers_data.csv`.
+- Source: the PII-stripped 10k Employers fixture the trust spec commits (`oaxaca_blinder/tests/fixtures/employers_trust_fixture.csv`) — never the raw `<raw data file>`.
 - 50k build: ×5 perturbation-replication with seeded bounded jitter on numeric columns (`Age`, `Experience_Years`, `Salary`); `Gender` **and all categoricals** (`Department`, `Education_Level`, `Location`) unchanged (W10/L6: preserves the 3-level Education_Level structure). Generated at test time from the committed 10k file; generator seed recorded in a header comment. No direct identifiers (`Name`, `Employee_ID`) ever enter the 50k frame, the memory job, or any emitted artifact.
 - **L4 correction (delete POLARS_MAX_THREADS)**: no test setup sets `POLARS_MAX_THREADS`. polars 0.44 never reads it on wasm (the wasm `POOL` is a stub delegating `join`/`scope`/`spawn` to the global rayon registry — polars-utils-0.44.2 `src/wasm.rs`; L4). After `initThreadPool`, polars' wasm stub routes onto **our** single global rayon pool — cooperative work-stealing, not oversubscription. The only residual determinism audit is any polars-internal parallel float reduction on the hot path; our stats run in nalgebra after `take`, so exposure is narrow — but named as an audit item for the mode-parity byte-compare to catch.
 

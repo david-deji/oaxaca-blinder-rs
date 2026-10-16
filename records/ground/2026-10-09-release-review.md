@@ -292,14 +292,14 @@ Added at the coordinator's request. Read-only: nothing below has been moved, wri
 | `.idea/` | remove | IDE state |
 | `ARCHITECTURE.md` (root, 78 lines) | remove | duplicates `docs/ARCHITECTURE.md` (54 lines); keep one, in the docs site |
 | `CHANGELOG.md` | keep | rebuilt per section 4 |
-| `CLAUDE.md` | move to `records/` | agent instructions; contains `/home/deji/...` paths |
+| `CLAUDE.md` | move to `records/` | agent instructions; contains `<path>` paths |
 | `Cargo.lock` | keep | binary-shipping workspace, reproducible WASM |
 | `Cargo.toml`, `rust-toolchain.toml` | keep | `rust-toolchain.toml` pins 1.90.0 for the WASM hashes |
 | `LICENSE-MIT`, `LICENSE-APACHE` | add | L1 |
 | `LOOP-LEDGER.md` | move to `records/` | the loop's own record (L5) |
 | `README.md` | rewrite | 8.2 |
 | `_epic-0014-close/` (12 files, screenshots) | remove | Meridian app screenshots from a closed epic, not engine documentation; stays in git history |
-| `_specify-wasm-rayon-multithreading-2026-07-17/` (52 files) | move to `records/` | design history for the WASM threading and trust layer; has `/home/...` paths; useful to a maintainer, not a user |
+| `_specify-wasm-rayon-multithreading-2026-07-17/` (52 files) | move to `records/` | design history for the WASM threading and trust layer; has `<path>` paths; useful to a maintainer, not a user |
 | `audit/` (5 files) | move to `records/audits/` | point-in-time audits; shows rigor, not user docs |
 | `cliff.toml` | keep or remove with the release-notes decision | section 4 recommends CHANGELOG-based notes, which makes it unused |
 | `docs/` | see 8.1b | |
@@ -324,7 +324,7 @@ Added at the coordinator's request. Read-only: nothing below has been moved, wri
 | `CONTRIBUTING.md` | move to root `CONTRIBUTING.md`, rewrite | says MIT only; 30 lines; GitHub surfaces only a root or `.github/` copy |
 | `DEVELOPMENT.md` | keep | Contributing > Development setup |
 | `DIAGNOSTICS.md` | keep | Method reference > diagnostics, warnings and weights; User guide > reading results |
-| `JULES_TASKS.md` | remove | internal agent task plan; links a `file:///home/deji/...` path in another repo |
+| `JULES_TASKS.md` | remove | internal agent task plan; links a `file://<path>` path in another repo |
 | `NORMALIZATION.md` | keep | Method reference > categorical normalisation; FAQ |
 | `WHITE_PAPER.md` (Dec 2025, "Analytical Systems Team") | rewrite or move | predates 0.3.0; its performance and reliability claims are **unverified**; do not publish as is |
 | `oaxaca-blinder-decomposition-research.md` (500 lines), `Quantile-regression-decomposition-research.md` (410), `RIF-regression-decomposition-research.md` (405), `Variance-Inflation-Factor .md` (254, space in the name) | move to `records/research/`; mine for method pages | long literature notes with no checked reference list; every citation must be checked against the primary text before it is published |

@@ -234,7 +234,7 @@ comment instructs "run `python verification/gen_parity_golden.py` ... and re-com
 fixtures" (`parity_test.rs:10-11`).
 
 Additionally `gen_trust_goldens.R:55` hardcodes an absolute input path outside the repo
-(`RAW_CSV <- "/home/deji/Downloads/Employers_data.csv"`) — the raw (pre-PII-strip) source data is
+(`RAW_CSV <- "<raw data file>"`) — the raw (pre-PII-strip) source data is
 not present in the repo and the script cannot be re-run by anyone without that exact local file,
 which further concentrates regeneration to one specific machine/person and makes independent
 re-verification harder.
@@ -280,7 +280,7 @@ comment: "Regeneration: run `python verification/gen_parity_golden.py` ... and r
 fixtures" (`parity_test.rs:10-11`). No `last-verified` date, no scheduled CI job, no drift check
 exists for either golden file within the audited scope. `gen_trust_goldens.R:55` additionally
 hardcodes a personal absolute path to un-committed raw source data
-(`/home/deji/Downloads/Employers_data.csv`), meaning even a manual regeneration can only be
+(`<raw data file>`), meaning even a manual regeneration can only be
 performed by whoever has that exact file at that exact path — a further practical barrier to
 ever re-running the check. See Finding 10.
 

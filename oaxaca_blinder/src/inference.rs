@@ -12,7 +12,7 @@ pub const MIN_PERCENTILE_CI_REPS: usize = 41;
 
 /// Calculates the standard error, p-value, and confidence interval from a vector of bootstrap estimates.
 ///
-/// INV-02: summation here stays sequential (`iter().sum`) — do NOT introduce a rayon
+/// Summation here stays sequential (`iter().sum`); do not introduce a rayon
 /// reduce/fold. Float addition is non-associative; a parallel reduce reorders partial sums
 /// and breaks bit-identity across thread counts. The input is the indexed, order-fixed
 /// `estimates` vector built by the caller.

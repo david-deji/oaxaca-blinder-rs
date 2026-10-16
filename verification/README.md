@@ -28,6 +28,11 @@ Other files:
 - `gen_diag_goldens.R` names `ground/2026-10-09-C-reground.md` in a comment. That file is now
   `records/ground/2026-10-09-C-reground.md`.
 
+- Some generators carry paths from the original author's machine: the default raw data file of
+  `gen_trust_goldens.R` (set `TRUST_RAW_CSV`; when the file is absent the committed fixture is used) and an R library
+  path in the usage comment of others (set `R_LIBS_USER` to your own). They are left as written because editing a
+  generator changes its recorded hash.
+
 ## Requirements to regenerate
 
 R with `oaxaca` 0.1.5, `ddecompose` 1.0.0, `quantreg`, `Hmisc`, `jsonlite` and `digest`; Python with

@@ -20,17 +20,18 @@ result would show.
 ## Install
 
 ```bash
-cargo add oaxaca_blinder        # the library
+cargo add oaxaca_blinder        # the library; it re-exports Polars, so this is the only dependency
 cargo install oaxaca_blinder    # the command line, installed as oaxaca-cli
 ```
 
-The crate needs Rust 1.88 or newer.
+The crate needs Rust 1.88 or newer. Build the input with `oaxaca_blinder::polars`, as below, so the `DataFrame` you
+pass in is always the type the library expects.
 
 ## A first decomposition
 
 ```rust
+use oaxaca_blinder::polars::prelude::*;
 use oaxaca_blinder::{OaxacaBuilder, ReferenceCoefficients};
-use polars::prelude::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let df = df!(
@@ -87,9 +88,13 @@ unexplained      5869  (95% CI 3056 to 8084)
 
 The gap is `M` minus `F`. Group `F` is the reference group.
 
-On the command line, numeric columns need a decimal point and a weights column needs its kind:
+The same on the command line. The sample file
+([`wage.csv`](https://github.com/david-deji/oaxaca-blinder-rs/blob/main/docs/src/sample/wage.csv)) holds the same 32 rows
+and a `headcount` column; download it first. A weights column needs its kind:
 
 ```bash
+curl -LO https://raw.githubusercontent.com/david-deji/oaxaca-blinder-rs/main/docs/src/sample/wage.csv
+
 oaxaca-cli --data wage.csv --outcome wage --group gender --reference F \
     --predictors education,experience --ref-coeffs pooled
 

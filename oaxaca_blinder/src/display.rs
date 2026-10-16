@@ -17,8 +17,8 @@ impl OaxacaResults {
 
         let _ = writeln!(out, "Oaxaca-Blinder Decomposition Results");
         let _ = writeln!(out, "========================================");
-        let _ = writeln!(out, "Group A (Advantaged): {} observations", self.n_a);
-        let _ = writeln!(out, "Group B (Reference):  {} observations", self.n_b);
+        let _ = writeln!(out, "Compared group (A):  {} observations", self.n_a);
+        let _ = writeln!(out, "Reference group (B): {} observations", self.n_b);
         let _ = writeln!(out, "Total Gap: {:.4}", self.total_gap);
         let _ = writeln!(out);
 
@@ -204,8 +204,8 @@ mod tests {
         // Check headers & observation counts
         assert!(summary.contains("Oaxaca-Blinder Decomposition Results"));
         assert!(summary.contains("========================================"));
-        assert!(summary.contains("Group A (Advantaged): 100 observations"));
-        assert!(summary.contains("Group B (Reference):  150 observations"));
+        assert!(summary.contains("Compared group (A):  100 observations"));
+        assert!(summary.contains("Reference group (B): 150 observations"));
         assert!(summary.contains("Total Gap: 0.5000"));
 
         // Check section titles

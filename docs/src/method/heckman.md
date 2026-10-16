@@ -33,6 +33,9 @@ restriction). Without one the correction is identified only through the shape of
 With a selection model, categorical normalisation is skipped on the compared group, the reference group and the
 pooled fit together, and `run_metadata.normalization` says so.
 
+A Heckman selection model cannot be combined with `Pooled` or `PooledNoIndicator`: the run panics with a matrix
+dimension mismatch. Use `GroupA`, `GroupB`, `Weighted` or `Cotton`.
+
 ## Status
 
 The correction is tested on simulated data with a known answer. There is no R or Stata run to compare it with in

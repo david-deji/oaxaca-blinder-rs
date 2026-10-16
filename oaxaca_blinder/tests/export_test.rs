@@ -18,8 +18,8 @@ fn test_export_methods() -> Result<(), Box<dyn std::error::Error>> {
     // Test summary formatting
     let summary = results.format_summary();
     assert!(summary.contains("Oaxaca-Blinder Decomposition Results"));
-    assert!(summary.contains("Group A (Advantaged): 5 observations"));
-    assert!(summary.contains("Group B (Reference):  5 observations"));
+    assert!(summary.contains("Compared group (A):  5 observations"));
+    assert!(summary.contains("Reference group (B): 5 observations"));
     assert!(summary.contains("Two-Fold Decomposition"));
     assert!(summary.contains("Detailed Decomposition (Explained)"));
     assert!(summary.contains("Detailed Decomposition (Unexplained)"));

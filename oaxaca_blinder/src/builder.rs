@@ -59,14 +59,12 @@ pub(crate) struct SinglePassResult {
 /// bootstrap reps; the final result reads those from the point estimate)
 /// are freed immediately instead of accumulating R times.
 ///
-/// This is the 0014-MERIDIAN Stage-2 memory fix (`mem-profile-report.md`
-/// Finding 2): the retained bootstrap pile — not the thread count — was the
+/// This is the memory fix for large inputs: the retained bootstrap pile, not the thread count, was the
 /// dominant memory term (~4 MiB/rep at 50k → ~40 GiB at the R=10 000 cap).
 /// Retaining only these scalars (~KB/rep) drops peak into the portable
 /// SharedArrayBuffer envelope. Field values are copied verbatim from
 /// `SinglePassResult`, so the reduction output is numerically identical
-/// (INV-02 within-platform byte-identity and the AC-9 mean-path parity
-/// baseline both still hold).
+/// (byte-identical within one platform).
 #[derive(Clone)]
 pub(crate) struct RepEstimates {
     /// Mean gap of the replicate (tests assert E+C+I and explained+unexplained against it).
@@ -97,13 +95,13 @@ impl RepEstimates {
 
 /// Outcome of one bootstrap replicate of the `OaxacaBuilder` paths. A failed replicate carries
 /// the `variable=level` entries that were absent from one group's resample, if that was the
-/// cause (0120-MERIDIAN F3), so the run can name which levels cost replicates.
+/// cause, so the run can name which levels cost replicates.
 enum Rep {
     Ok(RepEstimates),
     Failed(Vec<String>),
 }
 
-/// Name of the row-ordinal column added to the frame before cleaning (0118-MERIDIAN S1).
+/// Name of the row-ordinal column added to the frame before cleaning.
 /// Reserved: a caller column with this name is a conflict and is refused by polars.
 const ROW_ORDINAL_COL: &str = "__ob_row_ordinal__";
 
@@ -195,7 +193,7 @@ impl OaxacaBuilder {
         })
     }
 
-    /// 0118-MERIDIAN S2: the group column must hold the reference value and at most ONE other
+    /// The group column must hold the reference value and at most ONE other
     /// value. Checked once, on the RAW frame (before `clean_dataframe`), never inside
     /// `split_groups`, which runs per bootstrap replicate on the cleaned frame. Before this, a
     /// third value (`'Non-binary'`, `'Unknown'`, `'F '`) was silently dropped from the
@@ -256,7 +254,7 @@ impl OaxacaBuilder {
     /// offender first, and group A is checked before group B for a given level.
     ///
     /// The candidate level set is every level present in either comparison frame.
-    /// `check_group_values` (0118-MERIDIAN S2) guarantees the group column holds
+    /// `check_group_values` guarantees the group column holds
     /// the reference plus at most one other value, so after cleaning the two frames
     /// together ARE the unsplit frame the dummy columns were encoded from.
     fn check_level_confinement(
@@ -496,7 +494,7 @@ impl OaxacaBuilder {
     ///
     /// Opt-in per call: a builder that never calls this returns the raw treatment-coded
     /// detail (the library goldens stay raw). The shipped engine and CLI call
-    /// `.normalize(categorical_predictors)` on every run (0120-MERIDIAN T1).
+    /// `.normalize(categorical_predictors)` on every run.
     ///
     /// Names that are not in `categorical_predictors` are ignored. With `heckman_selection`
     /// set the normalisation is skipped on A, B and the pooled fit together and
@@ -517,14 +515,14 @@ impl OaxacaBuilder {
     /// Normalises every categorical predictor: shorthand for
     /// `normalize(categorical_predictors)`. Call it AFTER the categorical predictors are set
     /// (`categorical_predictors(..)`, or `from_formula`, which sets them from `C(..)` terms).
-    /// This is what the shipped engine and the CLI do on every run (0120-MERIDIAN T1).
+    /// This is what the shipped engine and the CLI do on every run.
     pub fn normalize_all_categoricals(&mut self) -> &mut Self {
         self.normalization_vars = self.categorical_predictors.clone();
         self
     }
 
     /// Chooses the restriction weights for [`normalize`](Self::normalize). Default
-    /// [`NormalizationConvention::PopulationShare`] (0120-MERIDIAN D1);
+    /// [`NormalizationConvention::PopulationShare`];
     /// [`NormalizationConvention::EqualShare`] reproduces Stata `categorical()`, R `oaxaca`
     /// and `ddecompose(normalize_factors = TRUE)`.
     pub fn normalization_convention(&mut self, convention: NormalizationConvention) -> &mut Self {
@@ -542,7 +540,7 @@ impl OaxacaBuilder {
         self
     }
 
-    /// States what the weights column means (0120-MERIDIAN S9 / T17). REQUIRED whenever
+    /// States what the weights column means. REQUIRED whenever
     /// [`weights`](Self::weights) is set; a run without it is refused with
     /// [`OaxacaError::WeightsKindRequired`].
     ///
@@ -616,7 +614,7 @@ impl OaxacaBuilder {
         ))
     }
 
-    /// 0118-MERIDIAN S1: the data matrices together with the original row ordinal of every
+    /// The data matrices together with the original row ordinal of every
     /// matrix row and the list of excluded rows, all from ONE `clean_dataframe` +
     /// `split_groups` pass (a row-ordinal column is added before cleaning and read back after
     /// the split), so the ordinals cannot disagree with the matrices.
@@ -672,7 +670,7 @@ impl OaxacaBuilder {
         })
     }
 
-    /// 0118-MERIDIAN S1: which original rows are analysed (per group) and which are excluded,
+    /// Which original rows are analysed (per group) and which are excluded,
     /// without building the matrices. Same cleaning and split as
     /// [`get_data_matrices_with_rows`](Self::get_data_matrices_with_rows).
     pub fn analysed_rows(&self) -> Result<RowAccounting, OaxacaError> {
@@ -1443,7 +1441,7 @@ impl OaxacaBuilder {
 
         // Bounded-parallel chunked bootstrap (stage-2 invariant — NEVER an unbounded
         // into_par_iter().collect(), which reintroduces the WASM-OOM). Each rep: resample the
-        // ORIGINAL groups → recompute the per-group RIF on the resample (ruling 4) → RIF-OLS
+        // ORIGINAL groups → recompute the per-group RIF on the resample → RIF-OLS
         // decomposition pass. Same streams + index-ordered chunk consumption as run().
         let chunk = rayon::current_num_threads().max(1);
         let mut bootstrap_results: Vec<RepEstimates> = Vec::with_capacity(self.bootstrap_reps);
@@ -1524,7 +1522,7 @@ impl OaxacaBuilder {
     /// The analysed rows with the outcome column replaced by its per-group RIF at `quantile`:
     /// exactly the outcome `decompose_quantile` regresses on for the point estimate (group A
     /// rows first, then group B rows, each group's RIF computed on its own rows). Diagnostic
-    /// export (0120-MERIDIAN V1d): a RIF-OLS on a given outcome vector is plain OLS, so an
+    /// export: a RIF-OLS on a given outcome vector is plain OLS, so an
     /// external package can be run on this column to check the normalisation of the quantile
     /// path independently of the density estimator.
     pub fn rif_outcome_frame(&self, quantile: f64) -> Result<DataFrame, OaxacaError> {
@@ -1536,7 +1534,7 @@ impl OaxacaBuilder {
             .vstack(&self.rif_replace_outcome(&groups.df_b, quantile)?)?)
     }
 
-    /// One bootstrap replicate of a group frame (0120-MERIDIAN E-REV-1).
+    /// One bootstrap replicate of a group frame.
     ///
     /// Unweighted and `Relative` runs resample ROWS (weights, if any, travel with their row).
     /// A `Frequency` run resamples the expanded sample: `sum(w)` units drawn with probability
@@ -1830,8 +1828,8 @@ impl OaxacaBuilder {
     /// scalar estimates into the final `OaxacaResults` (per-component SE / percentile-CI /
     /// p-value / t-stat). Used verbatim by `run()` (mean/OLS, `fixed_rif` = None) and
     /// `decompose_quantile()` (RIF, `fixed_rif` = Some(false)) — one path, no divergent copy
-    /// (RK2). The computation and iteration order are identical for both, so the mean path
-    /// stays byte-identical and INV-02 within-platform determinism holds.
+    /// The computation and iteration order are identical for both, so the mean path
+    /// stays byte-identical and deterministic within one platform.
     #[allow(clippy::too_many_arguments)]
     fn aggregate_results(
         &self,

@@ -26,14 +26,17 @@ The documentation site is at <https://david-deji.github.io/oaxaca-blinder-rs/>.
 
 Version 0.3. The programming interface can change between minor versions and so can numbers; the
 [changelog](CHANGELOG.md) lists every change a published result would show, and
-[migrating from 0.2](https://david-deji.github.io/oaxaca-blinder-rs/migrating-0.2-to-0.3.html) covers the move to 0.3.
+[migrating from 0.2](https://david-deji.github.io/oaxaca-blinder-rs/latest/migrating-0.2-to-0.3.html) covers the move to 0.3.
 
 ## Install
 
 ```bash
-cargo add oaxaca_blinder        # the library
+cargo add oaxaca_blinder        # the library; it re-exports Polars, so this is the only dependency
 cargo install oaxaca_blinder    # the command line, installed as oaxaca-cli
 ```
+
+Build the input with `oaxaca_blinder::polars`, as below, so the `DataFrame` you pass in is always the type the library
+expects.
 
 The MCP server is run as `meridian-mcp` (standard input and output) or `MCP_API_KEY=... meridian-mcp --port 8084
 --transport sse` (HTTP, key required). Download a binary from the
@@ -43,8 +46,8 @@ The MCP server is run as `meridian-mcp` (standard input and output) or `MCP_API_
 ## A first decomposition
 
 ```rust
+use oaxaca_blinder::polars::prelude::*;
 use oaxaca_blinder::{OaxacaBuilder, ReferenceCoefficients};
-use polars::prelude::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let df = df!(
@@ -101,10 +104,11 @@ unexplained      5869  (95% CI 3056 to 8084)
 
 The gap is `M` minus `F`. The unexplained part is what education and experience do not account for.
 
-The same on the command line, on [`docs/src/sample/wage.csv`](docs/src/sample/wage.csv). Numeric columns need a
-decimal point, and a weights column needs its kind:
+The same on the command line. The sample file ([`wage.csv`](docs/src/sample/wage.csv)) holds the same 32 rows and a
+`headcount` column; download it first. A weights column needs its kind:
 
 ```bash
+curl -LO https://raw.githubusercontent.com/david-deji/oaxaca-blinder-rs/main/docs/src/sample/wage.csv
 oaxaca-cli --data wage.csv --outcome wage --group gender --reference F \
     --predictors education,experience --ref-coeffs pooled
 
@@ -140,7 +144,7 @@ The expected values come from software that shares no code with this one: R `lm`
 `oaxaca` 0.1.5 and `ddecompose` 1.0.0, and Python `statsmodels`. The generators are in [`verification/`](verification);
 each writes a committed fixture that records the hash of its generator, and the tests read the fixture offline. The
 tolerances and the R and Stata equivalents of each option are in the
-[documentation](https://david-deji.github.io/oaxaca-blinder-rs/reproducing/r.html).
+[documentation](https://david-deji.github.io/oaxaca-blinder-rs/latest/reproducing/r.html).
 
 ## What it is not
 

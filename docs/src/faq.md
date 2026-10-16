@@ -18,7 +18,8 @@ sorts first, so renaming that level changes every row. The aggregates never chan
 
 ## Why is a confidence interval `NaN`?
 
-A percentile interval needs at least 41 bootstrap replicates. With fewer, the interval is `NaN`. Raise
+A percentile interval needs at least 41 bootstrap replicates. With fewer, the interval is `NaN`; the command line
+says so on standard error. Raise
 `--bootstrap-reps` or `bootstrap_reps(..)`. See [Bootstrap and seeds](user-guide/bootstrap-and-seeds.md).
 
 ## Why is a p-value a multiple of 0.01, and why is it `0.0000`?
@@ -34,13 +35,14 @@ replicate is discarded and counted. Merge rare levels, or use more rows. The cou
 
 ## Why do two runs give the same numbers?
 
-The bootstrap seed is fixed. Pass a different seed to change the draws, or `seed_from_entropy()` to draw one; the
-result records the seed it used. See [Bootstrap and seeds](user-guide/bootstrap-and-seeds.md).
+The bootstrap seed is fixed. In the library, pass a different seed to change the draws, or `seed_from_entropy()` to draw one; the
+result records the seed it used. The command line has no seed option. See [Bootstrap and seeds](user-guide/bootstrap-and-seeds.md).
 
 ## Why was my outcome column refused with `expected Float64, got i64`?
 
-A CSV column of whole numbers is read as an integer. Write the outcome with a decimal point (`45600.0`) or cast it
-before you build.
+This is the library, not the command line. A CSV column of whole numbers is read as an integer. Write the outcome with
+a decimal point (`45600.0`) or cast it before you build. The command line converts the outcome and weights columns
+itself.
 
 ## Why was a row left out?
 

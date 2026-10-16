@@ -52,7 +52,7 @@ impl ReferenceCoefficients {
         "Weighted",
     ];
 
-    /// Strict parse used at every engine boundary (0120-MERIDIAN S4). An absent value or any
+    /// Strict parse used at every engine boundary. An absent value or any
     /// string outside [`ACCEPTED_NAMES`](Self::ACCEPTED_NAMES) (including `"pooled"` and the
     /// old aliases) is an error; there is no fallback scheme.
     pub fn parse_name(name: Option<&str>) -> Result<Self, crate::error::OaxacaError> {

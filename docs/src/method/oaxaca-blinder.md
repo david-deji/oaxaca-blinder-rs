@@ -38,6 +38,23 @@ The three-fold form uses no \\( \beta^\ast  \\). It splits the gap into
 It is always computed from the raw coefficient vectors, because it does not depend on how categorical variables are
 coded and the normalised version would.
 
+## Bootstrap inference
+
+Every estimate in a result (the two parts, each detailed row, each percentile gap) is repeated on bootstrap resamples
+of the rows. With \\( B \\) replicates \\( \hat\theta\_1, \dots, \hat\theta\_B \\):
+
+- The **standard error** is the sample standard deviation of the replicates (denominator \\( B - 1 \\)).
+- The **95% interval** is the pair of replicates at the 2.5th and 97.5th percentile ranks: sort them and take the
+  ones at positions \\( \lfloor 0.025B \rfloor \\) and \\( \lfloor 0.975B \rfloor \\), counting from 0, with no
+  interpolation. It is not centred on the estimate and not symmetric. It needs at least 41 replicates; below that it
+  is `NaN`.
+- The **p-value** tests that the quantity is zero. It is twice the smaller of two shares, the share of replicates
+  that are zero or above and the share that are zero or below, capped at 1. A replicate equal to zero counts on both
+  sides. If every replicate has the same sign the p-value is `0.0000`.
+
+The p-value is read off the replicates themselves, not from a normal approximation or a recentred null
+distribution. See [Bootstrap and seeds](../user-guide/bootstrap-and-seeds.md) for replicate counts and seeds.
+
 ## What is checked
 
 The aggregate and detailed arithmetic is compared with `ddecompose::ob_decompose()` in R. The regressions are

@@ -27,8 +27,8 @@ true beta(tau) is known analytically — directly fixes the tau-insensitive curr
 
 ## Spec Implications
 
-- Golden pipeline: one R script (oaxaca + quantreg, pinned versions, fixed seed/index matrix) generating JSON goldens from Employers_data.csv (10k) + synthetic designs → committed under verification/; Rust test compares within tolerance table.
-- Employers_data.csv columns map cleanly: outcome=Salary (log?), group=Gender, predictors=Age, Experience_Years, Education_Level (cat), Department (cat), Location (cat), Job_Title (cat, high-card — maybe excluded). Spec defines the canonical model formula so R and Rust fit identically.
+- Golden pipeline: one R script (oaxaca + quantreg, pinned versions, fixed seed/index matrix) generating JSON goldens from <raw data file> (10k) + synthetic designs → committed under verification/; Rust test compares within tolerance table.
+- <raw data file> columns map cleanly: outcome=Salary (log?), group=Gender, predictors=Age, Experience_Years, Education_Level (cat), Department (cat), Location (cat), Job_Title (cat, high-card — maybe excluded). Spec defines the canonical model formula so R and Rust fit identically.
 - The trust suite is threading-independent (runs native) — it validates the METHODS; the threading parity suite (u5/SC-03) validates the MODES. Keep them distinct in the spec.
 
 ## Sources
@@ -43,4 +43,4 @@ true beta(tau) is known analytically — directly fixes the tau-insensitive curr
 
 - Perplexity ask 2026-07-17 (citations above)
 - Session recon 2026-07-17: verification/ dir listing, tests/parity_test.rs existence, ground-truth tests added this session (tests/ground_truth_verification_test.rs)
-- /home/deji/Downloads/Employers_data.csv header inspection 2026-07-17
+- <raw data file> header inspection 2026-07-17

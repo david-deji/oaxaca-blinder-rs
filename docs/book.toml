@@ -10,7 +10,7 @@ create-missing = false
 
 [output.html]
 git-repository-url = "https://github.com/david-deji/oaxaca-blinder-rs"
-edit-url-template = "https://github.com/david-deji/oaxaca-blinder-rs/edit/main/docs/src/{path}"
+edit-url-template = "https://github.com/david-deji/oaxaca-blinder-rs/edit/main/docs/{path}"
 # Formulas are written as \\( ... \\) and \\[ ... \\]. MathJax is loaded by the reader's browser, so no
 # preprocessor binary is needed to build the book.
 mathjax-support = true

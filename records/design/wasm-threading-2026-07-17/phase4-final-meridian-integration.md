@@ -296,7 +296,7 @@ No `[CLARIFY]` markers remain. Both open items are decisions with fully-specifie
 - `apps/hr-apps/pay-equity-app/frontend/src/wasm/analysis.worker.js:1-8,10,12-24,26-27,29-30,53,54-61`
 - `apps/hr-apps/pay-equity-app/frontend/src/services/AnalysisWorkerService.js:1,23-24,26,28-32,34-43,46-70`
 - `apps/hr-apps/pay-equity-app/frontend/vite.config.js:1-4,10,11,12-14,15-22,23-44`
-- `/home/deji/telos/audit-forge/webui/__init__.py:117-123,125-131,138-152`
+- `<audit-forge>/webui/__init__.py:117-123,125-131,138-152`
 
 **External URLs (Perplexity-returned, via Phase 3):**
 - W2: https://developer.mozilla.org/en-US/docs/Web/API/WorkerGlobalScope/crossOriginIsolated , https://web.dev/articles/coop-coep

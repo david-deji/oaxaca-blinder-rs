@@ -150,14 +150,14 @@ No formal /research output files ingested (Research Inventory hard-fail N/A — 
 - Toolchain (verified via Perplexity 2026-07-17, sources: github.com/RReverser/wasm-bindgen-rayon README, docs.rs, MDN, web.dev): threads on wasm32-unknown-unknown still require pinned nightly + `build-std` with `+atomics,+bulk-memory`; `wasm-bindgen-rayon` latest = 1.3.0, compatible with wasm-bindgen 0.2.x (repo pins 0.2.106); COOP `same-origin` + COEP `require-corp`/`credentialless` still required for SharedArrayBuffer; rayon sequential fallback confirmed (rayon-rs/rayon#1122).
 - Reproducibility model: `rust-toolchain.toml` pins stable 1.90.0 (Track-0 SC-04); raw wasm sha256 baseline at `engine/pay_equity_engine.wasm.sha256`, verified by `.github/workflows/ci.yml` wasm-verify job; `scripts/build-wasm.sh` builds with `--target bundler`, wasm-bindgen-cli 0.2.106 pinned, wasm-bindgen output documented nondeterministic (pkg/ not hashed).
 - Sole consumer: Meridian (`apps/hr-apps/pay-equity-app`) — Vue 3 client-side, engine in one Web Worker (`frontend/src/wasm/analysis.worker.js`), Vite + vite-plugin-wasm, base `/pay-equity/`.
-- Serving surface (verified on disk): audit-forge Flask app at `/home/deji/telos/audit-forge` (loopback-only, port 5137, no-egress test suite). `webui/__init__.py:125` `_apply_meridian_csp` after_request hook already scopes headers to `/pay-equity/` + `/api/` — COOP/COEP insertion point. Loopback = secure context; no cross-origin subresources by design → `require-corp` safe.
+- Serving surface (verified on disk): audit-forge Flask app at `<audit-forge>` (loopback-only, port 5137, no-egress test suite). `webui/__init__.py:125` `_apply_meridian_csp` after_request hook already scopes headers to `/pay-equity/` + `/api/` — COOP/COEP insertion point. Loopback = secure context; no cross-origin subresources by design → `require-corp` safe.
 
 Open decisions carried into pipeline: (1) nightly re-pin vs dual-artifact reproducibility strategy — pipeline researches, founder approves at buildability gate; (2) deterministic parallel RNG design; (3) memory ceiling at 50k rows.
 
 ## Founder Intake
 
 - **Toolchain/reproducibility decision**: "Let pipeline decide" — research both nightly-re-pin and dual-artifact; spec proposes one with rationale; founder approves at buildability gate.
-- **Production environment**: Meridian runs locally on David's corporate PC for day-job use, served by the audit-forge Flask offline bundle from `/home/deji/telos/audit-forge`. No public deployment in scope.
+- **Production environment**: Meridian runs locally on David's corporate PC for day-job use, served by the audit-forge Flask offline bundle from `<audit-forge>`. No public deployment in scope.
 - **Success criterion**: **Full-surface parity** — not just decompose bootstrap; audit and parallelize (where profitable) all five WASM entry points: decompose, optimize, verify_adjustments, calculate_efficient_frontier, check_defensibility.
 - **Scope**: Engine + Meridian wiring in one spec (worker initThreadPool, Vite headers, audit-forge Flask headers).
 - **Data scale**: **~50,000 employee rows in scope** (founder revised down from an initial 130k estimate). **"Memory is of utmost importance"** (direct quote). Memory budget is a first-class constraint, not a nice-to-have. Threaded wasm requires a fixed shared-memory maximum — sizing analysis mandatory.
@@ -171,8 +171,8 @@ Open decisions carried into pipeline: (1) nightly re-pin vs dual-artifact reprod
 - **deterministic-rng** — audit current rand usage in bootstrap/MM simulation; design schedule-independent per-rep seeding (bit-identical threaded vs sequential vs native); reproducibility test design.
 - **engine-parallel-surface** — full-surface audit of the 5 WASM entry points: what parallelizes profitably (bootstrap reps, per-tau QR, MM simulation, frontier grid, clarabel solves), thread-pool init API export, feature-gating so native builds are untouched.
 - **meridian-integration** — analysis.worker.js initThreadPool + feature-detect fallback, Vite dev/build config + headers, audit-forge COOP/COEP insertion (verified hook at `webui/__init__.py:125`), pkg/ artifact refresh flow, fallback UX signal.
-- **verification-benchmark** — threaded-vs-sequential parity tests (bit-identical gate), 50k-row memory ceiling test (seeded from Employers_data.csv ×5 replication), wall-clock benchmark harness, CI wasm-verify job updates, sha256 baseline handling per chosen strategy.
-- **statistical-trust-layer** — golden-file parity vs R `oaxaca`/Stata at realistic n (Employers_data.csv), property-based adding-up identity tests, heteroskedastic/skewed QR cases, quantile detailed-components API exposure (analysis.rs:201 gap).
+- **verification-benchmark** — threaded-vs-sequential parity tests (bit-identical gate), 50k-row memory ceiling test (seeded from <raw data file> ×5 replication), wall-clock benchmark harness, CI wasm-verify job updates, sha256 baseline handling per chosen strategy.
+- **statistical-trust-layer** — golden-file parity vs R `oaxaca`/Stata at realistic n (<raw data file>), property-based adding-up identity tests, heteroskedastic/skewed QR cases, quantile detailed-components API exposure (analysis.rs:201 gap).
 
 ## Build Order & Pre-Gate Findings
 
@@ -185,7 +185,7 @@ Verified pre-gate findings (founder review items, code-confirmed 2026-07-17):
 - QR unit tests tau-insensitive (linear data); integration tests n=12–20, reps 2–5.
 - Meridian coverage thresholds 30/25/25/30 (vite.config.js) — compiler.js coverage deferred to separate MERIDIAN issue.
 - Engine is f64 throughout (engine/src/types.rs) vs monorepo Decimal(18,2) monetary rule — founder ruling pending at plan gate.
-- Test fixture directive: /home/deji/Downloads/Employers_data.csv (10,001 lines; Gender/Salary + 6 predictors) — seed for realistic-n and 50k-row tests.
+- Test fixture directive: <raw data file> (10,001 lines; Gender/Salary + 6 predictors) — seed for realistic-n and 50k-row tests.
 
 ## Deliverable Shape
 
@@ -209,7 +209,7 @@ Files to modify (Meridian `apps/hr-apps/pay-equity-app/`):
 | `frontend/vite.config.js` | `server.headers` COOP/COEP for dev |
 | `frontend/src/wasm/pkg files` | regenerated engine artifact(s) |
 
-Files to modify (audit-forge `/home/deji/telos/audit-forge/` — separate repo, coordinate):
+Files to modify (audit-forge `<audit-forge>/` — separate repo, coordinate):
 | File | Change |
 |---|---|
 | `webui/__init__.py` | COOP/COEP on `/pay-equity/` responses beside existing `_apply_meridian_csp` (line 125) |
@@ -252,7 +252,7 @@ Snapshot of Charter In-Scope at plan CONFIRMATION (2026-07-17, after founder pre
 10. Determinism as prerequisite + standalone feature (incl. silent rep-discard fix)
 11. Pre-threading memory profile of current single-threaded build at 50k rows
 12. Quantile detailed-components API exposure (analysis.rs:201)
-13. Test fixture: Employers_data.csv seed (×5 replication strategy)
+13. Test fixture: <raw data file> seed (×5 replication strategy)
 
 ## Phase Plan
 

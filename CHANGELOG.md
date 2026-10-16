@@ -27,7 +27,7 @@ Library, relative to 0.2.2:
 
 | Change | Before | After |
 |---|---|---|
-| Default reference coefficients | `GroupA` | `GroupB`. Call `.reference_coefficients(ReferenceCoefficients::GroupA)` to keep the old numbers. |
+| Default reference coefficients | `GroupA` (the 0.2.2 setter's documentation said `GroupB`, the code used `GroupA`; the 0.2.2 command line already defaulted to `group-b`) | `GroupB`. Call `.reference_coefficients(ReferenceCoefficients::GroupA)` to keep the old numbers. |
 | `OaxacaResults::explained()` and `unexplained()` | returned `&ComponentResult` | return `Option<&ComponentResult>`; call `.expect(..)` or match |
 | `OaxacaResults` | no `run_metadata` field | has a public `run_metadata` field; struct literals and exhaustive destructuring need `..` |
 | `OaxacaError` | 0.2.2 variants | 8 more: `InsufficientData`, `EmptyLevelInGroup`, `TooManyGroupValues`, `ReferenceGroupAbsent`, `UnknownReferenceCoefficients`, `NormalizationError`, `WeightsKindRequired`, `InvalidWeight` |
@@ -35,13 +35,15 @@ Library, relative to 0.2.2:
 | `ReferenceCoefficients` | no `PooledNoIndicator` | has `PooledNoIndicator`, which is what `Neumark` was meant to compute |
 | A weights column | `.weights("w")` | `.weights("w").weights_kind(WeightsKind::Relative)`, or `Frequency` for whole-number counts; without a kind the run fails with `WEIGHTS_KIND_REQUIRED` |
 | Name of the intercept row | `intercept` | `oaxaca_blinder::INTERCEPT_NAME` (`__ob_intercept__`) |
+| `.normalize(["sector"])` and `normalize_all_categoricals()` | per-level rows deviate from the simple average of the levels (equal share) | deviate from the population-share average. Call `.normalization_convention(NormalizationConvention::EqualShare)` first to keep the 0.2.2 rows. |
+| `.categorical_predictors(&[])` | compiled | does not compile (the type of the empty slice cannot be inferred); write `Vec::<&str>::new()` or leave the call out |
 | A group column with more than two values | the first other value was used silently | error `TOO_MANY_GROUP_VALUES`; recode to two values first |
 | OLS with as many columns as rows, and a null outcome in the AKM and quantile paths | no check; a null was read as 0.0 | `InsufficientData` for the first, an error for the second; drop or fill nulls first |
 | `AkmBuilder` | methods took `self` | methods take `&mut self` and `run(&self)`; single-expression chains still compile |
 | `MatchingEngine::match_nearest_neighbor(k, &metric)` and the `DistanceMetric` trait | metric object | `match_nearest_neighbor(k, use_mahalanobis: bool)`; the trait is gone |
 | `OaxacaBuilder` | `Clone` and `Debug` | neither; build a new builder for each run |
 | AKM, DFL, JMP and matching | always available | behind the cargo feature `experimental`, off by default |
-| Cargo features `python` and `pyo3` | present | removed; there is no Python binding |
+| Cargo features `python` and `pyo3` | present in the manifest | removed; the Python binding has not been compiled since it was switched off |
 | `ReferenceCoefficients::Neumark`, `QuantileDecompositionBuilder`, `OaxacaResults::optimize_budget` | supported | `#[deprecated]` |
 
 Column-name arguments (`predictors`, `categorical_predictors`, `normalize`, `heckman_selection`, `controls`) accept
@@ -53,9 +55,12 @@ Command line, relative to 0.2.2:
 |---|---|---|
 | `--weights` | alone | needs `--weights-kind frequency` or `--weights-kind relative` |
 | `--bootstrap-reps` default | 500 | 100 (the library default is 100 too) |
-| `--analysis-type quantile` | Machado-Mata | RIF regression; `--simulations` is ignored |
+| `--analysis-type quantile` | Machado-Mata | RIF regression; `--simulations` (default 1000 before, 200 now) is ignored |
+| Intercept row in the tables, the `report` HTML and `--output-json` | `intercept` | `__ob_intercept__`, the same token as the library |
+| Group labels in the console summary and the `report` | "Group A (Advantaged)" and "Group B (Reference)" | "Compared group (A)" and "Reference group (B)"; the compared group is every row outside the reference group, whoever earns more |
 | Categorical drivers | raw treatment coding | population-share normalisation; `--normalization none` restores the raw coding for `run` |
-| `--analysis-type akm` and `match` | in the default build | `cargo install oaxaca_blinder --features experimental` |
+| `--analysis-type akm` and `match` | in the default build | `cargo install oaxaca_blinder --features experimental`; the default build refuses them and says so |
+| `--outcome` | always required | not needed with `--formula`, which names the outcome |
 | `--ref-coeffs` | no `pooled-no-indicator` | `pooled-no-indicator` is a new value; the default stays `group-b` |
 
 Engine and MCP have no earlier release to break. Anyone who ran a development build should read the engine and MCP
@@ -72,8 +77,9 @@ Library and command line:
 
 - **Default reference coefficients are `GroupB`, not `GroupA`.** Same data, same call: explained 0.281824 becomes
   0.269266 and unexplained 4.000989 becomes 4.013546; the gap, 4.282813, is the same.
-- **A percentile confidence interval is refused below 41 bootstrap replicates.** The default is 100, as in 0.2.2, so a
-  caller who never sets the replicate count sees no change. A caller who sets fewer than 41 gets `NaN` ends.
+- **A percentile confidence interval has `NaN` ends below 41 bootstrap replicates.** The run still succeeds and the
+  standard error and p-value are finite (below 2 replicates they are `NaN` too). The default is 100, as in 0.2.2, so a
+  caller who never sets the replicate count sees no change. The command line warns on standard error.
 - **Bootstrap standard errors, p-values and intervals differ from a 0.2.2 run in every digit.** The random generator is
   now seeded (ChaCha8, default seed `DEFAULT_SEED`), so a run repeats exactly, on any number of threads. Point
   estimates did not move: `GroupA`, `GroupB`, `Pooled`, `Weighted` and weighted least squares agree with 0.2.2 to six
@@ -91,10 +97,15 @@ Library and command line:
 - **Per-level rows of categorical drivers are normalised** (command line by default, library opt-in with
   `normalize_all_categoricals()`). Aggregates are unchanged; the rows of every categorical change, and the
   alphabetically first level now appears. Renaming a level used to flip the sign of a driver.
+- **The library's `normalize(..)` and `normalize_all_categoricals()` now use population-share, not equal-share.** A
+  0.2.2 caller of either gets different per-level rows: on the 400-row file `sector_Sales` explained went from 141.23
+  to 95.07, `sector_Admin` from 596.44 to 516.27, and the intercept from 3938.91 to 4028.97. Call
+  `.normalization_convention(NormalizationConvention::EqualShare)` first and the rows equal 0.2.2 to six decimals.
 - **The three-fold decomposition under normalisation** used to sum to 79 percent of the gap and moved with the base
   level. It is now computed from the raw coding and equals R `oaxaca` `threefold` to 1e-10.
-- **Logit probabilities are clamped to [1e-10, 1 - 1e-10] and the probit Hessian is solved, not inverted.** Matching,
-  DFL and Heckman results move only for extreme fitted values; the size was not measured.
+- **Logit probabilities are clamped to [1e-10, 1 - 1e-10] and the probit Hessian is solved, not inverted.** On a
+  2000-row Heckman simulation the four schemes that run (`GroupA`, `GroupB`, `Weighted`, `Cotton`) are identical to
+  8 decimals. Matching and DFL results move only for extreme fitted values; the size was not measured.
 - **`optimize_budget` with a NaN, infinite or negative budget pays nothing.** A NaN budget used to fund the full need.
 
 Engine and MCP server (results Meridian reads):
@@ -150,6 +161,10 @@ Library:
   `NormalizationRecord`, `canonical_name`, `parse_name`, `INTERCEPT_NAME`.
 - `ReferenceCoefficients::PooledNoIndicator` (Neumark 1988; Stata `omega`; R `oaxaca` weight -1).
 - `rif_outcome_frame`, `qr_coefficients` and `OaxacaResults::format_summary`.
+- `oaxaca_blinder::polars`, a re-export of the Polars crate the library is built on, so `cargo add oaxaca_blinder` is
+  the only dependency a first program needs.
+- Public types that were not listed before: `ShareMap`, `FactorShares`, `LevelShare`, `GroupMatrices` and
+  `DataMatricesWithRows`.
 - DFL accepts categorical predictors. Cargo features `mem-profile` and `wasm-threads`.
 - Cargo feature `experimental`, which gates AKM, DFL, JMP and matching (see "Changed").
 - Doctested examples: `first_decomposition`, `weights_and_categoricals` and `quantile_rif`.
@@ -157,6 +172,9 @@ Library:
 Command line:
 - `--normalization population-share|equal-share|none`, `--weights-kind frequency|relative`, and
   `--ref-coeffs pooled-no-indicator`. `--output-json` works on the quantile path.
+- A whole-number outcome or weights column is read as a decimal, `--outcome` is not needed with `--formula`, a
+  `--bootstrap-reps` below 41 prints a warning on standard error, and a runtime error prints the cause without the
+  help text.
 
 Engine and MCP server, a first contract for Meridian:
 - The MCP tools `forensic_decomposition`, `simulate_remediation`, `verify_adjustments`, `check_defensibility` and
@@ -243,7 +261,7 @@ Project:
 - OLS with no spare degrees of freedom is an error (`InsufficientData`) and the engine refuses a fitted group with none
   (`INSUFFICIENT_RESIDUAL_DF`); AKM convergence errors surface; nulls are no longer read as 0.0 in the AKM and quantile
   paths.
-- Numeric and `unwrap` panics in the library; header-parse panics and poisoned-lock handling in the MCP server.
+- Many numeric and `unwrap` panics in the library (one known case remains, see "Known issues"); header-parse panics and poisoned-lock handling in the MCP server.
 - RIF quantile decomposition fails with a message when a group has fewer than 2 rows. It returned the raw series as its
   own RIF.
 - Documentation: the READMEs no longer show code that does not compile, name the wrong version, or describe Python
@@ -260,10 +278,12 @@ Project:
 
 ### Known issues
 
-- An integer outcome column is refused (`expected Float64, got i64`); write the values with a decimal point
-  (`45600.0`). Predictors and an integer weights column are accepted.
-- `oaxaca-cli report` and `oaxaca-cli run` also need the top-level options (`--data`, `--outcome`, `--group`,
-  `--reference`); give them once before the subcommand and once after it.
+- In the library an integer outcome column is refused (`expected Float64, got i64`); write the values with a decimal
+  point (`45600.0`). The command line converts the outcome and weights columns itself.
+- `oaxaca-cli report` also needs the top-level options (`--data`, `--group`, `--reference`) before the subcommand, and
+  all of them again after it.
+- A Heckman selection model with `Pooled` or `PooledNoIndicator` panics in the library and the command line (a matrix
+  dimension mismatch). `GroupA`, `GroupB`, `Weighted` and `Cotton` run. 0.2.2 panicked for `Pooled` too.
 - A quantile run's `total_gap` is the RIF model total, not the sample percentile gap (4,463 against 4,750 at the 90th
   percentile of the test file).
 - `--simulations` is accepted and ignored; its help text still names Machado-Mata.

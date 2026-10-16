@@ -1,4 +1,4 @@
-//! Sample-weight semantics (0120-MERIDIAN S9 / T17).
+//! Sample-weight semantics.
 //!
 //! No single convention makes both of these true: "uniform fractional weights are a no-op" and
 //! "a weight of 2 equals the row twice". A consultant has to say which they mean, so a weights

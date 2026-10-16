@@ -43,7 +43,7 @@ in_scope:
     name: Per-predictor quantile decomposition — WIRE existing OaxacaBuilder::decompose_quantile (builder.rs:720) into both WASM and CLI surfaces (RIF); recompute RIF per replicate; forward seed
     source: "Founder pre-gate review item 5a; council-gate ruling 2026-07-17; audit CRITICAL-1 reframe 2026-07-18; buildability gate rulings 3 and 4 2026-07-18"
   - id: IS-13
-    name: "Test fixture: Employers_data.csv (10k rows) replicated ~5x for 50k-row memory/benchmark cases"
+    name: "Test fixture: <raw data file> (10k rows) replicated ~5x for 50k-row memory/benchmark cases"
     source: "Founder directive 2026-07-17"
 
 success_criteria:
@@ -140,7 +140,7 @@ deliverable_shape:
     - apps/hr-apps/oaxaca-blinder-rs/engine/pay_equity_engine.wasm.sha256
     - apps/hr-apps/pay-equity-app/frontend/src/wasm/analysis.worker.js
     - apps/hr-apps/pay-equity-app/frontend/vite.config.js
-    - /home/deji/telos/audit-forge/webui/__init__.py
+    - <audit-forge>/webui/__init__.py
   files_to_create:
     - apps/hr-apps/oaxaca-blinder-rs/.cargo/config.toml
     - apps/hr-apps/pay-equity-app/frontend/src/wasm/thread-cap.js

@@ -6,7 +6,7 @@
 > Author: Spec Writer (memory-budget) — Draft
 
 Domain scope: Charter In-Scope 5 (memory budget for 50k rows), 11 (pre-threading memory
-profile), 13 (Employers_data.csv ×5 fixture). Binds: INV-03 (graceful degradation, never
+profile), 13 (<raw data file> ×5 fixture). Binds: INV-03 (graceful degradation, never
 blank screen), INV-05 (peak fits declared maximum with measured headroom; thread count
 capped by memory). Other domains referenced via cross-domain summary
 (`phase2-cross-domain-summary.md`), never re-specced.
@@ -147,7 +147,7 @@ Acceptance criteria:
 
 ### R6 — ×5 fixture perturbation strategy (In-Scope 13)
 
-`Employers_data.csv` (10,000 data rows; header row 1) is replicated ×5 to 50k with a defined
+`<raw data file>` (10,000 data rows; header row 1) is replicated ×5 to 50k with a defined
 perturbation so the memory/benchmark fixture is realistic and reproducible (§ 4.2).
 
 Acceptance criteria:
@@ -320,7 +320,7 @@ build path here.
 
 ### 4.2 ×5 fixture perturbation (implementable spec)
 
-Input: `/home/deji/Downloads/Employers_data.csv`, 10 000 data rows, columns
+Input: `<raw data file>`, 10 000 data rows, columns
 `Employee_ID, Name, Age, Gender, Department, Job_Title, Experience_Years, Education_Level,
 Location, Salary` (header verified on disk).
 

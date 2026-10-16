@@ -1,7 +1,7 @@
 # Memory-Profile Report — 0014-MERIDIAN Stage 2 (memory-budget domain)
 
 > Generated: 2026-07-18 · Native tracking `GlobalAlloc` (`mem-profile` feature, off by default / INV-01)
-> Fixture: `mem_profile_50k.csv` (×5 perturbation of `Employers_data.csv`, seed `0x0014_50CE_5EED_A115`)
+> Fixture: `mem_profile_50k.csv` (×5 perturbation of `<raw data file>`, seed `0x0014_50CE_5EED_A115`)
 > Harness: `oaxaca_blinder/examples/mem_profile_harness.rs`, release build
 > Measurement: bytes-requested-through-`GlobalAlloc` (schedule-/fragmentation-independent; understates true RSS by allocator slack → conservative for an OOM guard).
 

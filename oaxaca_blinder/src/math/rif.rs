@@ -86,7 +86,7 @@ pub fn calculate_rif_weighted(
     rif_core(series, quantile, weights, WeightsKind::Frequency)
 }
 
-/// RIF under [`WeightsKind::Relative`] weights (0120-MERIDIAN S9 / T17): the weights are rescaled
+/// RIF under [`WeightsKind::Relative`] weights: the weights are rescaled
 /// to sum to the count of rows that carry weight (`rifreg::check_weights`, with the
 /// zero-weight rows `Hmisc` drops left out of the count), the sample quantile is
 /// `Hmisc::wtd.quantile(type = "quantile", normwt = TRUE)`, and the density, variance and IQR

@@ -23,7 +23,7 @@ Does Polars 0.44 read POLARS_MAX_THREADS at global pool init (process start / fi
 clarabel 0.11.1: internal threads, BLAS links, rayon usage? Read vendored Cargo.toml + solver source.
 
 ### L6 — education-level-categories
-Distinct Education_Level values (+ any ordinal order) in /home/deji/Downloads/Employers_data.csv.
+Distinct Education_Level values (+ any ordinal order) in <raw data file>.
 
 ## WEB units (orchestrator-direct Perplexity)
 

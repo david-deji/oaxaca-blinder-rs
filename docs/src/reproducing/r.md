@@ -4,6 +4,18 @@ Every decomposition this crate reports can be reproduced in R with the `oaxaca` 
 runs the sample file from [Start here](../start-here.md) both ways and lists how the crate is checked in
 `verification/`.
 
+## Before you start
+
+Install the R packages once. The estimates below come from R 4.6.1 with `oaxaca` 0.1.5, `ddecompose` 1.0.0 and
+`rifreg` 1.1.0:
+
+```r
+install.packages(c("oaxaca", "ddecompose"))   # ddecompose installs rifreg
+```
+
+Run the code in the folder that holds `wage.csv` (download it from the repository, or from the built site next to this
+page). Loading `ddecompose` also loads `ggplot2`, and it prints a message about it.
+
 ## The sample, five schemes
 
 The file is [`sample/wage.csv`](../sample/wage.csv): 16 rows for group `F` (the reference group) and 16 for `M`.
@@ -18,7 +30,8 @@ o <- oaxaca(wage ~ education + experience | female, data = d, R = NULL)
 o$twofold$overall
 ```
 
-`o$twofold$overall` has one row per `group.weight`. They line up with this crate's schemes as follows. The estimates
+`o$twofold$overall` has one row per `group.weight`. The third and fourth rows are the same (the compared group's share
+of rows is 0.5 here, the same as `group.weight = 0.5`). They line up with this crate's schemes as follows. The estimates
 are from R 4.6.1 with `oaxaca` 0.1.5; the last two columns are what `oaxaca-cli --ref-coeffs ...` prints for the
 same file.
 
@@ -57,9 +70,15 @@ dq <- ob_decompose(wage ~ education + experience, data = d, group = grp,
 dq[["quantile_0.5"]]$decomposition_terms
 ```
 
+R warns "If you want to decompose rifregression it is highly recommended to apply reweighting!". The warning is
+expected: `reweighting = FALSE` keeps this a plain Oaxaca-Blinder split, as in the crate.
+
 On the sample this gives 1498.398 explained and 8551.602 unexplained. `oaxaca-cli ... --ref-coeffs group-b
 --analysis-type quantile --quantiles 0.5` prints 1498.3607 and 8551.6393. The two differ in the fifth significant
-figure. The repository's trust tests pin the agreement they measured on a larger file.
+figure, and the cause is the density in the RIF. R's `density()` bins the data onto a 512-point grid and
+interpolates; the crate evaluates the Gaussian kernel exactly at the median, with the same bandwidth (`bw.nrd0`).
+Doing the same arithmetic in R with the exact kernel gives 1498.361 and 8551.639, the crate's figures. The documented
+figure is the crate's. The repository's trust tests pin the agreement they measured on a larger file.
 
 ## Categorical drivers
 

@@ -25,11 +25,29 @@ OaxacaBuilder::new(df, "wage", "gender", "F")
 | Bootstrap replicates, `oaxaca-cli --bootstrap-reps` | 500 | 100 |
 | Reference coefficients | `GroupA` | `GroupB` |
 
-A caller who relied on the old reference default now asks for it:
+(In 0.2.2 the setter's documentation said `GroupB` while the code used `GroupA`; the 0.2.2 command line already
+defaulted to `group-b`.) A caller who relied on the old reference default now asks for it:
 
 ```rust,ignore
 builder.reference_coefficients(ReferenceCoefficients::GroupA);
 ```
+
+### Categorical normalisation
+
+`normalize(..)` and `normalize_all_categoricals()` now express each level against the population-share average of the
+levels. In 0.2.2 they used the simple average (equal share), so the per-level rows of a categorical driver change.
+Aggregates do not. To keep the 0.2.2 rows, choose the convention first:
+
+```rust,ignore
+builder
+    .normalization_convention(NormalizationConvention::EqualShare)
+    .normalize_all_categoricals();
+```
+
+### An empty slice
+
+`.categorical_predictors(&[])` no longer compiles, because the argument type is generic and an empty slice names no
+element type. Leave the call out, or write `.categorical_predictors(Vec::<&str>::new())`.
 
 ### Match arms
 
@@ -120,14 +138,20 @@ with `weights(..)`. See [Weights](user-guide/weights.md).
 
 ## Command line
 
-- `--bootstrap-reps` defaults to 100.
+- `--bootstrap-reps` defaults to 100. Below 41 the command prints a warning and the 95% interval is `NaN`.
+- `--simulations` (default 1000 before, 200 now) is ignored; the quantile analysis is RIF regression.
+- The intercept row is named `__ob_intercept__` in the tables, the `report` and `--output-json`.
+- The console summary and the `report` label the groups "Compared group (A)" and "Reference group (B)".
 - `--weights` needs `--weights-kind frequency|relative`.
 - `--normalization` is new. The default is population share; `none` returns the raw coding of 0.2.
-- AKM and matching need `cargo install oaxaca_blinder --features experimental`.
+- AKM and matching need `cargo install oaxaca_blinder --features experimental`; the default build refuses
+  `--analysis-type akm|match` and says so.
+- `--outcome` is not needed with `--formula`.
 
 ## Python
 
-There is no Python binding. It was never compiled into a release.
+There is no Python binding. It has not been compiled since it was switched off, and the `python` and `pyo3` features
+are gone from the manifest.
 
 ## Licence
 
