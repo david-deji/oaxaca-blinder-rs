@@ -56,8 +56,8 @@ jobs:
 
       # ground.sh and verify-live.sh feed the dev loop; a regression in their probes or validator would
       # otherwise change no CI result (0119 review F4). These cases need no wasm build and no app checkout.
-      - name: Test the loop scripts (ground.sh without gh/cargo; its validator; verify-live's app-tree check and receipt scrub)
-        run: python3 scripts/test-loop-scripts.py ground-nopath ground-validator verify-live-app-tree verify-live-scrub
+      - name: Test the loop scripts (ground.sh without gh/cargo; its validator; verify-live's dirty-tree prefix, app-tree check and receipt scrub)
+        run: python3 scripts/test-loop-scripts.py ground-nopath ground-validator verify-live-records-prefix verify-live-app-tree verify-live-scrub
 
   security:
     name: Security Audit
@@ -102,6 +102,32 @@ jobs:
       # The validator is tested before it is trusted: one failure class per case, against the real lockfile.
       - name: Test the ignore validator (every failure class must be reported)
         run: python3 scripts/test-audit-validator.py
+
+  # The library's declared minimum Rust version (`rust-version` in Cargo.toml) is a promise to people who
+  # depend on the crate, so it is compiled on exactly that toolchain with the committed lockfile. `+1.88.0`
+  # overrides rust-toolchain.toml (which pins 1.90.0 for the reproducible WASM build). Raising the number
+  # means changing `rust-version` and this toolchain together.
+  msrv:
+    name: MSRV (Rust 1.88.0, oaxaca_blinder)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Setup Rust 1.88.0
+        uses: dtolnay/rust-toolchain@f0d5300ba8908d942c808f4d31c08471d7798ba3 # nightly branch (takes the toolchain input)
+        with:
+          toolchain: 1.88.0
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2.8.0
+        with:
+          shared-key: "rust-msrv"
+
+      - name: Compile the library on the minimum Rust version
+        run: cargo +1.88.0 check --locked -p oaxaca_blinder --lib
 
   memory-ceiling:
     name: Memory Ceiling (50k @ N=8 < 326 MiB)
@@ -427,6 +453,7 @@ jobs:
     needs:
       - quality
       - security
+      - msrv
       - memory-ceiling
       - wasm-seq
       - wasm-threaded

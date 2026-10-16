@@ -1,14 +1,21 @@
 [package]
 name = "meridian-mcp"
 version = "0.2.0"
-edition = "2021"
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "MCP server (stdio and HTTP) exposing the pay-equity engine as tools: decompose, optimize, verify, frontier, defensibility."
+publish = false
 
 [dependencies]
 tokio = { version = "1.0", features = ["full"] }
 tokio-util = { version = "0.7", features = ["codec"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-pay-equity-engine = { path = "../engine" }
+pay-equity-engine = { path = "../engine", version = "0.2.0" }
 anyhow = "1.0"
 async-trait = "0.1"
 futures = "0.3"

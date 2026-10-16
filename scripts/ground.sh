@@ -4,7 +4,7 @@
 # Contract: internal-ops-bureau/knowledge/dev-loop.md (telos-machina) section "ground.sh contract". Pure
 # probes, no LLM, no judgment. Exits 0 ALWAYS: a probe that could not run writes null plus a reason into
 # the JSON and into errors[] (scripts/lib/ground_probes.py), and a total crash of that script is caught
-# here and reported as a single error entry. The report goes to stdout and to ground/YYYY-MM-DD-probes.json;
+# here and reported as a single error entry. The report goes to stdout and to records/ground/YYYY-MM-DD-probes.json;
 # when errors[] is not empty a banner goes to stderr, so a crash and a clean run are not the same event.
 #
 # Usage: bash scripts/ground.sh
@@ -13,7 +13,7 @@
 set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-GROUND_DIR="${GROUND_DIR:-$REPO_ROOT/ground}"
+GROUND_DIR="${GROUND_DIR:-$REPO_ROOT/records/ground}"
 export GROUND_DIR
 mkdir -p "$GROUND_DIR"
 OUT_FILE="$GROUND_DIR/$(date -u +%Y-%m-%d)-probes.json"

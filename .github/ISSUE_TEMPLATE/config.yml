@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question about using the library, CLI or MCP server
+    url: https://david-deji.github.io/oaxaca-blinder-rs/
+    about: Start with the documentation site. Its FAQ and user guide cover most questions.
+  - name: Report a security vulnerability
+    url: https://github.com/david-deji/oaxaca-blinder-rs/security/advisories/new
+    about: Report privately. Do not open a public issue.

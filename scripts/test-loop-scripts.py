@@ -2,13 +2,15 @@
 """Tests for scripts/ground.sh and scripts/verify-live.sh (0119-MERIDIAN S6, verification V6).
 
     python3 scripts/test-loop-scripts.py                 # all
-    python3 scripts/test-loop-scripts.py ground-nopath   # one of: ground-nopath ground-normal ground-validator verify-live-corrupt verify-live-dirty verify-live-app-tree verify-live-scrub
+    python3 scripts/test-loop-scripts.py ground-nopath   # one of: ground-nopath ground-normal ground-validator verify-live-corrupt verify-live-dirty verify-live-records-prefix verify-live-app-tree verify-live-scrub
 
 Each test writes its output under target/ (never /tmp: disk is tight) and removes it afterwards.
   ground-nopath         ground.sh with `gh` and `cargo` removed from PATH exits 0, and errors[] names both.
   ground-normal         ground.sh on a normal run: every contract key present, suites total > 0.
   verify-live-corrupt   verify-live.sh against a COPY of the published blobs with one byte flipped: exits 1,
                         fails at published_vs_pkg, runs none of the app's checks, copies nothing.
+  verify-live-records-prefix  an untracked file under records/ground/ is the script's own output; one under the old
+                        ground/ is a dirty tree. Needs git and python only.
   verify-live-app-tree  the app_tree_committed check, against a scratch git repo standing in for the app: a clean
                         committed tree passes; an ignored manifest, an uncommitted blob and a dirty app receipt
                         each fail with their own message (0119 review F3, OPS-3). Needs git only.
@@ -194,6 +196,47 @@ def test_verify_live_dirty():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def test_verify_live_records_prefix():
+    print("verify-live-records-prefix: only records/ground/ is this script's own output; the old ground/ is a dirty tree")
+    tmp = scratch("vlprefix")
+    own = ROOT / "records" / "ground" / "receipts" / ".prefix-probe.json"
+    old_dir = ROOT / "ground"
+    old = old_dir / ".prefix-probe"
+    had_old_dir = old_dir.exists()
+    try:
+        # No `bash` on the child PATH: build-wasm.sh is then "not found" at once (a failed check, never a skip), so
+        # the run gets past the dirty-tree check without starting a build. The test itself launches bash by path.
+        bindir = tmp / "bin"
+        bindir.mkdir()
+        for tool in ["python3", "git", "date", "dirname", "env", "sh", "cat", "uname", "mktemp", "rm", "mkdir"]:
+            real = shutil.which(tool)
+            if real:
+                (bindir / tool).symlink_to(real)
+        bash = shutil.which("bash")
+        env = dict(os.environ, PATH=str(bindir), GROUND_DIR=str(tmp / "ground"), MERIDIAN_APP=str(tmp / "no-app"),
+                   MERIDIAN_FRONTEND=str(tmp / "no-app" / "frontend" / "src"))
+        own.parent.mkdir(parents=True, exist_ok=True)
+        own.write_text("untracked\n")
+        p = subprocess.run([bash, str(ROOT / "scripts" / "verify-live.sh"), "0121-prefix"], cwd=ROOT, env=env, capture_output=True, text=True, timeout=600)
+        check("refusing to run on a dirty tree" not in p.stderr,
+              "an untracked file under records/ground/ is the script's own output, not a dirty tree")
+        own.unlink()
+        old_dir.mkdir(exist_ok=True)
+        old.write_text("untracked\n")
+        p = subprocess.run([bash, str(ROOT / "scripts" / "verify-live.sh"), "0121-prefix"], cwd=ROOT, env=env, capture_output=True, text=True, timeout=120)
+        check(p.returncode == 2 and "refusing to run on a dirty tree" in p.stderr and ".prefix-probe" in p.stderr,
+              "an untracked file under the old ground/ is refused as a dirty tree")
+    finally:
+        own.unlink(missing_ok=True)
+        old.unlink(missing_ok=True)
+        if not had_old_dir:
+            try:
+                old_dir.rmdir()
+            except OSError:
+                pass
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def load_verify_live(env):
     """Import scripts/lib/verify_live.py with MERIDIAN_APP / MERIDIAN_FRONTEND set to a scratch app."""
     import importlib.util
@@ -287,7 +330,7 @@ def test_verify_live_scrub():
     check(vl.app_receipt_summary(None) is None, "no app receipt stays None")
 
 
-TESTS = {"ground-nopath": test_ground_nopath, "ground-normal": test_ground_normal, "ground-validator": test_ground_validator, "verify-live-corrupt": test_verify_live_corrupt, "verify-live-dirty": test_verify_live_dirty, "verify-live-app-tree": test_verify_live_app_tree, "verify-live-scrub": test_verify_live_scrub}
+TESTS = {"ground-nopath": test_ground_nopath, "ground-normal": test_ground_normal, "ground-validator": test_ground_validator, "verify-live-corrupt": test_verify_live_corrupt, "verify-live-dirty": test_verify_live_dirty, "verify-live-records-prefix": test_verify_live_records_prefix, "verify-live-app-tree": test_verify_live_app_tree, "verify-live-scrub": test_verify_live_scrub}
 
 if __name__ == "__main__":
     wanted = sys.argv[1:] or list(TESTS)

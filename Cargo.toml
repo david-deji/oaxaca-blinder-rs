@@ -6,6 +6,14 @@ members = [
     "meridian-mcp",
 ]
 
+[workspace.package]
+license = "MIT OR Apache-2.0"
+authors = ["Telos Machina"]
+repository = "https://github.com/david-deji/oaxaca-blinder-rs"
+homepage = "https://david-deji.github.io/oaxaca-blinder-rs/"
+rust-version = "1.88"
+edition = "2021"
+
 [patch.crates-io]
 crossterm = { path = "./engine/crates/crossterm" }
 

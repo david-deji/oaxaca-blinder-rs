@@ -7,7 +7,7 @@ Welcome to the documentation for `oaxaca-blinder-rs`. This project is a high-per
 - [**Architecture**](ARCHITECTURE.md): Deep dive into the system design, workspace structure, and mathematical foundations.
 - [**Development Guide**](DEVELOPMENT.md): Setup instructions, testing workflows, and coding guidelines.
 - [**API Reference**](API.md): Documentation for core library builders and the Meridian MCP server tools.
-- [**Contributing**](CONTRIBUTING.md): How to contribute to the project, including code review standards.
+- [**Contributing**](../CONTRIBUTING.md): How to contribute to the project, including code review standards.
 
 ## 🎯 Purpose & Vision
 The goal of this project is to provide a unified, research-grade toolkit for analyzing and narrowing group-based disparities (e.g., gender or racial pay gaps) using robust statistical methods like Oaxaca-Blinder decomposition, RIF regression, and AKM fixed effects models.

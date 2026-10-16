@@ -1,0 +1,48 @@
+name: Bug report
+description: Something computes wrongly, crashes, or does not match the documentation.
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you ran, what you saw, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: A short Rust snippet or CLI command and a small CSV (or the first rows of one). Remove anything private.
+      render: text
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Which part
+      options:
+        - Library (oaxaca_blinder)
+        - CLI (oaxaca-cli)
+        - MCP server (meridian-mcp)
+        - Engine (pay-equity-engine)
+        - Documentation
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: "Crate version or commit, for example 0.3.0."
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Operating system and Rust version
+      description: Output of `rustc --version`, and your operating system.
+  - type: textarea
+    id: reference
+    attributes:
+      label: Reference result
+      description: If you compared with R (`oaxaca`, `ddecompose`) or Stata, the call and the numbers.

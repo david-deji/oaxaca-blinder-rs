@@ -1,14 +1,20 @@
 [package]
 name = "pay-equity-engine"
 version = "0.2.0"
-edition = "2021"
-authors = ["OpenPay Team <contact@openpay.ai>"]
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Pay-equity analysis layer over oaxaca_blinder: remedy optimiser, defensibility check, efficient frontier. Ships to Meridian as WASM; its contract is JSON."
+publish = false
 
 [lib]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-oaxaca_blinder = { path = "../oaxaca_blinder" }
+oaxaca_blinder = { path = "../oaxaca_blinder", version = "0.3.0" }
 # openpay_optimization = { version = "0.1.0", default-features = false, features = ["pay_equity"] }
 polars = { version = "0.44", default-features = false, features = ["lazy", "csv", "serde", "diff", "dtype-categorical", "dtype-struct", "strings", "polars-ops", "polars-io"] }
 wasm-bindgen = { version = "0.2", optional = true }
