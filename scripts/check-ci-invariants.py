@@ -14,6 +14,8 @@ A green CI run only means something while the workflow cannot silence itself. Th
   * `gate` is not named `gate`, does not run `if: always()`, its `needs` differs from the set of
     gating jobs (every job except `gate` and the schedule-only benchmark), or its steps differ from
     GATE_STEPS (the step that turns a non-success need red is held verbatim),
+  * release.yml: a job other than `check-tag` that does not (directly) need the jobs RELEASE_NEEDS names, a job that is
+    not in that table, or `CARGO_REGISTRY_TOKEN` read anywhere but `publish-crates`,
   * a job has no `timeout-minutes`,
   * the top-level `permissions` is not exactly `contents: read` (in every workflow file),
   * a third-party action is not pinned to a full 40-hex commit SHA (every workflow file),
@@ -64,8 +66,25 @@ ALLOWED_STEP_IFS = {
 # Job-level permissions: absent (the top-level `contents: read` applies) unless listed here.
 JOB_PERMISSIONS = {
     ("ci.yml", GATE): {"contents": "read", "actions": "read"},  # actions: read lets gate list the run's jobs and steps
+    ("release.yml", "check-tag"): {"contents": "read", "checks": "read"},  # checks: read lists the tagged commit's check runs
     ("release.yml", "github-release"): {"contents": "write"},   # publishes the release; nothing else (no id-token)
+    ("release.yml", "book"): {"contents": "write"},             # pushes the gh-pages branch; nothing else (no id-token)
 }
+
+# release.yml: the order that keeps a bad tag from publishing. Each job must list at least these in `needs`; the
+# first job (check-tag) must list none; any other job is unreviewed until it is added here. publish-crates cannot be
+# undone, so it waits for every check and every build, and the release page and the book wait for it.
+RELEASE_FIRST = "check-tag"
+RELEASE_NEEDS = {
+    "verify": {"check-tag"},
+    "binaries": {"check-tag"},
+    "publish-crates": {"check-tag", "verify", "binaries"},
+    "github-release": {"check-tag", "publish-crates", "binaries"},
+    "book": {"check-tag", "publish-crates"},
+}
+RELEASE_SECRET = "CARGO_REGISTRY_TOKEN"   # may appear in this job and no other
+RELEASE_SECRET_JOB = "publish-crates"
+
 
 # Text in a `run:` that makes a failing command exit 0 or stops errexit.
 RUN_SILENCERS = [
@@ -269,6 +288,28 @@ def check_ci(doc, findings):
     return gating
 
 
+def check_release(doc, findings):
+    jobs = doc.get("jobs") or {}
+    if RELEASE_FIRST not in jobs:
+        findings.append(f"release.yml: no `{RELEASE_FIRST}` job (it checks the tag before anything else runs)")
+    elif jobs[RELEASE_FIRST].get("needs"):
+        findings.append(f"release.yml: {RELEASE_FIRST} must run first, but it has `needs`")
+    for job_id, want in RELEASE_NEEDS.items():
+        if job_id not in jobs:
+            findings.append(f"release.yml: no `{job_id}` job")
+            continue
+        have = jobs[job_id].get("needs") or []
+        have = {have} if isinstance(have, str) else set(have)
+        if want - have:
+            findings.append(f"release.yml: job {job_id} does not need {sorted(want - have)} (a bad tag could reach it)")
+    for job_id in jobs:
+        if job_id != RELEASE_FIRST and job_id not in RELEASE_NEEDS:
+            findings.append(f"release.yml: job {job_id} is not in the reviewed release graph (RELEASE_NEEDS in scripts/check-ci-invariants.py)")
+    for job_id, job in jobs.items():
+        if RELEASE_SECRET in json.dumps(job) and job_id != RELEASE_SECRET_JOB:
+            findings.append(f"release.yml: job {job_id} reads {RELEASE_SECRET}; only {RELEASE_SECRET_JOB} may")
+
+
 def check_protection(repo, gate_name, findings):
     out = subprocess.run(["gh", "api", f"repos/{repo}/branches/main/protection"], capture_output=True, text=True)
     if out.returncode != 0:
@@ -300,7 +341,10 @@ def main(argv):
     ci = load_yaml(ci_path)
     gating = check_ci(ci, findings) or set()
     for path in sorted(workflows.glob("*.y*ml")):
-        check_workflow_common(path, load_yaml(path) if path != ci_path else ci, findings)
+        doc = load_yaml(path) if path != ci_path else ci
+        check_workflow_common(path, doc, findings)
+        if path.name == "release.yml":
+            check_release(doc, findings)
     if "--protection" in argv:
         repo = argv[argv.index("--protection") + 1]
         check_protection(repo, (ci.get("jobs") or {}).get(GATE, {}).get("name", GATE), findings)

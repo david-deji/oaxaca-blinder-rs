@@ -50,6 +50,16 @@ fn a_request_with_the_standard_jsonrpc_key_is_answered() {
 }
 
 #[test]
+fn the_server_reports_the_version_it_was_built_as() {
+    let replies = talk(&[r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}"#]);
+    assert_eq!(
+        replies[0]["result"]["serverInfo"]["version"],
+        env!("CARGO_PKG_VERSION"),
+        "serverInfo.version must be the crate version, not a literal"
+    );
+}
+
+#[test]
 fn the_mcp_reference_page_matches_the_listed_tools() {
     let replies = talk(&[r#"{"jsonrpc":"2.0","id":1,"method":"tools/list"}"#]);
     assert_eq!(replies.len(), 1, "{replies:?}");

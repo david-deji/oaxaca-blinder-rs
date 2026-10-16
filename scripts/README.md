@@ -12,6 +12,11 @@ Tooling that CI and the maintainers run. None of it ships in a crate.
 | `validate-audit-ignores.py` | Checks every ignore in `.cargo/audit.toml`: dated, unexpired, matched to a locked crate, classified. Also holds minimum locked versions for advisories cargo-audit cannot see. | CI (`security`) |
 | `test-audit-validator.py` | One mutated `audit.toml` or `Cargo.lock` per failure class; each must fail. | CI (`security`) |
 | `check-book-links.py <dir>` | Resolves every relative link and image in the built docs site (`mdbook build docs --dest-dir target/book`) against the build. mdBook itself only checks that the pages in `SUMMARY.md` exist. | CI (`docs`) |
+| `release-notes.py vX.Y.Z` | Prints the `CHANGELOG.md` section of one release; the release workflow uses it as the text of the GitHub release. | CI (`release`) |
+| `check-release-tag.py` | Refuses a tag that differs from the `oaxaca_blinder` version or whose commit has no passing `gate` check run. | CI (`release`) |
+| `package-release.py` | Archives `oaxaca-cli` and `meridian-mcp` with both licences and a SHA-256 file. | CI (`release`) |
+| `deploy-book.sh` | Puts a built book on the `gh-pages` branch under `vMAJOR.MINOR/` and `latest/`; older lines stay. | CI (`release`) |
+| `test-release-scripts.py` | Tests of the four release scripts and of the CHANGELOG section the next release will read. | CI (`quality`) |
 | `ground.sh` | Deterministic probes of the repository's state (suites, receipts, drift). Always exits 0; a probe that could not run is reported inside the JSON. Writes `records/ground/YYYY-MM-DD-probes.json`. | maintainers' dev loop |
 | `verify-live.sh <epic>` | Runs the checks that need the Meridian app checkout and writes `records/ground/receipts/<epic>-live.json`. Refuses a dirty tree. | maintainers' dev loop |
 | `test-loop-scripts.py` | Tests of `ground.sh` and `verify-live.sh`. | CI (`quality`) |

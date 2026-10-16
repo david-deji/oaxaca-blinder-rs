@@ -68,6 +68,11 @@ jobs:
       - name: Test the loop scripts (ground.sh without gh/cargo; its validator; verify-live's dirty-tree prefix, app-tree check and receipt scrub)
         run: python3 scripts/test-loop-scripts.py ground-nopath ground-validator verify-live-records-prefix verify-live-app-tree verify-live-scrub
 
+      # release.yml first runs these scripts on a real tag. Here each one is exercised on good and bad input, and the
+      # CHANGELOG is held to what the release will read (a section for the crate's version).
+      - name: Test the release scripts (changelog section, tag check, archives, documentation deploy)
+        run: python3 scripts/test-release-scripts.py
+
   security:
     name: Security Audit
     runs-on: ubuntu-latest
@@ -137,6 +142,33 @@ jobs:
 
       - name: Compile the library on the minimum Rust version
         run: cargo +1.88.0 check --locked -p oaxaca_blinder --lib
+
+  # release.yml builds oaxaca-cli and meridian-mcp for macOS and Windows when a tag is pushed. The first time those
+  # two targets compile should not be on a tag, so every change is type-checked on them here. `cargo check` runs
+  # every build script and checks all of the code without the cost of a release build; Linux is built by `quality`.
+  portability:
+    name: Compiles on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@4aab473fa1157d90c6dc14f879ca54797e16fea0 # 1.90.0 branch
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2.8.0
+        with:
+          shared-key: "rust-portability-${{ matrix.os }}"
+
+      - name: cargo check the command line and the MCP server
+        run: cargo check --locked -p oaxaca_blinder --bin oaxaca-cli -p meridian-mcp --bin meridian-mcp
 
   memory-ceiling:
     name: Memory Ceiling (50k @ N=8 < 326 MiB)
@@ -510,6 +542,7 @@ jobs:
       - quality
       - security
       - msrv
+      - portability
       - memory-ceiling
       - wasm-seq
       - wasm-threaded

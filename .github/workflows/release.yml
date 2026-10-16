@@ -1,17 +1,175 @@
 name: Release
 
+# A release is a tag push (`git tag v0.3.0 && git push origin v0.3.0`). Nothing here runs on a branch or a pull
+# request. The jobs run in this order, and every job after `check-tag` needs it, so a bad tag stops at the first one:
+#
+#   check-tag -> verify ----------\
+#             -> binaries --------+-> publish-crates -> github-release
+#                                                    -> book
+#
+# `publish-crates` is the one step that cannot be undone (a crates.io version can be yanked, never reused), so it
+# waits for the checks and the three binary builds, and the release page and the documentation wait for it.
+# scripts/check-ci-invariants.py holds this shape (the `needs` of each job, the permissions, the pins) and
+# scripts/test-release-scripts.py exercises the scripts the jobs call.
+#
+# Needs, set by the maintainer before the first tag (they are not files):
+#   * the repository secret CARGO_REGISTRY_TOKEN (crates.io, scope: publish-new and publish-update for oaxaca_blinder)
+#   * GitHub Pages serving the `gh-pages` branch, once this workflow has created it (a repository setting)
+
 on:
   push:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+*'
 
-# Read-only by default; the one job that publishes a release raises its own token below.
+# Read-only by default; the jobs that publish a release or push the documentation raise their own token below.
 permissions:
   contents: read
 
 jobs:
+  check-tag:
+    name: Check the tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # checks: read lets the job list the tagged commit's check runs.
+    permissions:
+      contents: read
+      checks: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # A tag on a side branch would publish code that main never held.
+      - name: The tagged commit is on main
+        run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+
+      - name: Read the tagged commit's gate check runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: gh api "repos/${REPO}/commits/${GITHUB_SHA}/check-runs?check_name=gate&per_page=100" --paginate > check-runs.json
+
+      - name: The tag equals the crate version and gate passed on the tagged commit
+        env:
+          TAG: ${{ github.ref_name }}
+        run: python3 scripts/check-release-tag.py --tag "$TAG" --manifest oaxaca_blinder/Cargo.toml --check-runs check-runs.json
+
+      - name: The changelog has a section for the tag
+        env:
+          TAG: ${{ github.ref_name }}
+        run: python3 scripts/release-notes.py "$TAG" > /dev/null
+
+  verify:
+    name: Verify (fmt, clippy, tests, publish dry run)
+    needs: [check-tag]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      # Same version as rust-toolchain.toml (wasm-recipe.sh preflight fails on a mismatch).
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@4aab473fa1157d90c6dc14f879ca54797e16fea0 # 1.90.0 branch
+        with:
+          components: rustfmt, clippy
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2.8.0
+        with:
+          shared-key: "rust-stable"
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
+
+      - name: Tests
+        run: cargo test --locked --workspace --all-features
+
+      - name: The release scripts
+        run: python3 scripts/test-release-scripts.py
+
+      # Last, so the packaged copy of the crate is built after the test builds (a shared target directory
+      # otherwise links the packaged crate into a later test build and loads two copies of polars).
+      - name: Publish dry run (what crates.io would receive)
+        run: cargo publish --workspace --dry-run --locked
+
+  binaries:
+    name: Binaries (${{ matrix.name }})
+    needs: [check-tag]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64
+            os: ubuntu-latest
+            python: python3
+          - name: macos-aarch64
+            os: macos-latest
+            python: python3
+          - name: windows-x86_64
+            os: windows-latest
+            python: python
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@4aab473fa1157d90c6dc14f879ca54797e16fea0 # 1.90.0 branch
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2.8.0
+        with:
+          shared-key: "rust-release-${{ matrix.name }}"
+
+      - name: Build oaxaca-cli and meridian-mcp
+        run: cargo build --release --locked -p oaxaca_blinder --bin oaxaca-cli -p meridian-mcp --bin meridian-mcp
+
+      - name: Archive the binaries with both licences and a checksum
+        run: ${{ matrix.python }} scripts/package-release.py --name ${{ matrix.name }} --out dist
+
+      - name: Upload the archive
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: binaries-${{ matrix.name }}
+          path: dist/
+          if-no-files-found: error
+
+  publish-crates:
+    name: Publish to crates.io
+    needs: [check-tag, verify, binaries]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@4aab473fa1157d90c6dc14f879ca54797e16fea0 # 1.90.0 branch
+
+      # Crates with `publish = false` (pay-equity-engine, meridian-mcp) are skipped by --workspace, so this publishes
+      # oaxaca_blinder alone, in dependency order if a second crate is ever made publishable.
+      - name: cargo publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          if [ -z "$CARGO_REGISTRY_TOKEN" ]; then
+            echo "The repository secret CARGO_REGISTRY_TOKEN is not set; nothing was published."
+            exit 1
+          fi
+          cargo publish --workspace --locked
+
   github-release:
     name: GitHub Release
+    needs: [check-tag, publish-crates, binaries]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -19,17 +177,20 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
-          fetch-depth: 0
           persist-credentials: false
 
-      - name: Generate a changelog
-        uses: orhun/git-cliff-action@b946ed27a675d653b308f29a7bbad813b85bf7aa # v3.3.0
-        id: git-cliff
-        with:
-          config: cliff.toml
-          args: --latest --strip header
+      # The release text is the tag's own CHANGELOG section, nothing generated from commit subjects.
+      - name: Release notes from CHANGELOG.md
         env:
-          OUTPUT: CHANGES.md
+          TAG: ${{ github.ref_name }}
+        run: python3 scripts/release-notes.py "$TAG" > RELEASE_NOTES.md
+
+      - name: Download the binary archives
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: binaries-*
+          merge-multiple: true
+          path: dist/
 
       # A pinned release whose sha256 is checked, instead of piping the install script from the
       # `main` branch into a shell (0119 S2). To bump: change SYFT_VERSION and SYFT_SHA256 together
@@ -61,11 +222,45 @@ jobs:
             sbom-spdx.json
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@5be0e66d93ac7ed76da52eca8bb058f665c3a5fe # v2.4.2
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
-          body_path: CHANGES.md
+          body_path: RELEASE_NOTES.md
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          fail_on_unmatched_files: true
           files: |
+            dist/*
             sbom-cyclonedx.json
             sbom-spdx.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  book:
+    name: Documentation site
+    needs: [check-tag, publish-crates]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Pushes the gh-pages branch with the job's own token, which the checkout keeps for this one job.
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+
+      # Prebuilt binary, exact version; the same one the `docs` job in ci.yml uses.
+      - name: Install mdBook (pinned prebuilt)
+        uses: taiki-e/install-action@fa23953489c080190314742a9b907f8e97c6767c # v2.87.10
+        with:
+          tool: mdbook@0.4.52
+
+      - name: Build the book
+        run: mdbook build docs --dest-dir "$PWD/target/book"
+
+      - name: Check the book's internal links
+        run: python3 scripts/check-book-links.py target/book
+
+      # v0.3/ for this release line and latest/ for the newest release; older lines stay on the branch.
+      - name: Deploy to gh-pages
+        env:
+          TAG: ${{ github.ref_name }}
+        run: bash scripts/deploy-book.sh target/book "$TAG"
