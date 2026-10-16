@@ -58,7 +58,7 @@ polars-core-0.44.2 `src/lib.rs:49-68`:
 
 ## L6 — Education_Level categories ✅
 
-`/home/deji/Downloads/Employers_data.csv` (10,001 lines incl. header): exactly **3 distinct values** — `Master` (4,930), `Bachelor` (3,381), `PhD` (1,689). No missing values in the column. The file encodes no ordinal ranking; natural ordinality (Bachelor < Master < PhD) exists semantically — fixture/golden scripts should treat it as **categorical** (matching engine behavior today) and note the 3-level structure gives 2 dummy columns under one-hot with base category; Gardeazabal-Ugidos invariance tests get a real 3-level categorical to exercise.
+`<raw data file>` (10,001 lines incl. header): exactly **3 distinct values** — `Master` (4,930), `Bachelor` (3,381), `PhD` (1,689). No missing values in the column. The file encodes no ordinal ranking; natural ordinality (Bachelor < Master < PhD) exists semantically — fixture/golden scripts should treat it as **categorical** (matching engine behavior today) and note the 3-level structure gives 2 dummy columns under one-hot with base category; Gardeazabal-Ugidos invariance tests get a real 3-level categorical to exercise.
 
 ## Provenance (crates.io / docs.rs for the exact vendored versions read)
 

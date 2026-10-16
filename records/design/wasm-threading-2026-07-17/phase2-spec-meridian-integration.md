@@ -12,7 +12,7 @@
 This domain wires the threaded `pay_equity_engine` WASM build into Meridian's client-side runtime without changing the worker's postMessage contract. Five deliverables:
 
 1. **`analysis.worker.js` `initialize()` redesign** — a `self.crossOriginIsolated === true` guard selects the threaded path, awaits `init()` then `initThreadPool(cap)`, records a `mode` (`'threaded' | 'sequential'`), and surfaces it via an additive `INIT_RESULT` message plus a `mode` field on every result message. The existing `{ id, type, status, payload }` shape is untouched (Source: `frontend/src/wasm/analysis.worker.js:26-61`).
-2. **COOP/COEP headers** — two `response.headers[...]` lines added inside the existing `_apply_meridian_csp` `if` block, scoped to `/pay-equity/` + `/api/` only (Source: `/home/deji/telos/audit-forge/webui/__init__.py:125-131`; INV-06), plus `server.headers` in `vite.config.js` for dev parity (Source: `frontend/vite.config.js:7-11`).
+2. **COOP/COEP headers** — two `response.headers[...]` lines added inside the existing `_apply_meridian_csp` `if` block, scoped to `/pay-equity/` + `/api/` only (Source: `<audit-forge>/webui/__init__.py:125-131`; INV-06), plus `server.headers` in `vite.config.js` for dev parity (Source: `frontend/vite.config.js:7-11`).
 3. **pkg artifact refresh flow** into `frontend/src/wasm/` — single vs dual pkg-dir layout, resolved by the strategy decision owned by the engine-build domain (cross-domain summary line 12).
 4. **Fallback UX contract (INV-03)** — sequential mode works silently; `mode` is optional run metadata the UI may display, never a blocking or error surface.
 5. **Worker-level `RuntimeError`/OOM catch** — an OOM during a compute call is surfaced through the existing `status: 'ERROR'` message shape (Source: `analysis.worker.js:54-61`), not a worker crash.
@@ -296,4 +296,4 @@ export default defineConfig({
 - `phase1-meridian-integration-vite-worker.md` (findings #1-6, spec implications)
 - `phase2-cross-domain-summary.md` (lines 11-16 toolchain/memory/wiring; L12 strategy gate)
 - `spec-charter.md` (In-Scope 6,7; INV-03, INV-06, ASM-05; Anti-Goals)
-- Code anchors read: `frontend/src/wasm/analysis.worker.js:1-62`, `frontend/src/services/AnalysisWorkerService.js:1-71`, `frontend/vite.config.js:1-45`, `/home/deji/telos/audit-forge/webui/__init__.py:17-23,100-160`, `apps/hr-apps/pay-equity-app/CLAUDE.md` (worker interaction conventions)
+- Code anchors read: `frontend/src/wasm/analysis.worker.js:1-62`, `frontend/src/services/AnalysisWorkerService.js:1-71`, `frontend/vite.config.js:1-45`, `<audit-forge>/webui/__init__.py:17-23,100-160`, `apps/hr-apps/pay-equity-app/CLAUDE.md` (worker interaction conventions)

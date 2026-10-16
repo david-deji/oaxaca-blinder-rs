@@ -1,4 +1,4 @@
-//! Row accounting for the data matrices (0118-MERIDIAN S1).
+//! Row accounting for the data matrices.
 //!
 //! `OaxacaBuilder::clean_dataframe` drops every row that has a blank in a model column, so the
 //! matrices the optimiser works on are SHORTER than the file and their row `i` is no longer file

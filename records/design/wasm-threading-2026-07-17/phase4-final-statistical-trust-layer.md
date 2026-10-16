@@ -2,7 +2,7 @@
 > Bureau: hr-apps (Meridian)
 > Date: 2026-07-17
 > Author: Spec Writer (statistical-trust-layer) — Phase 4 FINAL (buildable)
-> Charter items: In-Scope 9 (statistical trust layer), In-Scope 12 (per-predictor quantile detail golden + identity), In-Scope 13 (Employers_data.csv fixture)
+> Charter items: In-Scope 9 (statistical trust layer), In-Scope 12 (per-predictor quantile detail golden + identity), In-Scope 13 (<raw data file> fixture)
 > Bound invariants: INV-01 (native byte-equivalent; existing method goldens frozen), INV-08 (engine math is f64; this suite runs entirely inside the f64 surface)
 
 # Phase 4 Final Spec — Statistical Trust Layer (Golden Files, Property Tests, QR Validation, Per-Predictor Quantile Golden)
@@ -109,7 +109,7 @@ The spec's claim — "TM's deterministic seeded bootstrap matches the standard r
 ## Build Steps (ordered, buildable)
 
 1. **Add dev-dependency** `proptest` under `[dev-dependencies]` in `oaxaca_blinder/Cargo.toml` (verified absent — currently only `assert_cmd`, `predicates`, `criterion`). No production-code dependency.
-2. **PII-strip + commit the Employers fixture.** In `gen_trust_goldens.R`, read `/home/deji/Downloads/Employers_data.csv`, select `Age, Gender, Department, Job_Title, Experience_Years, Education_Level, Location, Salary` (drop `Employee_ID`, `Name`), assert `all(Salary > 0)`, write `oaxaca_blinder/tests/fixtures/employers_trust_fixture.csv` with `float_format` preserving full f64 precision (mirror `gen_parity_golden.py:90` `%.17g`). Header comment: "Direct identifiers (Employee_ID, Name) stripped at generation; aggregate goldens only."
+2. **PII-strip + commit the Employers fixture.** In `gen_trust_goldens.R`, read `<raw data file>`, select `Age, Gender, Department, Job_Title, Experience_Years, Education_Level, Location, Salary` (drop `Employee_ID`, `Name`), assert `all(Salary > 0)`, write `oaxaca_blinder/tests/fixtures/employers_trust_fixture.csv` with `float_format` preserving full f64 precision (mirror `gen_parity_golden.py:90` `%.17g`). Header comment: "Direct identifiers (Employee_ID, Name) stripped at generation; aggregate goldens only."
 3. **Generate the shared resample-index matrix.** `gen_trust_goldens.R` writes `oaxaca_blinder/tests/fixtures/resample_indices.csv` (`reps` rows × `n` columns, 0-based indices) with `_meta` recording seed + generator algorithm + version.
 4. **Write `verification/gen_trust_goldens.R`** (regeneration-only; pinned via committed `verification/renv.lock` OR `stopifnot(packageVersion("oaxaca") == "0.1.5")`). It produces `oaxaca_blinder/tests/fixtures/trust_goldens_r.json`: point estimates via `oaxaca()`; bootstrap SEs via the D-3 manual loop over the index matrix; QR goldens via `quantreg::rq()`; per-predictor quantile detail via `ddecompose::ob_decompose(..., reweighting=FALSE)`. `_meta` records R version, `oaxaca` version (== 0.1.5), `quantreg` version, `ddecompose` version, seed, `RNGkind`, n, formula, `excluded_predictors`, `design_columns` (ordered), `education_encoding`. Command exits 0.
 5. **Write `oaxaca_blinder/tests/trust_golden_r_test.rs`** — offline: reads `trust_goldens_r.json`, asserts `_meta.oaxaca_version == "0.1.5"`, fails on any surviving `FILL_AT_GENERATION_TIME` placeholder (same guard as `parity_test.rs:72`), asserts `_meta.design_columns` equals the engine's expanded predictor column list (fails loudly on any column-set or ordering divergence before comparing values), then compares means/gaps/two-fold/three-fold/detailed/bootstrap-SE within the tolerance table.

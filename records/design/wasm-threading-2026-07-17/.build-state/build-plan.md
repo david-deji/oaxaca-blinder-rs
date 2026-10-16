@@ -11,7 +11,7 @@
 |---|---|---|---|
 | oaxaca-blinder-rs (engine, primary) | apps/hr-apps/oaxaca-blinder-rs | `build/wasm-rayon-mt/main` | main @ cfcca71 |
 | pay-equity-app (Meridian frontend) | apps/hr-apps/pay-equity-app | (create at threading stage) | main |
-| audit-forge (Flask server) | /home/deji/telos/audit-forge | (create at threading stage) | master (has 1 foreign uncommitted: _shell.html) |
+| audit-forge (Flask server) | <audit-forge> | (create at threading stage) | master (has 1 foreign uncommitted: _shell.html) |
 
 ## Phase 0 findings (2026-07-18)
 
@@ -165,7 +165,7 @@ stage_4_substages:
   #   FIX-B SAFETY CONFIRMED: RunMetadata is Serialize-ONLY (no Deserialize derive); grep confirms NO consumer (meridian-mcp/CLI/tests) reads seed back as a number -> seed-as-string breaks nothing.
   #   AC-8: `--all-features` COMPILES natively (wasm deps build as native no-ops); first full run had ONLY cli_test fail (now fixed); re-running clean now.
   #   PENDING: confirm AC-8 clean re-run -> commit (NO push/merge). Include: rng.rs, engine/src/lib.rs, tests {quantile_detail,trust_golden,cli}_*, verification/browser-parity/*, ci.yml, refreshed baselines seq 0514af14/threaded db1ad558, fixtures employers_trust_fixture.csv+trust_goldens_r.json + the d0a6a65 WIP files. EXCLUDE: .idea/*.iml, meridian-mcp/src/main.rs.~1~, audit-forge _shell.html, resample_indices.csv. ab_binding fmt-churn NOT mine.
-stage_4_constants: {declared_max_bytes: 342228992, peak_n8_mib: 248, margin_headroom_mib: 78, fixture_src_10k: /home/deji/Downloads/Employers_data.csv}
+stage_4_constants: {declared_max_bytes: 342228992, peak_n8_mib: 248, margin_headroom_mib: 78, fixture_src_10k: <raw data file>}
 n_max_const: 8            # true safe; bounded peak 248 MiB @ N=8/50k
 threading_invariant: "bootstrap must stay bounded-parallel (chunked to pool size); never revert to unbounded into_par_iter().collect() — reintroduces WASM-OOM"
 link_args: {stack_size: 1048576, max_memory: 342228992, initial_memory: 82378752}

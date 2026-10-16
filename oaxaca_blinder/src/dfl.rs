@@ -13,9 +13,9 @@ use serde::Serialize;
 pub struct DflResult {
     /// The grid points where the density was evaluated.
     pub grid: Vec<f64>,
-    /// The density of the outcome for Group A (Advantaged).
+    /// The density of the outcome for Group A (the compared group).
     pub density_a: Vec<f64>,
-    /// The density of the outcome for Group B (Disadvantaged/Reference).
+    /// The density of the outcome for Group B (the reference group).
     pub density_b: Vec<f64>,
     /// The counterfactual density of Group B if they had the characteristics of Group A.
     pub density_b_counterfactual: Vec<f64>,

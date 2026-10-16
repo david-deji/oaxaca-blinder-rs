@@ -13,6 +13,41 @@ HTTP mode refuses to start without `MCP_API_KEY`. Clients send it in the `X-API-
 The server compares keys in constant time, limits requests to 60 a minute, and rejects bodies over 2 MiB. Options
 can also be set with the environment variables `PORT`, `MCP_TRANSPORT` and `MCP_API_KEY`.
 
+## Connecting a client
+
+Most MCP clients take a command to start. Add the server to the client's configuration, with the full path to the
+binary if it is not on the `PATH`:
+
+```json
+{
+  "mcpServers": {
+    "meridian": { "command": "meridian-mcp" }
+  }
+}
+```
+
+The client then lists the tools and calls them. To see the wire format by hand, send these three lines to
+`meridian-mcp` on standard input, one JSON object per line. The first starts the session, the second confirms it, and
+the third runs a decomposition. `csv_content` is the text of the file, with its line breaks written `\n` (here
+`wage.csv` from the [sample](../sample/wage.csv)):
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"example","version":"0"}}}
+{"jsonrpc":"2.0","method":"notifications/initialized"}
+{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"forensic_decomposition","arguments":{"csv_content":"wage,education,experience,sector,gender,headcount\n45600.0,16.0,5.0,Sales,F,2.0\n...","outcome_variable":"wage","group_variable":"gender","reference_group":"F","predictors":["education","experience"],"categorical_predictors":[],"three_fold":false,"reference_coefficients":"Pooled"}}}
+```
+
+The `...` stands for the remaining rows. The reply to the first line names the server and its version. The reply to the third line carries the result as JSON
+text in `result.content[0].text`; its first fields, on the sample file, are:
+
+```json
+{"total_gap":7975.0,"explained_gap":2105.823626022139,"unexplained_gap":5869.176373977862,"interaction_gap":null,
+ "explained_percentage":26.40531192504249,"unexplained_percentage":73.59468807495752, ...}
+```
+
+These are the numbers the library and the command line print for the same file with `Pooled`. A call without
+`reference_coefficients` is refused and the reply lists the allowed values.
+
 ## Tools
 
 The server lists these tools through `tools/list`. The generated file [`mcp-tools.json`](mcp-tools.json) holds the exact schemas and is checked by a test against the running server.

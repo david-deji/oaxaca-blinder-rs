@@ -39,15 +39,13 @@ askama = "0.14.0"
 [features]
 default = ["display"]
 display = ["dep:comfy-table"]
-# Native, dev/test-only memory-profiling harness (0014-MERIDIAN, In-Scope 11 /
-# D1). Installs a tracking GlobalAlloc + checkpoint API behind this flag.
-# OFF by default (INV-01): never enabled in the production/wasm build path.
+# Native, dev/test-only memory-profiling harness. Installs a tracking GlobalAlloc and a
+# checkpoint API behind this flag. Off by default; never enabled in the production or wasm build.
 mem-profile = []
-# WASM threading cfg gate (0014-MERIDIAN, engine-parallel-surface D3). No deps —
-# `rayon` stays UNCONDITIONAL (line 23) so native parallelism is byte-unchanged
-# (INV-01). Enabling this only cfg-gates the wasm build; never in `default`.
+# WASM threading cfg gate. No dependencies: `rayon` stays unconditional so native parallelism is
+# byte-unchanged. Enabling this only cfg-gates the wasm build; never in `default`.
 wasm-threads = []
-# Methods with no external oracle (0121-MERIDIAN L6): AKM worker and firm effects, DFL
+# Methods with no external oracle: AKM worker and firm effects, DFL
 # reweighting, JMP changes over time, nearest-neighbour and propensity-score matching. Results
 # may change in any release. OFF by default; the CLI `--analysis-type akm|match` needs it too.
 experimental = []
@@ -55,14 +53,12 @@ experimental = []
 [dev-dependencies]
 assert_cmd = "2.0"
 predicates = "2.1"
-# proptest: randomized property suite for the decomposition adding-up identities
-# (0014-MERIDIAN statistical-trust-layer D-4). Dev-only — never a production dep.
+# proptest: randomized property suite for the decomposition adding-up identities. Dev-only.
 proptest = "1"
-# rayon: force a fixed-size thread pool in the memory-ceiling test (0014-MERIDIAN
-# verification-benchmark D-3) so peak is measured at N_max_const=8 (worst-case in-band).
+# rayon: force a fixed-size thread pool in the memory-ceiling test, so the peak is measured at 8 threads.
 rayon = "1.11.0"
 # sha2: the normalisation oracle test recomputes the sha256 of the R generator and of every
-# fixture and refuses a golden that no longer matches them (0120-MERIDIAN).
+# fixture and refuses a golden that no longer matches them.
 sha2 = "0.10"
 
 [[bin]]
@@ -70,7 +66,7 @@ name = "oaxaca-cli"
 path = "src/main.rs"
 
 # The memory-profile harness only compiles with the native-only, off-by-default
-# `mem-profile` feature (INV-01) — so `cargo build --examples` under default
+# `mem-profile` feature, so `cargo build --examples` under default
 # features never touches it. `gen_mem_fixture` needs no feature and is
 # auto-discovered.
 [[example]]

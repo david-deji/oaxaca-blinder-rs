@@ -3,7 +3,7 @@
 > Issue: 0014-MERIDIAN · Bureau: hr-apps (Meridian) · Date: 2026-07-17
 > Domain slug: `memory-budget` · Author: Phase 4 refined-spec writer
 > Charter In-Scope: 5 (memory budget for 50k rows), 11 (pre-threading memory profile),
-> 13 (Employers_data.csv ×5 fixture). Binds INV-03, INV-05, INV-08.
+> 13 (<raw data file> ×5 fixture). Binds INV-03, INV-05, INV-08.
 > Build handoff: `/build` reads this as the source of truth for the memory domain.
 
 ---
@@ -59,7 +59,7 @@ per correction W4); (6) the ×5 fixture perturbation strategy.
   per-thread stack sizing, thread-count cap derivation.
 - **In-Scope 11** — pre-threading memory profile: the CURRENT single-threaded curve at
   10k/25k/50k, produced and reviewed **before** the thread-cap constant is fixed.
-- **In-Scope 13** — Employers_data.csv ×5 fixture (with the perturbation strategy defined here).
+- **In-Scope 13** — <raw data file> ×5 fixture (with the perturbation strategy defined here).
 
 This domain **owns**: the empirical memory profile of the current single-threaded engine at
 50k rows; the shared-memory model; the thread-cap formula and its `N_max_const` output; the
@@ -284,7 +284,7 @@ everything on the current thread; the stub's `join`/`scope` run inline (INV-03).
 
 ### D7 — ×5 fixture perturbation (In-Scope 13)
 
-Input: `/home/deji/Downloads/Employers_data.csv`, 10 000 data rows (header row 1), columns
+Input: `<raw data file>`, 10 000 data rows (header row 1), columns
 `Employee_ID, Name, Age, Gender, Department, Job_Title, Experience_Years, Education_Level,
 Location, Salary` (header verified on disk; `Education_Level` = 3-level categorical
 Master/Bachelor/PhD → 2 dummies under one-hot, per `phase3-local:60`).

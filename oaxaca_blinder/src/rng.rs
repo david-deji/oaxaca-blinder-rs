@@ -1,11 +1,11 @@
 //! Deterministic, schedule-independent RNG for bootstrap resampling and the
-//! Machado–Mata / RIF quantile simulation (0014-MERIDIAN, In-Scope 3 + 10).
+//! Machado–Mata / RIF quantile simulation.
 //!
 //! Every per-unit RNG is a closed-form function of `(master, purpose, unit)` — no
-//! thread id, no clock, no atomic counter. This is the SC-03 property: the stream
+//! thread id, no clock, no atomic counter. The stream
 //! a given rep draws is fully determined by its inputs, so bootstrap output is
-//! bit-identical across thread counts and sequential/threaded modes (INV-02,
-//! within-platform).
+//! bit-identical across thread counts and sequential/threaded modes
+//! (within one platform).
 //!
 //! The master seed defaults to the documented constant [`DEFAULT_SEED`]
 //! (reproducible-by-default, for audit defensibility). `seed_from_entropy()` on the
@@ -22,7 +22,7 @@ use polars::prelude::{IdxCa, IdxSize};
 pub const DEFAULT_SEED: u64 = 0x5EED_0A11_CA8A_0002;
 
 /// The `rand_chacha` version pinned in `Cargo.lock`, recorded in [`RunMetadata`]
-/// so a serialized run declares which ChaCha implementation produced it (RK2).
+/// so a serialized run declares which ChaCha implementation produced it.
 pub const RAND_CHACHA_VERSION: &str = "0.3.1";
 
 /// Which RNG site a stream belongs to. Spaced into the high bits of the ChaCha
@@ -57,7 +57,7 @@ pub(crate) fn resample_indices(rng: &mut ChaCha8Rng, n: usize) -> IdxCa {
     IdxCa::from_vec("idx".into(), idx)
 }
 
-/// One bootstrap replicate of a FREQUENCY-weighted group (0120-MERIDIAN E-REV-1).
+/// One bootstrap replicate of a FREQUENCY-weighted group.
 ///
 /// Under `WeightsKind::Frequency` a row with `w = 2` stands for two identical employees, so the
 /// inferential sample is `sum(w)` units, not `rows` units. A replicate draws `N = sum(w)` units
@@ -136,18 +136,17 @@ pub struct RunMetadata {
     pub bootstrap_reps_requested: usize,
     pub bootstrap_reps_succeeded: usize,
     pub bootstrap_reps_discarded: usize,
-    /// RIF quantile bootstrap policy (0014-MERIDIAN ruling 4). `Some(false)` = the RIF
+    /// RIF quantile bootstrap policy. `Some(false)` = the RIF
     /// transform is recomputed inside every bootstrap replicate (each resample re-estimates
     /// its own `q_τ`/`f_Y(q_τ)` → correct quantile CIs — the ratified default). `Some(true)`
     /// = legacy compute-once. `None` on non-quantile (mean/OLS) runs; omitted from
-    /// serialization there so the mean-path bytes are unchanged (AC-9/AC-6 baselines hold).
+    /// serialization there so the mean-path bytes are unchanged.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fixed_rif: Option<bool>,
-    /// Categorical-coefficient normalisation actually requested for this run (0120-MERIDIAN
-    /// S1): the convention, the share basis and the restriction weights of the POINT-estimate
+    /// Categorical-coefficient normalisation actually requested for this run: the convention, the share basis and the restriction weights of the POINT-estimate
     /// sample (bootstrap replicates recompute theirs from each replicate's pooled resample).
     /// `None` when the caller did not call `normalize()`, and omitted from serialization then,
-    /// so the raw-library bytes (AC-9 / AC-6 baselines) are unchanged.
+    /// so the raw-library bytes are unchanged.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub normalization: Option<crate::math::normalization::NormalizationRecord>,
     /// The `reference_coefficients` scheme the headline was computed under. Set by the engine
@@ -188,7 +187,7 @@ impl RunMetadata {
         }
     }
 
-    /// Record the RIF-recompute policy on a quantile run (ruling 4). `false` = per-replicate
+    /// Record the RIF-recompute policy on a quantile run. `false` = per-replicate
     /// recompute (the ratified default); `true` = legacy compute-once on the full sample.
     pub(crate) fn with_fixed_rif(mut self, fixed_rif: bool) -> Self {
         self.fixed_rif = Some(fixed_rif);
@@ -259,7 +258,7 @@ mod tests {
             "every resampled index must be < n"
         );
     }
-    /// E-REV-1: a frequency replicate draws `sum(w)` units, never selects a zero-weight row,
+    /// A frequency replicate draws `sum(w)` units, never selects a zero-weight row,
     /// returns ascending distinct rows, is reproducible, and gives row `i` a mean count of `w_i`.
     #[test]
     fn frequency_replicate_draws_the_expanded_sample() {

@@ -1,6 +1,6 @@
-//! Native memory-profiling harness (0014-MERIDIAN, In-Scope 11 / D1).
+//! Native memory-profiling harness.
 //!
-//! Feature-gated (`mem-profile`), native + dev/test only (INV-01): a tracking
+//! Feature-gated (`mem-profile`), native + dev/test only: a tracking
 //! `GlobalAlloc` wrapping the system allocator, recording `current` and
 //! `peak` byte counters (`stats_alloc`-style), plus a small checkpoint API
 //! that `builder.rs::run()` calls at two additive, side-effect-only points —
@@ -40,7 +40,7 @@ static CKPT_B_CURRENT: AtomicUsize = AtomicUsize::new(0);
 /// `peak_bytes()` recorded the last time checkpoint B fired — lets a harness
 /// separate the pre-loop peak (point-estimate + hstack transient) from the
 /// bootstrap-loop peak, to attribute where the high-water mark actually comes
-/// from (diagnostic for the 0014-MERIDIAN memory profile).
+/// from (a diagnostic for the memory profile).
 static CKPT_B_PEAK: AtomicUsize = AtomicUsize::new(0);
 
 /// When true, checkpoint B also calls [`reset_peak`] (re-anchoring the peak

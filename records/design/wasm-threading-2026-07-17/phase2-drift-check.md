@@ -142,7 +142,7 @@ None of these are Charter drift — they are research questions with mitigations
 | `apps/hr-apps/oaxaca-blinder-rs/engine/pay_equity_engine.wasm.sha256` | Toolchain §4.7 | ✓ |
 | `apps/hr-apps/pay-equity-app/frontend/src/wasm/analysis.worker.js` | Meridian §4.1–4.3 | ✓ |
 | `apps/hr-apps/pay-equity-app/frontend/vite.config.js` | Meridian §4.6 | ✓ |
-| `/home/deji/telos/audit-forge/webui/__init__.py` | Meridian §4.5 | ✓ |
+| `<audit-forge>/webui/__init__.py` | Meridian §4.5 | ✓ |
 
 ---
 

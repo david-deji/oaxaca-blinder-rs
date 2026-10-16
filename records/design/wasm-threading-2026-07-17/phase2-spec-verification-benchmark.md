@@ -5,7 +5,7 @@
 
 # Domain Spec — Verification & Benchmark (Mode Parity, Memory Ceiling, Wall-Clock, Repro, Test Server)
 
-Charter items covered: In-Scope 8 (verification + benchmark), In-Scope 13 (Employers_data.csv fixture ×5→50k). Bound invariants: INV-02 (bit-identical across modes — the parity suite is its gate), INV-04 (reproducible-build model survives), INV-05 (50k peak fits the shared-memory maximum with headroom). Success criteria: SC-03 (parity test plan), SC-07 (verification suite with runnable commands). This suite validates the **MODES** (native / wasm-sequential / wasm-threaded). The METHODS suite (R/statsmodels goldens, proptest, QR) is in `phase2-spec-statistical-trust-layer.md` — kept distinct throughout.
+Charter items covered: In-Scope 8 (verification + benchmark), In-Scope 13 (<raw data file> fixture ×5→50k). Bound invariants: INV-02 (bit-identical across modes — the parity suite is its gate), INV-04 (reproducible-build model survives), INV-05 (50k peak fits the shared-memory maximum with headroom). Success criteria: SC-03 (parity test plan), SC-07 (verification suite with runnable commands). This suite validates the **MODES** (native / wasm-sequential / wasm-threaded). The METHODS suite (R/statsmodels goldens, proptest, QR) is in `phase2-spec-statistical-trust-layer.md` — kept distinct throughout.
 
 ---
 
@@ -114,7 +114,7 @@ Browser jobs (mode-parity browser modes, benchmark, optional browser memory) run
 - Primary (CI gate): engine-side `memory_stats()` allocated-page peak (native-readable, deterministic). Secondary (browser cross-check): `measureUserAgentSpecificMemory()` (Chromium + COI). `WebAssembly.Memory.buffer.byteLength` is **not** used as the peak metric for shared memory — it reports the fixed maximum, not usage (cross-domain summary / u3 finding). This suite consumes these metrics; their engine-side implementation is the memory domain's deliverable.
 
 ### 4.5 50k fixture + PII handling (explicit)
-- Source: the **PII-stripped** Employers fixture the trust spec commits (`oaxaca_blinder/tests/fixtures/employers_trust_fixture.csv`, `Employee_ID`/`Name` dropped). This suite never reads the raw `/home/deji/Downloads/Employers_data.csv`.
+- Source: the **PII-stripped** Employers fixture the trust spec commits (`oaxaca_blinder/tests/fixtures/employers_trust_fixture.csv`, `Employee_ID`/`Name` dropped). This suite never reads the raw `<raw data file>`.
 - 50k build: ×5 perturbation-replication (seeded jitter on numeric columns, category-preserving) of the 10k stripped fixture → ~50k rows, generated deterministically at test time from the committed 10k file (avoids committing a 50k binary; generator seed recorded). Perturbation strategy: small bounded noise on `Age`, `Experience_Years`, `Salary`; categoricals unchanged — documented in the generator header.
 - No direct identifiers ever enter the 50k frame, the memory job, or any emitted artifact. Emitted parity/benchmark JSON contains only aggregate results + timings/memory, no row data.
 

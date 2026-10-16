@@ -10,7 +10,7 @@
 //!
 //! `s` is a [`FactorShares`]. Two conventions exist:
 //!
-//! * [`NormalizationConvention::PopulationShare`] (0120-MERIDIAN D1, the default): `s_k` is the
+//! * [`NormalizationConvention::PopulationShare`]: `s_k` is the
 //!   level's share of the pooled analysed rows A union B (sum of observation weights when a
 //!   weights column is set, row counts otherwise), base level included. One vector is applied
 //!   to every coefficient vector of a run (`beta_A`, `beta_B`, the pooled fit, the weighted
@@ -32,7 +32,7 @@ use std::collections::{BTreeMap, HashMap};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize)]
 #[non_exhaustive]
 pub enum NormalizationConvention {
-    /// Level share of the pooled analysed rows (weights if set). 0120-MERIDIAN D1.
+    /// Level share of the pooled analysed rows (weights if set).
     #[default]
     #[serde(rename = "population-share")]
     PopulationShare,

@@ -82,16 +82,17 @@ pub use math::normalization::{
     FactorShares, LevelShare, NormalizationConvention, NormalizationRecord, ShareMap,
 };
 pub use math::weights::{weighted_quantile, WeightsKind};
+/// The Polars version this crate builds its `DataFrame`s with. Use `oaxaca_blinder::polars` to build the input, so
+/// the `DataFrame` you pass in is always the type the crate expects, whatever Polars version you would pick yourself.
+pub use polars;
 #[allow(deprecated)]
 pub use quantile_decomposition::QuantileDecompositionBuilder;
 pub use rng::{RunMetadata, DEFAULT_SEED};
 pub use rows::{DataMatricesWithRows, ExcludedRow, ExclusionReason, GroupMatrices, RowAccounting};
 pub use types::{ComponentResult, DecompositionDetail, OaxacaResults, TwoFoldResults};
 
-/// Quantile-regression coefficient solver, exposed for the statistical-trust-layer QR
-/// validation (0014-MERIDIAN AC-5). Thin, allocation-only wrapper over the internal
-/// `math::quantile_regression::solve_qr` — additive public surface, no behavior change
-/// (INV-01). `x_rows` are the design rows INCLUDING whatever intercept column the caller
+/// Quantile-regression coefficient solver, exposed so its coefficients can be checked against R `quantreg`.
+/// A thin wrapper over the internal `math::quantile_regression::solve_qr`. `x_rows` are the design rows INCLUDING whatever intercept column the caller
 /// wants fitted (the solver adds none); returns the coefficient vector in column order.
 pub fn qr_coefficients(x_rows: &[Vec<f64>], y: &[f64], tau: f64) -> Result<Vec<f64>, String> {
     use ndarray::{Array1, Array2};

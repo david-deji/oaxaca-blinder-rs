@@ -14,9 +14,10 @@ would be left out for a blank elsewhere, so recode or filter first.
 
 ## The outcome column must be floating point
 
-The outcome column is read as floating point. A CSV column written as `45600` is read as an integer and the run is
-then refused with `expected Float64, got i64`. Write `45600.0`, or cast the column in your `DataFrame` before
-building. Predictor columns may be integers.
+In the library the outcome column is read as floating point. A CSV column written as `45600` is read as an integer
+and the run is then refused with `expected Float64, got i64`. Write `45600.0`, or cast the column in your `DataFrame`
+before building. Predictor columns may be integers. The command line converts a whole-number outcome or weights column
+by itself.
 
 ## Blank cells
 

@@ -3,8 +3,8 @@
 //!
 //! Run: `cargo run -p oaxaca_blinder --example weights_and_categoricals`
 
+use oaxaca_blinder::polars::prelude::*;
 use oaxaca_blinder::{OaxacaBuilder, ReferenceCoefficients, WeightsKind, INTERCEPT_NAME};
-use polars::prelude::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let df = df!(

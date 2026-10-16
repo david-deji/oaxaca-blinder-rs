@@ -1,7 +1,7 @@
 Oaxaca-Blinder Decomposition Results
 ========================================
-Group A (Advantaged): 16 observations
-Group B (Reference):  16 observations
+Compared group (A):  16 observations
+Reference group (B): 16 observations
 Total Gap: 7975.0000
 
 Two-Fold Decomposition

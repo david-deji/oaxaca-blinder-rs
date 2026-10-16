@@ -3,8 +3,8 @@
 //!
 //! Run: `cargo run -p oaxaca_blinder --example quantile_rif`
 
+use oaxaca_blinder::polars::prelude::*;
 use oaxaca_blinder::{OaxacaBuilder, ReferenceCoefficients};
-use polars::prelude::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let df = df!(

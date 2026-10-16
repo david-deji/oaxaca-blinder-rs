@@ -29,7 +29,7 @@ pub struct OaxacaResults {
     pub two_fold: TwoFoldResults,
     /// The results of the three-fold decomposition.
     pub three_fold: DecompositionDetail,
-    /// The number of observations in the advantaged group (Group A).
+    /// The number of observations in the compared group (Group A): every row outside the reference group.
     pub n_a: usize,
     /// The number of observations in the reference group (Group B).
     pub n_b: usize,
@@ -109,14 +109,13 @@ impl OaxacaResults {
     ///
     /// A vector of `BudgetAdjustment` structs detailing who should get a raise and how much.
     ///
-    /// # Row indices (0118-MERIDIAN S3: out of scope)
+    /// # Row indices
     ///
     /// The indices this method returns are positions within the CLEANED group frame (rows with
     /// a blank model cell already dropped), NOT original row ordinals of the input file. They
     /// are therefore not safe to map back to an employee when any row was excluded. No shipped
     /// surface calls this method (the engine's `optimize` has its own allocator that reads
-    /// original ordinals from `OaxacaBuilder::get_data_matrices_with_rows`, and the Python
-    /// binding in `python.rs` is not compiled). A caller that needs employee identity should use
+    /// original ordinals from `OaxacaBuilder::get_data_matrices_with_rows`). A caller that needs employee identity should use
     /// `get_data_matrices_with_rows` instead.
     #[deprecated(
         since = "0.3.0",

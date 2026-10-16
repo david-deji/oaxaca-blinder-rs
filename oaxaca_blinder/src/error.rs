@@ -28,8 +28,8 @@ pub enum OaxacaError {
         level: String,
         missing_from_group: String,
     },
-    /// The group column carries more than one value besides the reference group
-    /// (0118-MERIDIAN S2). The decomposition compares exactly two groups; a third
+    /// The group column carries more than one value besides the reference group.
+    /// The decomposition compares exactly two groups; a third
     /// value used to be silently dropped from the estimation frames while the
     /// optimiser still counted its rows as target employees. Checked once, on the
     /// RAW frame, so a third value that only appears on a row blank elsewhere is
@@ -41,26 +41,25 @@ pub enum OaxacaError {
         /// Every distinct non-null value other than the reference, ascending.
         other_values: Vec<String>,
     },
-    /// The reference group value does not occur in the group column at all
-    /// (0118-MERIDIAN S2).
+    /// The reference group value does not occur in the group column at all.
     ReferenceGroupAbsent {
         group_column: String,
         reference_group: String,
     },
-    /// A `reference_coefficients` name that is not one of the accepted schemes, or none at all
-    /// (0120-MERIDIAN S4). The shipped surfaces used to fall back to `Pooled` for anything
+    /// A `reference_coefficients` name that is not one of the accepted schemes, or none at all.
+    /// The shipped surfaces used to fall back to `Pooled` for anything
     /// unrecognised, which made the least-verified scheme the silent default.
     UnknownReferenceCoefficients {
         /// What the caller sent; `None` when the field was absent.
         given: Option<String>,
     },
-    /// A normalisation request the data cannot satisfy (0120-MERIDIAN S1).
+    /// A normalisation request the data cannot satisfy.
     NormalizationError(String),
-    /// A weights column was named without saying what its weights mean (0120-MERIDIAN S9). No
+    /// A weights column was named without saying what its weights mean. No
     /// single convention makes both "uniform fractional weights are a no-op" and "w = 2 is the
     /// row twice" true, so the caller states `frequency` or `relative`.
     WeightsKindRequired { column: String },
-    /// One weight the stated kind cannot take (0120-MERIDIAN S9): not finite, negative, or a
+    /// One weight the stated kind cannot take: not finite, negative, or a
     /// fractional value under `frequency`. `row` is the 0-based position among the data rows of
     /// the frame given to the builder.
     InvalidWeight {

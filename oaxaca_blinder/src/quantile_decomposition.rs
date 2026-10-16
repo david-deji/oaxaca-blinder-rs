@@ -10,7 +10,7 @@
 //! with the RIF path; it is a different estimator with different bias/variance tradeoffs
 //! (heavier compute, no linearization assumption).
 //!
-//! **Status (0014-MERIDIAN follow-up):** no shipped surface (CLI, WASM, MCP) calls this
+//! **Status:** no shipped surface (CLI, WASM, MCP) calls this
 //! module — `main.rs::run_quantile_analysis` and the WASM/MCP paths use `decompose_quantile`
 //! (RIF) exclusively. This module is reachable only via direct use of the `oaxaca_blinder`
 //! crate API. Unlike the RIF path, MM has no external-oracle verification (e.g. an R
@@ -565,8 +565,8 @@ impl QuantileDecompositionResults {
 
         println!("Machado-Mata Quantile Decomposition Results");
         println!("============================================");
-        println!("Group A (Advantaged): {} observations", self.n_a);
-        println!("Group B (Reference):  {} observations", self.n_b);
+        println!("Compared group (A):  {} observations", self.n_a);
+        println!("Reference group (B): {} observations", self.n_b);
 
         let mut sorted_quantiles: Vec<_> = self.results_by_quantile.keys().collect();
         sorted_quantiles.sort();
