@@ -211,7 +211,7 @@ jobs:
 
       - name: Upload raw sequential WASM
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: wasm-raw-seq
           path: wasm-out/
@@ -283,7 +283,7 @@ jobs:
 
       - name: Upload raw threaded WASM
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: wasm-raw-threaded
           path: wasm-out/
@@ -291,7 +291,7 @@ jobs:
 
       - name: Upload threaded WASM pkg (input of browser-parity)
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: wasm-pkg-threaded
           path: engine/pkg-threaded/
@@ -349,7 +349,7 @@ jobs:
 
       - name: Upload both builds
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: wasm-repro
           path: wasm-out/
@@ -394,7 +394,7 @@ jobs:
         run: node gen-native-baseline.mjs
 
       - name: Upload native baseline
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: native-baseline
           path: |
