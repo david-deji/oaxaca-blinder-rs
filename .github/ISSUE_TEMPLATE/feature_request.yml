@@ -1,0 +1,21 @@
+name: Feature request
+description: A method, option or output you need.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: What you are trying to do
+      description: The analysis you want to run, in your own words.
+    validations:
+      required: true
+  - type: textarea
+    id: reference
+    attributes:
+      label: Reference implementation
+      description: The paper, or the R or Stata command, that defines the result. A feature without an external reference to check against is hard to accept.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you do today
+      description: How you get this result now, and what is missing.

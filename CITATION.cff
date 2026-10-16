@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If you use this software in published work, please cite it as below."
+title: "oaxaca-blinder-rs"
+type: software
+authors:
+  - name: "Telos Machina"
+version: 0.3.0
+license:
+  - MIT
+  - Apache-2.0
+repository-code: "https://github.com/david-deji/oaxaca-blinder-rs"
+url: "https://david-deji.github.io/oaxaca-blinder-rs/"
+abstract: "Oaxaca-Blinder wage decomposition on Polars DataFrames, with categorical drivers, bootstrapped standard errors and quantile (RIF) decomposition."
+keywords:
+  - oaxaca-blinder
+  - wage decomposition
+  - pay equity
+  - econometrics

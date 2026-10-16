@@ -6,14 +6,6 @@
 # reproducible WASM build (Track-0 item 4 / SC-04) that depends on a locked dep graph.
 */Cargo.lock
 /build_target/
-oaxaca_blinder/check_output_2.txt
-oaxaca_blinder/check_output_3.txt
-oaxaca_blinder/check_output_4.txt
-oaxaca_blinder/check_output_5.txt
-oaxaca_blinder/check_output_6.txt
-oaxaca_blinder/check_output_7.txt
-oaxaca_blinder/check_output_8.txt
-oaxaca_blinder/check_output.txt
 */target/*
 */.venv/*
 build.log
@@ -34,5 +26,5 @@ oaxaca_blinder/tests/fixtures/mem_profile_50k.csv
 .idea/
 .claude
 .agent
-# Python bytecode of scripts/ (verify-live refuses a tree with untracked files outside ground/)
+# Python bytecode of scripts/ (verify-live refuses a tree with untracked files outside records/ground/)
 __pycache__/

@@ -1,15 +1,19 @@
 [package]
 name = "oaxaca_blinder"
 version = "0.3.0"
-authors = ["dot-comma-hyphen <poche450@gmail.com>"]
-edition = "2021"
-
-description = "A Rust library for performing Oaxaca-Blinder decomposition on Polars DataFrames, with support for categorical variables and bootstrapped standard errors. "
-license = "MIT"
-repository = "https://github.com/dot-comma-hyphen/oaxaca-blinder-rs"
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation = "https://docs.rs/oaxaca_blinder"
+description = "Oaxaca-Blinder decomposition on Polars DataFrames, with categorical drivers and bootstrapped standard errors."
 readme = "README.md"
-keywords = ["statistics", "economics", "oaxaca-blinder"]
-categories = ["science"]
+keywords = ["oaxaca-blinder", "econometrics", "statistics", "decomposition", "pay-equity"]
+categories = ["science", "mathematics"]
+# Tests, fixtures, benches and examples stay in the repository; the package carries only what builds.
+include = ["/src", "/templates", "/README.md", "/LICENSE-MIT", "/LICENSE-APACHE"]
 
 [lib]
 name = "oaxaca_blinder"

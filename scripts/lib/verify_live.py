@@ -3,7 +3,7 @@
 
 "Live" for the engine means: the blobs the browser will load are the blobs this source produces.
 Contract: internal-ops-bureau/knowledge/dev-loop.md (telos-machina) section "verify-live.sh contract".
-Writes ground/receipts/<epic>-live.json; the receipt, not the exit code alone, is the definition of done.
+Writes records/ground/receipts/<epic>-live.json; the receipt, not the exit code alone, is the definition of done.
 
 Order, and why:
   0. Refuse a dirty tree: a receipt must describe a commit, and HEAD says so only on a clean tree.
@@ -42,7 +42,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
-GROUND = Path(os.environ.get("GROUND_DIR") or ROOT / "ground")
+GROUND = Path(os.environ.get("GROUND_DIR") or ROOT / "records" / "ground")
 APP = Path(os.environ.get("MERIDIAN_APP") or ROOT.parent / "pay-equity-app")
 FRONTEND_SRC = Path(os.environ.get("MERIDIAN_FRONTEND") or APP / "frontend" / "src")
 ENV = dict(os.environ)
@@ -213,7 +213,7 @@ def ci_checks_0120(add, verified, published):
 
 
 def planted_red_checks(epic):
-    """Probe keys that the epic's planted-blobs record (ground/receipts/<epic-id>-planted-blobs.json) shows red on
+    """Probe keys that the epic's planted-blobs record (records/ground/receipts/<epic-id>-planted-blobs.json) shows red on
     every artifact of the build before the epic. Those checks are the discriminating ones. Returns {key: proof}."""
     f = GROUND / "receipts" / f"{epic.split('-')[0]}-planted-blobs.json"
     try:
@@ -225,7 +225,7 @@ def planted_red_checks(epic):
         return {}
     keys = set.intersection(*[{k for k, v in a.items() if v == "fail"} for a in arts])
     return {k: f"Red on the shipped blobs from before the epic ({', '.join(sorted(rec['artifacts']))} artifacts, "
-               f"engine commit {rec.get('engine_commit', 'unknown')}); recorded in ground/receipts/{f.name}" for k in keys}
+               f"engine commit {rec.get('engine_commit', 'unknown')}); recorded in records/ground/receipts/{f.name}" for k in keys}
 
 
 def probe_checks(add, frontend_src, epic):
@@ -291,9 +291,9 @@ def main() -> int:
     started_ts = time.time()
     started_at = now()
 
-    # 0. dirty tree: tracked changes anywhere, or untracked files outside ground/ (this script's own output)
+    # 0. dirty tree: tracked changes anywhere, or untracked files outside records/ground/ (this script's own output)
     porcelain = [l for l in git(["status", "--porcelain", "--untracked-files=all"]).splitlines() if l]
-    dirty = [l for l in porcelain if not l[3:].startswith("ground/")]
+    dirty = [l for l in porcelain if not l[3:].startswith("records/ground/")]
     if dirty:
         print("verify-live: refusing to run on a dirty tree (a receipt must describe a commit). Commit or stash:", file=sys.stderr)
         for l in dirty[:15]:

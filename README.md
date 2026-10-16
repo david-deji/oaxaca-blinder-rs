@@ -509,5 +509,11 @@ oaxaca-cli --data wage.csv --outcome wage --group gender --reference F \
 
 ## License
 
-This project is licensed under the MIT License.
+Licensed under either of
+
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+- MIT license ([LICENSE-MIT](LICENSE-MIT))
+
+at your option. Unless you state otherwise, a contribution you submit is licensed on the same terms, without
+additional conditions.
 

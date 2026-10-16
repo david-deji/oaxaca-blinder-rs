@@ -32,7 +32,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
-GROUND = Path(os.environ.get("GROUND_DIR") or ROOT / "ground")  # GROUND_DIR: tests write elsewhere
+GROUND = Path(os.environ.get("GROUND_DIR") or ROOT / "records" / "ground")  # GROUND_DIR: tests write elsewhere
 CI_YML = ROOT / ".github" / "workflows" / "ci.yml"
 
 CARGO_TIMEOUT = int(os.environ.get("GROUND_CARGO_TIMEOUT", "3000"))
@@ -328,7 +328,7 @@ result["gate_receipts"] = probe("gate_receipts", p_gate_receipts, gate_null)
 
 
 # --------------------------------------------------------------------------------------------------
-# verify_live: newest ground/receipts/*-live.json
+# verify_live: newest records/ground/receipts/*-live.json
 # --------------------------------------------------------------------------------------------------
 def p_verify_live():
     receipts = []

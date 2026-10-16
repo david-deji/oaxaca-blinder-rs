@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### Changed (0121-MERIDIAN, repository and metadata)
+- **Licence: `MIT OR Apache-2.0`** on every crate, with `LICENSE-MIT` and `LICENSE-APACHE` in the repository and in
+  the published `oaxaca_blinder` package. The crate was `MIT` only.
+- **Minimum supported Rust version 1.88** (`rust-version`), compiled in CI by the `msrv` job.
+- **`pay-equity-engine` and `meridian-mcp` are `publish = false`.** Only `oaxaca_blinder` goes to crates.io.
+- Package metadata for `oaxaca_blinder`: repository, homepage, documentation, keywords, categories, and an `include`
+  list so the package carries the sources, template, README and licences, not the test fixtures.
+- Removed the unused `oaxaca_blinder/src/python.rs` and `oaxaca_blinder/pyproject.toml`. The Python binding has not
+  been compiled since it was switched off.
+- Loop records moved from the repository root into `records/`; added `SECURITY.md`, `CODE_OF_CONDUCT.md`,
+  `CONTRIBUTING.md` (moved from `docs/`) and `CITATION.cff`.
+
 ### Changed, BREAKING (0122-MERIDIAN, the remedy says what it does, 2026-10-09)
 - **`check_defensibility` reports every gap with `optimize`'s sign.** `original_gap`, `new_gap`,
   `original_unexplained_gap` and `new_unexplained_gap` are the compared group's figure minus the line (or the reference
