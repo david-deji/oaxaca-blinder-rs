@@ -23,13 +23,16 @@ impl MatchingEngine {
     ) -> Self
     where
         I: IntoIterator<Item = S>,
-        S: Into<String>,
+        S: AsRef<str>,
     {
         Self {
             dataframe,
             treatment_col: treatment_col.to_string(),
             outcome_col: outcome_col.to_string(),
-            covariates: covariates.into_iter().map(|s| s.into()).collect(),
+            covariates: covariates
+                .into_iter()
+                .map(|s| s.as_ref().to_string())
+                .collect(),
         }
     }
 

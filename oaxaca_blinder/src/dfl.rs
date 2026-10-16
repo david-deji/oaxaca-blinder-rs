@@ -1,3 +1,6 @@
+//! Experimental: DiNardo-Fortin-Lemieux reweighting. No external oracle; results may change in
+//! any release. Needs the `experimental` feature.
+
 use crate::math::kde::{kde, silverman_bandwidth};
 use crate::math::logit::logit;
 use crate::OaxacaError;

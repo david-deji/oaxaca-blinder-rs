@@ -54,6 +54,15 @@ jobs:
       - name: Run Tests
         run: cargo test --locked --workspace --all-features
 
+      # The two steps above build with --all-features, which turns the `experimental` feature on. These two
+      # build the library the way a crates.io user gets it (default features): a default build that needs an
+      # experimental item, or leaves one unused, fails here and nowhere else.
+      - name: Clippy, library on default features
+        run: cargo clippy --locked -p oaxaca_blinder --all-targets -- -D warnings
+
+      - name: Test, library on default features
+        run: cargo test --locked -p oaxaca_blinder
+
       # ground.sh and verify-live.sh feed the dev loop; a regression in their probes or validator would
       # otherwise change no CI result (0119 review F4). These cases need no wasm build and no app checkout.
       - name: Test the loop scripts (ground.sh without gh/cargo; its validator; verify-live's dirty-tree prefix, app-tree check and receipt scrub)

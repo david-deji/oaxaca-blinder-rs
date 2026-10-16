@@ -11,6 +11,7 @@ use serde::Serialize;
 /// External oracles (R `oaxaca` 0.1.5 `twofold$overall`, rows by `group.weight`): GroupA = 1,
 /// GroupB = 0, Weighted = the share of group A, PooledNoIndicator = −1, Pooled = −2.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub enum ReferenceCoefficients {
     /// `β*` = the compared (non-reference) group's own coefficients.
     GroupA,

@@ -118,18 +118,24 @@ impl QuantileDecompositionBuilder {
     pub fn predictors<I, S>(&mut self, predictors: I) -> &mut Self
     where
         I: IntoIterator<Item = S>,
-        S: Into<String>,
+        S: AsRef<str>,
     {
-        self.predictors = predictors.into_iter().map(|s| s.into()).collect();
+        self.predictors = predictors
+            .into_iter()
+            .map(|s| s.as_ref().to_string())
+            .collect();
         self
     }
 
     pub fn categorical_predictors<I, S>(&mut self, predictors: I) -> &mut Self
     where
         I: IntoIterator<Item = S>,
-        S: Into<String>,
+        S: AsRef<str>,
     {
-        self.categorical_predictors = predictors.into_iter().map(|s| s.into()).collect();
+        self.categorical_predictors = predictors
+            .into_iter()
+            .map(|s| s.as_ref().to_string())
+            .collect();
         self
     }
 

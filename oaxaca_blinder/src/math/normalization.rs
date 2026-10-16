@@ -30,6 +30,7 @@ use std::collections::{BTreeMap, HashMap};
 
 /// Which weights the levels of a factor carry in the restriction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize)]
+#[non_exhaustive]
 pub enum NormalizationConvention {
     /// Level share of the pooled analysed rows (weights if set). 0120-MERIDIAN D1.
     #[default]

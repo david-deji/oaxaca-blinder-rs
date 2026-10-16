@@ -28,6 +28,11 @@ use crate::rows::{
 };
 use crate::types::{ComponentResult, DecompositionDetail, OaxacaResults, TwoFoldResults};
 
+/// The number of bootstrap replicates a run uses when [`OaxacaBuilder::bootstrap_reps`] is not
+/// called: 100. A percentile confidence interval needs at least 41. The command line tool uses
+/// the same default for `--bootstrap-reps`.
+pub const DEFAULT_BOOTSTRAP_REPS: usize = 100;
+
 #[derive(Clone)]
 #[allow(dead_code)]
 pub(crate) struct SinglePassResult {
@@ -336,6 +341,16 @@ impl OaxacaBuilder {
     /// * `outcome` - The name of the column representing the outcome variable (e.g., "wage").
     /// * `group` - The name of the column that divides the data into two groups (e.g., "gender").
     /// * `reference_group` - The value within the `group` column that identifies the reference group, "Group B": the baseline whose pay structure `ReferenceCoefficients::GroupB` applies. It is a choice of baseline and says nothing about which group earns less. Every other value is the compared group, "Group A".
+    ///
+    /// # Defaults
+    ///
+    /// * Bootstrap: [`DEFAULT_BOOTSTRAP_REPS`] (100) replicates, seeded with [`DEFAULT_SEED`], so two
+    ///   runs on the same data give the same numbers. A percentile confidence interval needs at
+    ///   least 41 replicates. Change both with [`bootstrap_reps`](Self::bootstrap_reps) and
+    ///   [`seed`](Self::seed).
+    /// * Reference coefficients: [`ReferenceCoefficients::GroupB`], the reference group's own
+    ///   coefficients. Version 0.2.2 defaulted to `GroupA`; call
+    ///   [`reference_coefficients`](Self::reference_coefficients) to get that back.
     pub fn new(dataframe: DataFrame, outcome: &str, group: &str, reference_group: &str) -> Self {
         Self {
             dataframe,
@@ -344,7 +359,7 @@ impl OaxacaBuilder {
             categorical_predictors: Vec::new(),
             group: group.to_string(),
             reference_group: reference_group.to_string(),
-            bootstrap_reps: 20,
+            bootstrap_reps: DEFAULT_BOOTSTRAP_REPS,
             reference_coeffs: ReferenceCoefficients::GroupB,
             normalization_vars: Vec::new(),
             normalization_convention: NormalizationConvention::default(),
@@ -364,6 +379,9 @@ impl OaxacaBuilder {
     /// * `formula` - A string representing the model formula (e.g., "wage ~ education + experience + C(sector)").
     /// * `group` - The name of the column defining the two groups.
     /// * `reference_group` - The value in the `group` column representing the reference group (Group B).
+    ///
+    /// The defaults are those of [`new`](Self::new): [`DEFAULT_BOOTSTRAP_REPS`] (100) replicates,
+    /// [`DEFAULT_SEED`], and [`ReferenceCoefficients::GroupB`].
     pub fn from_formula(
         dataframe: DataFrame,
         formula: &str,
@@ -378,7 +396,7 @@ impl OaxacaBuilder {
             categorical_predictors: parsed_formula.categorical_predictors,
             group: group.to_string(),
             reference_group: reference_group.to_string(),
-            bootstrap_reps: 20,
+            bootstrap_reps: DEFAULT_BOOTSTRAP_REPS,
             reference_coeffs: ReferenceCoefficients::GroupB,
             normalization_vars: Vec::new(),
             normalization_convention: NormalizationConvention::default(),
@@ -392,7 +410,9 @@ impl OaxacaBuilder {
 
     /// Sets the reference coefficients for the decomposition.
     ///
-    /// The default is `ReferenceCoefficients::GroupB`.
+    /// The default is `ReferenceCoefficients::GroupB`: the compared group is priced with the
+    /// reference group's own coefficients. Version 0.2.2 defaulted to `GroupA`, so a caller who
+    /// relied on that default must now ask for it.
     pub fn reference_coefficients(&mut self, reference: ReferenceCoefficients) -> &mut Self {
         self.reference_coeffs = reference;
         self
@@ -406,9 +426,12 @@ impl OaxacaBuilder {
     pub fn predictors<I, S>(&mut self, predictors: I) -> &mut Self
     where
         I: IntoIterator<Item = S>,
-        S: Into<String>,
+        S: AsRef<str>,
     {
-        self.predictors = predictors.into_iter().map(|s| s.into()).collect();
+        self.predictors = predictors
+            .into_iter()
+            .map(|s| s.as_ref().to_string())
+            .collect();
         self
     }
 
@@ -420,9 +443,12 @@ impl OaxacaBuilder {
     pub fn categorical_predictors<I, S>(&mut self, predictors: I) -> &mut Self
     where
         I: IntoIterator<Item = S>,
-        S: Into<String>,
+        S: AsRef<str>,
     {
-        self.categorical_predictors = predictors.into_iter().map(|s| s.into()).collect();
+        self.categorical_predictors = predictors
+            .into_iter()
+            .map(|s| s.as_ref().to_string())
+            .collect();
         self
     }
 
@@ -430,7 +456,10 @@ impl OaxacaBuilder {
     ///
     /// # Arguments
     ///
-    /// * `reps` - The number of bootstrap samples to generate. Defaults to 100.
+    /// * `reps` - The number of bootstrap samples to generate. Defaults to
+    ///   [`DEFAULT_BOOTSTRAP_REPS`] (100). A percentile confidence interval needs at least 41;
+    ///   fewer give no interval. Replicates are drawn from [`DEFAULT_SEED`] unless
+    ///   [`seed`](Self::seed) is set.
     pub fn bootstrap_reps(&mut self, reps: usize) -> &mut Self {
         self.bootstrap_reps = reps;
         self
@@ -479,9 +508,9 @@ impl OaxacaBuilder {
     pub fn normalize<I, S>(&mut self, vars: I) -> &mut Self
     where
         I: IntoIterator<Item = S>,
-        S: Into<String>,
+        S: AsRef<str>,
     {
-        self.normalization_vars = vars.into_iter().map(|s| s.into()).collect();
+        self.normalization_vars = vars.into_iter().map(|s| s.as_ref().to_string()).collect();
         self
     }
 
@@ -538,10 +567,13 @@ impl OaxacaBuilder {
     pub fn heckman_selection<I, S>(&mut self, outcome: &str, predictors: I) -> &mut Self
     where
         I: IntoIterator<Item = S>,
-        S: Into<String>,
+        S: AsRef<str>,
     {
         self.selection_outcome = Some(outcome.to_string());
-        self.selection_predictors = predictors.into_iter().map(|s| s.into()).collect();
+        self.selection_predictors = predictors
+            .into_iter()
+            .map(|s| s.as_ref().to_string())
+            .collect();
         self
     }
 

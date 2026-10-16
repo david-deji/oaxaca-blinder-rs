@@ -3,6 +3,7 @@ use std::fmt;
 
 /// Error type for the `oaxaca_blinder` library.
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum OaxacaError {
     /// Wraps a `PolarsError`.
     PolarsError(PolarsError),

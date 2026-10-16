@@ -47,6 +47,10 @@ mem-profile = []
 # `rayon` stays UNCONDITIONAL (line 23) so native parallelism is byte-unchanged
 # (INV-01). Enabling this only cfg-gates the wasm build; never in `default`.
 wasm-threads = []
+# Methods with no external oracle (0121-MERIDIAN L6): AKM worker and firm effects, DFL
+# reweighting, JMP changes over time, nearest-neighbour and propensity-score matching. Results
+# may change in any release. OFF by default; the CLI `--analysis-type akm|match` needs it too.
+experimental = []
 
 [dev-dependencies]
 assert_cmd = "2.0"
@@ -79,3 +83,8 @@ version = "0.5"
 [[bench]]
 name = "distance_bench"
 harness = false
+required-features = ["experimental"]
+
+[package.metadata.docs.rs]
+features = ["experimental"]
+rustdoc-args = ["--cfg", "docsrs"]

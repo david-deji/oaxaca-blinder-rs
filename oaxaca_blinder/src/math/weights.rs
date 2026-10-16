@@ -19,6 +19,7 @@ use crate::error::OaxacaError;
 
 /// Which meaning a weights column carries. See the module doc.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum WeightsKind {
     /// Integer replication counts.
     Frequency,
