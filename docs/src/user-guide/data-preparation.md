@@ -8,9 +8,9 @@ One row per employee. The analysis needs:
 - a **group** column with the two groups to compare (`gender`);
 - **predictors**: numeric columns (`education`, `experience`) and, optionally, categorical columns (`sector`).
 
-The group column must hold exactly two values once the rows are cleaned. You name one as the **reference group**
-(`F` in the examples). Every other value is the compared group. A third value is refused, so recode or filter
-first.
+The group column must hold exactly two values. You name one as the **reference group** (`F` in the examples) and
+every other value is the compared group. A third value is refused (`TOO_MANY_GROUP_VALUES`), even on a row that
+would be left out for a blank elsewhere, so recode or filter first.
 
 ## The outcome column must be floating point
 
