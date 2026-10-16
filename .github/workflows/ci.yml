@@ -56,8 +56,8 @@ jobs:
 
       # ground.sh and verify-live.sh feed the dev loop; a regression in their probes or validator would
       # otherwise change no CI result (0119 review F4). These cases need no wasm build and no app checkout.
-      - name: Test the loop scripts (ground.sh without gh/cargo; its validator; verify-live's app-tree check and receipt scrub)
-        run: python3 scripts/test-loop-scripts.py ground-nopath ground-validator verify-live-app-tree verify-live-scrub
+      - name: Test the loop scripts (ground.sh without gh/cargo; its validator; verify-live's dirty-tree prefix, app-tree check and receipt scrub)
+        run: python3 scripts/test-loop-scripts.py ground-nopath ground-validator verify-live-records-prefix verify-live-app-tree verify-live-scrub
 
   security:
     name: Security Audit
