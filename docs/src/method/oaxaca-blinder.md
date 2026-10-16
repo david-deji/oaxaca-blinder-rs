@@ -2,6 +2,7 @@
 
 ## Setting
 
+The decomposition is due to [Oaxaca (1973)](references.md#oaxaca-1973) and [Blinder (1973)](references.md#blinder-1973).
 Two groups, A and B. B is the **reference group** you name. A is every other row. For each group, an ordinary least
 squares regression of the outcome on the predictors gives coefficients \\( \beta\_A \\) and \\( \beta\_B \\). The
 average outcome is the average predictor vector times the coefficients, so the gap in means is
@@ -25,7 +26,7 @@ percentile interval. The choice of \\( \beta^\ast  \\) is the subject of
 Each part also splits by predictor into a **detailed** decomposition. Variable \\( k \\) contributes
 \\( (\bar X\_{A,k} - \bar X\_{B,k}) \beta^\ast \_k \\) to the explained part and
 \\( \bar X\_{A,k} (\beta\_{A,k} - \beta^\ast \_k) + \bar X\_{B,k} (\beta^\ast \_k - \beta\_{B,k}) \\) to the unexplained part. The
-intercept appears as a row under the reserved name `__ob_intercept__`.
+intercept appears as a row under the reserved name `__ob_intercept__`; the printed tables show it as `(intercept)`.
 
 ## Three-fold decomposition
 

@@ -23,7 +23,7 @@ Two conventions for the shares \\( s\_k \\) (`normalization_convention`):
   \\( \beta\_B \\), the pooled fit and the weighted mix alike, which keeps explained plus unexplained equal to the gap
   exactly. Adding a small department changes only that department's row. No package implements this restriction
   by hand. It is checked against a base-R weighted-effect-coding refit.
-- **Equal share**. \\( s\_k = 1/m \\). This is Yun (2005) and Gardeazabal and Ugidos (2004), and what Stata
+- **Equal share**. \\( s\_k = 1/m \\). This is [Yun (2005)](references.md#yun-2005) and [Gardeazabal and Ugidos (2004)](references.md#gardeazabal-ugidos-2004), and what Stata
   `categorical()`, R `oaxaca` (third formula part) and `ddecompose(normalize_factors = TRUE)` print. It is checked
   against `ddecompose` and R `oaxaca` to \\( 10^{-10} \\) (\\( 2 \times 10^{-10} \\) on the 10,000-row fixture).
 

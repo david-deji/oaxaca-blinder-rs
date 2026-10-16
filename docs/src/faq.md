@@ -38,12 +38,6 @@ replicate is discarded and counted. Merge rare levels, or use more rows. The cou
 The bootstrap seed is fixed. In the library, pass a different seed to change the draws, or `seed_from_entropy()` to draw one; the
 result records the seed it used. The command line has no seed option. See [Bootstrap and seeds](user-guide/bootstrap-and-seeds.md).
 
-## Why was my outcome column refused with `expected Float64, got i64`?
-
-This is the library, not the command line. A CSV column of whole numbers is read as an integer. Write the outcome with
-a decimal point (`45600.0`) or cast it before you build. The command line converts the outcome and weights columns
-itself.
-
 ## Why was a row left out?
 
 A blank in any column the model uses removes the row. `analysed_rows()` lists the rows left out and why. See

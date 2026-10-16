@@ -3,6 +3,16 @@ use comfy_table::{Cell, Table};
 
 use crate::types::OaxacaResults;
 
+/// The name of a row as a person reads it: the intercept token becomes `(intercept)`, other names are unchanged.
+#[cfg(feature = "display")]
+fn row_label(name: &str) -> &str {
+    if name == crate::INTERCEPT_NAME {
+        crate::INTERCEPT_LABEL
+    } else {
+        name
+    }
+}
+
 #[cfg(feature = "display")]
 impl OaxacaResults {
     /// Prints a formatted summary of the decomposition results to the console.
@@ -54,7 +64,7 @@ impl OaxacaResults {
         for component in self.two_fold.detailed_explained() {
             let ci = format!("[{:.3}, {:.3}]", component.ci_lower(), component.ci_upper());
             explained_table.add_row(vec![
-                Cell::new(component.name()),
+                Cell::new(row_label(component.name())),
                 Cell::new(format!("{:.4}", component.estimate())),
                 Cell::new(format!("{:.4}", component.std_err())),
                 Cell::new(format!("{:.4}", component.p_value())),
@@ -75,7 +85,7 @@ impl OaxacaResults {
         for component in self.two_fold.detailed_unexplained() {
             let ci = format!("[{:.3}, {:.3}]", component.ci_lower(), component.ci_upper());
             unexplained_table.add_row(vec![
-                Cell::new(component.name()),
+                Cell::new(row_label(component.name())),
                 Cell::new(format!("{:.4}", component.estimate())),
                 Cell::new(format!("{:.4}", component.std_err())),
                 Cell::new(format!("{:.4}", component.p_value())),

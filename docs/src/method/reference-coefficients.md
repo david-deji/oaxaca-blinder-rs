@@ -8,9 +8,9 @@ the reference group.
 |---|---|---|
 | `GroupA` | \\( \beta\_A \\) | the compared group's own coefficients |
 | `GroupB` | \\( \beta\_B \\) | the reference group's own coefficients |
-| `Pooled` | from one regression on both groups **with** a group indicator, whose coefficient is dropped | Jann 2008 `pooled`; Stata `oaxaca, pooled` |
-| `PooledNoIndicator` | from one regression on both groups **without** an indicator | Neumark 1988; Stata `omega` |
-| `Weighted` | \\( w \beta\_A + (1 - w) \beta\_B \\), with \\( w \\) the compared group's share of the rows | Cotton 1988 |
+| `Pooled` | from one regression on both groups **with** a group indicator, whose coefficient is dropped | [Jann 2008](references.md#jann-2008) `pooled`; Stata `oaxaca, pooled` |
+| `PooledNoIndicator` | from one regression on both groups **without** an indicator | [Neumark 1988](references.md#neumark-1988); Stata `omega` |
+| `Weighted` | \\( w \beta\_A + (1 - w) \beta\_B \\), with \\( w \\) the compared group's share of the rows | [Cotton 1988](references.md#cotton-1988) |
 
 ## Reading the schemes
 

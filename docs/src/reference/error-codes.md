@@ -22,6 +22,7 @@ Group values are compared exactly: `"F "`, `" "` and `"f"` are values of their o
 | `WEIGHTS_KIND_REQUIRED` | a weights column is named without a kind | `column` |
 | `UNKNOWN_WEIGHTS_KIND` | the kind is not `frequency` or `relative` | the value given |
 | `INVALID_WEIGHT` | a weight the kind cannot take: not finite, negative, or fractional under `frequency` | `column`, `row`, `value` |
+| `UNSUPPORTED_COMBINATION` | a Heckman selection model with `Pooled`, `PooledNoIndicator` or the deprecated `Neumark` | `option`, `with`, the schemes that work |
 
 ## Remedy tools (engine and MCP server)
 
