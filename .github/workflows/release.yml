@@ -249,7 +249,7 @@ jobs:
 
       # Prebuilt binary, exact version; the same one the `docs` job in ci.yml uses.
       - name: Install mdBook (pinned prebuilt)
-        uses: taiki-e/install-action@fa23953489c080190314742a9b907f8e97c6767c # v2.87.10
+        uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
         with:
           tool: mdbook@0.4.52
 
